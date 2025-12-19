@@ -1651,27 +1651,23 @@
     function handleTouchMode(dt) {
         // 触摸模式下的交互处理
         switch (STATE.mode) {
-            case 'PINCH':
-                // 捏合手势：缩放效果
-                camera.position.z = Math.sin(clock.elapsedTime * 0.002) * 2 + 5;
+            case 'TREE':
+                // 圣诞树模式：缓慢旋转
+                mainGroup.rotation.y += 0.3 * dt;
+                mainGroup.rotation.x = THREE.MathUtils.lerp(mainGroup.rotation.x, 0, dt);
                 break;
-            case 'ONE':
-                // 比"1"手势：旋转效果
-                camera.rotation.y += 0.01;
-                break;
-            case 'VICTORY':
-                // 比耶手势：上下移动
-                camera.position.y = Math.sin(clock.elapsedTime * 0.003) * 1;
-                break;
-            case 'FIVE':
-                // 五指张开：随机移动
+            case 'SCATTER':
+                // 散开模式：粒子散开效果，相机轻微移动
                 camera.position.x = Math.sin(clock.elapsedTime * 0.001) * 2;
                 camera.position.z = Math.cos(clock.elapsedTime * 0.001) * 2 + 5;
                 break;
-            case 'FIST':
-                // 握拳：静止观察
-                camera.position.set(0, 0, 5);
-                camera.lookAt(0, 0, 0);
+            case 'TEXT':
+                // 文字模式：上下移动相机
+                camera.position.y = Math.sin(clock.elapsedTime * 0.003) * 1;
+                break;
+            case 'LETTER':
+                // 信件模式：相机旋转
+                camera.rotation.y += 0.01;
                 break;
             case 'FOCUS':
                 // 聚焦模式：跟随目标
