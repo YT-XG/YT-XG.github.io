@@ -67,6 +67,61 @@
             letter-spacing: 1px; text-transform: uppercase;
         }
 
+        /* 提示按钮样式 */
+        .hint-btn {
+            background: rgba(20, 20, 20, 0.6);
+            border: 1px solid rgba(212, 175, 55, 0.4);
+            color: #d4af37; padding: 8px 15px; cursor: pointer;
+            letter-spacing: 1px; font-size: 10px; margin-top: 10px;
+            transition: all 0.4s; display: inline-block; backdrop-filter: blur(5px);
+            border-radius: 20px; pointer-events: auto;
+        }
+        .hint-btn:hover { 
+            background: #d4af37; color: #000; 
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.5); 
+            transform: scale(1.05);
+        }
+
+        /* 提示模态框样式 */
+        .hint-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8); z-index: 1000;
+            display: none; align-items: center; justify-content: center;
+            backdrop-filter: blur(10px);
+        }
+        .hint-modal.active { display: flex; }
+        .hint-content {
+            background: rgba(20, 20, 20, 0.9);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 15px; padding: 30px;
+            max-width: 400px; width: 90%;
+            backdrop-filter: blur(15px);
+        }
+        .hint-content h3 {
+            color: #d4af37; text-align: center; margin-bottom: 20px;
+            font-size: 18px; letter-spacing: 2px;
+        }
+        .hint-content ul {
+            list-style: none; padding: 0; margin: 0;
+        }
+        .hint-content li {
+            color: rgba(255, 255, 255, 0.9);
+            padding: 8px 0; font-size: 14px;
+            border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+        }
+        .hint-content li:last-child { border-bottom: none; }
+        .close-btn {
+            background: rgba(212, 175, 55, 0.2);
+            border: 1px solid rgba(212, 175, 55, 0.4);
+            color: #d4af37; padding: 8px 20px; cursor: pointer;
+            border-radius: 20px; margin-top: 20px; width: 100%;
+            transition: all 0.3s;
+        }
+        .close-btn:hover {
+            background: #d4af37; color: #000;
+            box-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+        }
+
 
 
         #file-input { display: none; }
@@ -542,10 +597,23 @@
     <h1>Merry Christmas</h1>
     <div class="upload-container">
         <div class="upload-wrapper">
-            <label class="upload-btn">Add Memories <input type="file" id="file-input" multiple accept="image/*"></label>
+            <label class="upload-btn">增加回忆<input type="file" id="file-input" multiple accept="image/*"></label>
         </div>
     </div>
-    <div class="hint-text">Gesture: '✌️' for Fireworks | '☝️' for Letter | '👌' for Photo</div>
+    <button class="hint-btn" id="hint-btn">💡 手势提示</button>
+    <div class="hint-modal" id="hint-modal">
+        <div class="hint-content">
+            <h3>手势操作说明</h3>
+            <ul>
+                <li>✌️ 比耶 - 触发烟花效果</li>
+                <li>☝️ 比1 - 打开圣诞信件</li>
+                <li>👌 捏合 - 聚焦照片</li>
+                <li>🖐️ 张开 - 散开圣诞树</li>
+                <li>✊ 握拳 - 恢复圣诞树</li>
+            </ul>
+            <button class="close-btn" id="close-hint">关闭</button>
+        </div>
+    </div>
 </div>
 
 <div id="webcam-wrapper">
@@ -1479,11 +1547,53 @@
             renderer.setSize(window.innerWidth, window.innerHeight); composer.setSize(window.innerWidth, window.innerHeight);
         });
         document.getElementById('file-input').addEventListener('change', handleImageUpload);
+        
+        // 等待DOM完全加载后再设置提示按钮事件
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupHintEvents);
+        } else {
+            setupHintEvents();
+        }
+        
         window.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'h') {
-                ['.upload-container', '.hint-text'].forEach(s => {
+                ['.upload-container', '.hint-btn'].forEach(s => {
                     const el = document.querySelector(s); if(el) el.classList.toggle('ui-hidden');
                 });
+            }
+        });
+    }
+    
+    function setupHintEvents() {
+        // 提示按钮交互
+        const hintBtn = document.getElementById('hint-btn');
+        const hintModal = document.getElementById('hint-modal');
+        const closeHint = document.getElementById('close-hint');
+        
+        if (!hintBtn || !hintModal || !closeHint) {
+            console.warn('提示按钮元素未找到，请检查HTML结构');
+            return;
+        }
+        
+        hintBtn.addEventListener('click', () => {
+            hintModal.classList.add('active');
+        });
+        
+        closeHint.addEventListener('click', () => {
+            hintModal.classList.remove('active');
+        });
+        
+        // 点击模态框背景关闭
+        hintModal.addEventListener('click', (e) => {
+            if (e.target === hintModal) {
+                hintModal.classList.remove('active');
+            }
+        });
+        
+        // ESC键关闭模态框
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && hintModal.classList.contains('active')) {
+                hintModal.classList.remove('active');
             }
         });
     }
