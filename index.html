@@ -67,36 +67,9 @@
             letter-spacing: 1px; text-transform: uppercase;
         }
 
-        /* Music Controls */
-        .music-controls {
-            pointer-events: auto; margin-top: 15px; display: flex; gap: 10px;
-            transition: opacity 0.5s ease;
-        }
-        .music-btn {
-            width: 40px; height: 40px; border-radius: 50%;
-            border: 1px solid rgba(212, 175, 55, 0.4); background: rgba(20, 20, 20, 0.6);
-            color: #d4af37; cursor: pointer; display: flex; align-items: center; justify-content: center;
-            backdrop-filter: blur(5px); transition: all 0.4s;
-        }
-        .music-btn:hover { background: #d4af37; color: #000; box-shadow: 0 0 15px rgba(212, 175, 55, 0.5); }
 
-        /* Volume */
-        .volume-control {
-            pointer-events: auto; margin-top: 10px; width: 150px; height: 2px;
-            background: rgba(212, 175, 55, 0.2); position: relative; cursor: pointer;
-            transition: opacity 0.5s ease;
-        }
-        .volume-slider {
-            position: absolute; top: 0; left: 0; height: 100%; width: 70%;
-            background: #d4af37; box-shadow: 0 0 10px rgba(212, 175, 55, 0.8);
-        }
-        .volume-handle {
-            position: absolute; top: 50%; left: 70%; transform: translate(-50%, -50%);
-            width: 10px; height: 10px; border-radius: 50%; background: #d4af37;
-            box-shadow: 0 0 8px rgba(212, 175, 55, 0.8);
-        }
 
-        #file-input, #music-input { display: none; }
+        #file-input { display: none; }
 
         #webcam-wrapper {
             position: absolute; bottom: 40px; right: 40px; width: 10px; height: 10px;
@@ -430,13 +403,13 @@
             h1 {
                 font-size: 36px;
                 letter-spacing: 3px;
-                margin-top: 10px;
+                margin-top: 20px;
             }
             
             .upload-container {
                 flex-direction: column;
                 gap: 10px;
-                margin-top: 10px;
+                margin-top: 15px;
             }
             
             .upload-btn {
@@ -444,20 +417,7 @@
                 font-size: 9px;
             }
             
-            /* 调整UI层整体位置 */
-            #ui-layer {
-                padding-top: 20px;
-            }
-            
-            /* 音乐控制移动端适配 */
-            .music-controls {
-                margin-top: 10px;
-            }
-            
-            .music-btn {
-                width: 35px;
-                height: 35px;
-            }
+
             
             .hint-text {
                 font-size: 8px;
@@ -484,15 +444,6 @@
             h1 {
                 font-size: 28px;
                 letter-spacing: 2px;
-                margin-top: 5px;
-            }
-            
-            .upload-container {
-                margin-top: 5px;
-            }
-            
-            #ui-layer {
-                padding-top: 15px;
             }
             
             .touch-btn {
@@ -591,7 +542,7 @@
     <h1>Merry Christmas</h1>
     <div class="upload-container">
         <div class="upload-wrapper">
-            <label class="upload-btn">点击添加回忆照片 <input type="file" id="file-input" multiple accept="image/*"></label>
+            <label class="upload-btn">Add Memories <input type="file" id="file-input" multiple accept="image/*"></label>
         </div>
     </div>
     <div class="hint-text">Gesture: '✌️' for Fireworks | '☝️' for Letter | '👌' for Photo</div>
@@ -602,7 +553,7 @@
     <canvas id="webcam-preview"></canvas>
 </div>
 
-<audio id="background-music" loop preload="auto"></audio>
+
 
 <script type="module">
     import * as THREE from 'three';
@@ -616,8 +567,7 @@
     // ⚙️ 配置区域
     // ==========================================
     const ASSETS = {
-        music: "./music.mp3",
-        images: ["./photo1.jpg"]
+        images: []
     };
 
     const CONFIG = {
@@ -635,9 +585,9 @@
         text: { string: "Merry Christmas", size: 10 },
         // 💌 书信内容配置
         letter: {
-            title: "To My Dearest Friend",
+            title: "My Friend\n兮眠",
             // 使用 \n 换行
-            content: "May this Christmas bring you happiness and joy.\n\n愿兮眠的圣诞充满温馨与快乐，\n新的一年万事如意，心想事成。\n抽卡永不歪\n\nBest Wishes,\n阴天种的西瓜,\n2025.12.25"
+            content: "May this Christmas bring you happiness and joy.\n\n愿兮眠的圣诞充满温馨与快乐，\n新的一年万事如意，心想事成。\n抽卡永不歪！！！\n\nBest Wishes\n阴天种的西瓜\n2025.12.25"
         }
     };
 
@@ -645,8 +595,7 @@
         mode: 'TREE', // TREE, SCATTER, FOCUS, TEXT, LETTER
         focusTarget: null,
         hand: { detected: false, x: 0, y: 0 },
-        rotation: { x: 0, y: 0, targetX: 0, targetY: 0 },
-        music: { isPlaying: false, volume: 0.7, audioElement: null }
+        rotation: { x: 0, y: 0, targetX: 0, targetY: 0 }
     };
 
     let scene, camera, renderer, composer;
@@ -839,7 +788,6 @@
         loadConfiguredImages();
         setupPostProcessing();
         setupEvents();
-        initMusicPlayer();
         await initMediaPipe();
         
         animate();
@@ -859,7 +807,6 @@
             loadConfiguredImages();
             setupPostProcessing();
             setupEvents();
-            initMusicPlayer();
             setupTouchControls(); // 设置触摸控制
             
             animate();
@@ -1444,66 +1391,7 @@
         });
     }
 
-    function initMusicPlayer() {
-        STATE.music.audioElement = document.getElementById('background-music');
-        const audio = STATE.music.audioElement;
-        audio.volume = STATE.music.volume;
 
-        if (ASSETS.music && ASSETS.music !== "") {
-            audio.src = ASSETS.music;
-            const playPromise = audio.play();
-            if (playPromise !== undefined) {
-                playPromise.then(_ => {
-                    STATE.music.isPlaying = true;
-                    document.getElementById('play-pause-btn').textContent = '⏸️';
-                }).catch(error => {
-                    console.log("浏览器阻止自动播放，等待交互...");
-                    const startAudio = () => {
-                        audio.play();
-                        STATE.music.isPlaying = true;
-                        document.getElementById('play-pause-btn').textContent = '⏸️';
-                        document.body.removeEventListener('click', startAudio);
-                    };
-                    document.body.addEventListener('click', startAudio);
-                });
-            }
-        }
-
-        const playPauseBtn = document.getElementById('play-pause-btn');
-        playPauseBtn.addEventListener('click', () => {
-            if (!audio.src) { if (!ASSETS.music) alert("请先在代码中配置 music.mp3 或上传音乐"); return; }
-            if (STATE.music.isPlaying) { audio.pause(); playPauseBtn.textContent = '▶️'; }
-            else { audio.play(); playPauseBtn.textContent = '⏸️'; }
-            STATE.music.isPlaying = !STATE.music.isPlaying;
-        });
-
-        const restartBtn = document.getElementById('restart-btn');
-        restartBtn.addEventListener('click', () => {
-            if (!audio.src) return;
-            audio.currentTime = 0; if (STATE.music.isPlaying) audio.play();
-        });
-
-        const volumeControl = document.getElementById('volume-control');
-        const volumeSlider = document.getElementById('volume-slider');
-        const volumeHandle = document.getElementById('volume-handle');
-        const updateVol = (clientX, rect) => {
-             const newVolume = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-             STATE.music.volume = newVolume; audio.volume = newVolume;
-             volumeSlider.style.width = `${newVolume * 100}%`; volumeHandle.style.left = `${newVolume * 100}%`;
-        };
-        volumeControl.addEventListener('click', (e) => updateVol(e.clientX, volumeControl.getBoundingClientRect()));
-
-        let isDragging = false;
-        volumeHandle.addEventListener('mousedown', () => isDragging = true);
-        document.addEventListener('mouseup', () => isDragging = false);
-        document.addEventListener('mousemove', (e) => { if(isDragging) updateVol(e.clientX, volumeControl.getBoundingClientRect()); });
-
-        document.getElementById('music-input').addEventListener('change', (e) => {
-            const file = e.target.files[0]; if (!file) return;
-            audio.src = URL.createObjectURL(file);
-            audio.play().then(() => { STATE.music.isPlaying = true; playPauseBtn.textContent = '⏸️'; });
-        });
-    }
 
     async function initMediaPipe() {
         // 如果是触摸模式，则不启动摄像头
@@ -1593,7 +1481,7 @@
         document.getElementById('file-input').addEventListener('change', handleImageUpload);
         window.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'h') {
-                ['.upload-container', '.music-controls', '.volume-control', '.hint-text'].forEach(s => {
+                ['.upload-container', '.hint-text'].forEach(s => {
                     const el = document.querySelector(s); if(el) el.classList.toggle('ui-hidden');
                 });
             }
@@ -1651,23 +1539,27 @@
     function handleTouchMode(dt) {
         // 触摸模式下的交互处理
         switch (STATE.mode) {
-            case 'TREE':
-                // 圣诞树模式：缓慢旋转
-                mainGroup.rotation.y += 0.3 * dt;
-                mainGroup.rotation.x = THREE.MathUtils.lerp(mainGroup.rotation.x, 0, dt);
+            case 'PINCH':
+                // 捏合手势：缩放效果
+                camera.position.z = Math.sin(clock.elapsedTime * 0.002) * 2 + 5;
                 break;
-            case 'SCATTER':
-                // 散开模式：粒子散开效果，相机轻微移动
+            case 'ONE':
+                // 比"1"手势：旋转效果
+                camera.rotation.y += 0.01;
+                break;
+            case 'VICTORY':
+                // 比耶手势：上下移动
+                camera.position.y = Math.sin(clock.elapsedTime * 0.003) * 1;
+                break;
+            case 'FIVE':
+                // 五指张开：随机移动
                 camera.position.x = Math.sin(clock.elapsedTime * 0.001) * 2;
                 camera.position.z = Math.cos(clock.elapsedTime * 0.001) * 2 + 5;
                 break;
-            case 'TEXT':
-                // 文字模式：上下移动相机
-                camera.position.y = Math.sin(clock.elapsedTime * 0.003) * 1;
-                break;
-            case 'LETTER':
-                // 信件模式：相机旋转
-                camera.rotation.y += 0.01;
+            case 'FIST':
+                // 握拳：静止观察
+                camera.position.set(0, 0, 5);
+                camera.lookAt(0, 0, 0);
                 break;
             case 'FOCUS':
                 // 聚焦模式：跟随目标
