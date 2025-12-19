@@ -62,10 +62,7 @@
             transition: all 0.4s; display: inline-block; backdrop-filter: blur(5px);
         }
         .upload-btn:hover { background: #d4af37; color: #000; box-shadow: 0 0 20px rgba(212, 175, 55, 0.5); }
-        .hint-text {
-            color: rgba(212, 175, 55, 0.5); font-size: 9px; margin-top: 8px;
-            letter-spacing: 1px; text-transform: uppercase;
-        }
+
 
         /* 提示按钮样式 */
         .hint-btn {
@@ -475,10 +472,7 @@
             
 
             
-            .hint-text {
-                font-size: 8px;
-                margin-top: 5px;
-            }
+
         }
         
         /* 超小屏幕适配 */
@@ -1566,51 +1560,21 @@
     }
     
     function setupHintEvents() {
-        // 提示按钮交互 - 使用更直接的事件绑定
-        console.log('开始设置提示按钮事件');
-        
         const hintBtn = document.getElementById('hint-btn');
         const hintModal = document.getElementById('hint-modal');
         const closeHint = document.getElementById('close-hint');
         
-        if (!hintBtn || !hintModal || !closeHint) {
-            console.error('提示按钮元素未找到:', {hintBtn, hintModal, closeHint});
-            return;
-        }
+        if (!hintBtn || !hintModal || !closeHint) return;
         
-        console.log('成功找到提示按钮元素');
+        const showModal = () => hintModal.classList.add('active');
+        const hideModal = () => hintModal.classList.remove('active');
         
-        // 使用更可靠的事件绑定方式
-        hintBtn.onclick = function(e) {
-            e.stopPropagation();
-            console.log('点击提示按钮 - 打开模态框');
-            hintModal.classList.add('active');
-        };
+        hintBtn.onclick = (e) => { e.stopPropagation(); showModal(); };
+        closeHint.onclick = (e) => { e.stopPropagation(); e.preventDefault(); hideModal(); };
         
-        closeHint.onclick = function(e) {
-            e.stopPropagation();
-            e.preventDefault();
-            console.log('点击关闭按钮 - 关闭模态框');
-            hintModal.classList.remove('active');
-        };
+        hintModal.onclick = (e) => { if (e.target === hintModal) hideModal(); };
         
-        // 点击模态框背景关闭
-        hintModal.onclick = function(e) {
-            if (e.target === hintModal) {
-                console.log('点击模态框背景 - 关闭模态框');
-                hintModal.classList.remove('active');
-            }
-        };
-        
-        // ESC键关闭模态框
-        document.onkeydown = function(e) {
-            if (e.key === 'Escape' && hintModal.classList.contains('active')) {
-                console.log('按ESC键 - 关闭模态框');
-                hintModal.classList.remove('active');
-            }
-        };
-        
-        console.log('提示按钮事件设置完成');
+        document.onkeydown = (e) => { if (e.key === 'Escape' && hintModal.classList.contains('active')) hideModal(); };
     }
 
     function animate() {
