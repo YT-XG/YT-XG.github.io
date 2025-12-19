@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>圣诞树 - 手势控制</title>
+    <style>
+        * { -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; overflow: hidden; background-color: #000000; font-family: 'Times New Roman', serif; touch-action: none; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10; pointer-events: none;
+            display: flex; flex-direction: column; 
+            align-items: center;
+            padding-top: 30px;
+            box-sizing: border-box;
+        }
+
+        /* Permission Modal */
+        #permission-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95); z-index: 1000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            backdrop-filter: blur(5px);
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        }
+        #permission-modal.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .permission-content {
+            background: rgba(30, 30, 30, 0.8);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 85%;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            animation: fadeInUp 0.5s ease;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .permission-icon {
+            font-size: 48px; margin-bottom: 15px;
+        }
+        .permission-title {
+            color: #fceea7; font-size: 22px; margin-bottom: 15px;
+            letter-spacing: 2px; font-family: 'Cinzel', serif;
+        }
+        .permission-text {
+            color: rgba(255, 255, 255, 0.8); font-size: 14px;
+            line-height: 1.5; margin-bottom: 25px;
+            letter-spacing: 0.5px;
+        }
+        .permission-buttons {
+            display: flex; gap: 15px; justify-content: center;
+        }
+        .permission-btn {
+            padding: 12px 30px; border: none; border-radius: 6px;
+            font-size: 14px; font-weight: 500; letter-spacing: 1px;
+            cursor: pointer; transition: all 0.3s ease;
+            text-transform: uppercase; min-width: 120px;
+        }
+        .permission-btn.allow {
+            background: #d4af37; color: #000;
+        }
+        .permission-btn.deny {
+            background: rgba(255, 255, 255, 0.1); color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .permission-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        .permission-btn.allow:hover { background: #e8c158; }
+        .permission-btn.deny:hover { background: rgba(255, 255, 255, 0.15); }
+
+        /* Loading */
+        #loader {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 100;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.8s ease-out;
+        }
+        #loader.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .loader-text {
+            color: #d4af37; font-size: 14px; letter-spacing: 4px; margin-top: 20px;
+            text-transform: uppercase; font-weight: 100;
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 1px solid rgba(212, 175, 55, 0.2); 
+            border-top: 1px solid #d4af37; border-radius: 50%; 
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Typography */
+        h1 { 
+            color: #fceea7; font-size: 32px; margin: 0; font-weight: 400; 
+            letter-spacing: 4px; 
+            text-shadow: 0 0 50px rgba(252, 238, 167, 0.6); 
+            background: linear-gradient(to bottom, #fff, #eebb66);
+            -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+            font-family: 'Cinzel', 'Times New Roman', serif;
+            opacity: 0.9;
+        }
+
+        /* Upload Button */
+        .upload-wrapper {
+            margin-top: 15px;
+            pointer-events: auto;
+            text-align: center;
+        }
+        .upload-btn {
+            background: rgba(20, 20, 20, 0.6); 
+            border: 1px solid rgba(212, 175, 55, 0.4); 
+            color: #d4af37; 
+            padding: 10px 20px; 
+            cursor: pointer; 
+            text-transform: uppercase; 
+            letter-spacing: 2px; 
+            font-size: 10px;
+            transition: all 0.4s;
+            display: inline-block;
+            backdrop-filter: blur(5px);
+        }
+        .upload-btn:active { 
+            background: #d4af37; 
+            color: #000; 
+        }
+        .hint-text {
+            color: rgba(212, 175, 55, 0.6);
+            font-size: 10px;
+            margin-top: 10px;
+            letter-spacing: 1px;
+        }
+        #file-input { display: none; }
+
+        /* 祝福语样式 */
+        .blessing-left, .blessing-right {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            z-index: 5;
+        }
+        
+        .blessing-left {
+            left: 20px;
+        }
+        
+        .blessing-right {
+            right: 20px;
+        }
+        
+        .blessing-text {
+            color: #fceea7;
+            font-size: 24px;
+            font-weight: 400;
+            letter-spacing: 3px;
+            text-shadow: 0 0 20px rgba(252, 238, 167, 0.8);
+            background: linear-gradient(to bottom, #fff, #eebb66);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-family: 'Cinzel', 'Times New Roman', serif;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            opacity: 0.9;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        /* 响应式 */
+        @media screen and (max-width: 480px) {
+            h1 { font-size: 26px; letter-spacing: 2px; }
+            #ui-layer { padding-top: 20px; }
+            .upload-btn { padding: 8px 16px; font-size: 9px; }
+            .permission-content { padding: 20px; width: 90%; }
+            .permission-title { font-size: 18px; }
+            .permission-text { font-size: 13px; }
+            .permission-buttons { flex-direction: column; gap: 10px; }
+            .permission-btn { min-width: auto; width: 100%; }
+            
+            .blessing-text {
+                font-size: 18px;
+                letter-spacing: 2px;
+            }
+            
+            .blessing-left {
+                left: 10px;
+            }
+            
+            .blessing-right {
+                right: 10px;
+            }
+        }
+
+        @media screen and (max-height: 500px) and (orientation: landscape) {
+            h1 { font-size: 22px; }
+            #ui-layer { padding-top: 10px; }
+            .upload-wrapper { margin-top: 8px; }
+            .permission-content { padding: 15px; max-width: 400px; }
+            .permission-title { font-size: 18px; margin-bottom: 10px; }
+            .permission-text { font-size: 12px; margin-bottom: 15px; }
+        }
+    </style>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap');
+    </style>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+                "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/+esm"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <!-- 主界面容器 - 默认隐藏 -->
+    <div id="main-content" style="display: none;">
+        <!-- 权限请求模态框 -->
+        <div id="permission-modal">
+            <div class="permission-content">
+                <div class="permission-icon">🎄</div>
+                <h2 class="permission-title">开启手势控制</h2>
+                <div class="permission-text">
+                    这个功能要开启摄像头，用手比划就可以产生酷炫效果<br>
+                    当然你也可以不开摄像头，只是效果没那么炫酷<br>
+                </div>
+                <div class="permission-buttons">
+                    <button id="allow-camera" class="permission-btn allow">允许使用摄像头</button>
+                    <button id="deny-camera" class="permission-btn deny">不使用手势控制</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="loader" class="hidden">
+            <div class="spinner"></div>
+            <div class="loader-text">加载中...</div>
+        </div>
+
+        <div id="canvas-container"></div>
+
+        <div id="ui-layer">
+            <h1>祝兮眠圣诞快乐！！！</h1>
+            
+            <!-- 祝福语 - 左侧 -->
+            <div class="blessing-left">
+                <div class="blessing-text">祝你身体健康</div>
+            </div>
+            
+            <!-- 祝福语 - 右侧 -->
+            <div class="blessing-right">
+                <div class="blessing-text">开开心心发大财</div>
+            </div>
+            
+            <div class="upload-wrapper">
+                <label class="upload-btn">
+                    添加照片
+                    <input type="file" id="file-input" multiple accept="image/*">
+                </label>
+                <div class="hint-text">🖐️ 张开散开 · ✊ 握拳合拢 · 🤏 捏合聚焦</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 隐藏的视频元素用于手势识别 -->
+    <video id="webcam" autoplay playsinline style="display:none;"></video>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'; 
+        import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
+
+        // 日期检查函数
+        function checkDate() {
+            const today = new Date();
+            const targetDate = new Date(2025, 11, 19); // 注意：月份从0开始，11代表12月
+            
+            // 检查是否是2025年12月25日
+            if (today.getFullYear() === targetDate.getFullYear() && 
+                today.getMonth() === targetDate.getMonth() && 
+                today.getDate() === targetDate.getDate()) {
+                return true; // 是目标日期，可以正常进入
+            }
+            
+            return false; // 不是目标日期，显示倒计时
+        }
+
+        // 倒计时功能
+        function showCountdown() {
+            const targetDate = new Date(2025, 11, 25).getTime();
+            
+            // 创建倒计时容器
+            const countdownContainer = document.createElement('div');
+            countdownContainer.id = 'countdown-container';
+            countdownContainer.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(135deg, #0c1a2d, #1a1a2e);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                color: white;
+                font-family: 'Cinzel', 'Times New Roman', serif;
+            `;
+            
+            // 创建倒计时内容
+            countdownContainer.innerHTML = `
+                <div style="text-align: center; padding: 40px; background: rgba(0, 0, 0, 0.7); border-radius: 20px; border: 2px solid #d4af37;">
+                    <h1 style="color: #fceea7; font-size: 36px; margin-bottom: 30px; letter-spacing: 3px;">
+                        圣诞倒计时
+                    </h1>
+                    <div id="countdown-timer" style="font-size: 48px; color: #d4af37; margin-bottom: 20px; font-weight: bold;">
+                        计算中...
+                    </div>
+                    <div style="color: rgba(255, 255, 255, 0.8); font-size: 18px; margin-bottom: 30px;">
+                        距离2025年圣诞节还有
+                    </div>
+                    <div id="countdown-details" style="font-size: 16px; color: rgba(255, 255, 255, 0.7);">
+                        <div><span id="days">0</span>天</div>
+                        <div><span id="hours">0</span>时</div>
+                        <div><span id="minutes">0</span>分</div>
+                        <div><span id="seconds">0</span>秒</div>
+                    </div>
+                    <div style="margin-top: 30px; font-size: 14px; color: rgba(255, 255, 255, 0.5);">
+                        今年圣诞节记得来看哦~
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(countdownContainer);
+            
+            // 更新倒计时函数
+            function updateCountdown() {
+                const now = new Date().getTime();
+                const distance = targetDate - now;
+                
+                if (distance < 0) {
+                    // 时间到了，重新加载页面
+                    location.reload();
+                    return;
+                }
+                
+                // 计算天、时、分、秒
+                const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+                
+                // 更新显示
+                document.getElementById('countdown-timer').textContent = 
+                    `${days.toString().padStart(2, '0')}:${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                
+                document.getElementById('days').textContent = days;
+                document.getElementById('hours').textContent = hours;
+                document.getElementById('minutes').textContent = minutes;
+                document.getElementById('seconds').textContent = seconds;
+            }
+            
+            // 立即更新一次
+            updateCountdown();
+            
+            // 每秒更新一次
+            setInterval(updateCountdown, 1000);
+        }
+
+        // 主入口函数
+        function main() {
+            if (checkDate()) {
+                // 是目标日期，显示主界面并正常启动应用
+                document.getElementById('main-content').style.display = 'block';
+                setupPermissionModal();
+            } else {
+                // 不是目标日期，显示倒计时
+                showCountdown();
+            }
+        }
+
+        // --- 配置 ---
+        const CONFIG = {
+            colors: {
+                bg: 0x000000, 
+                champagneGold: 0xffd966, 
+                deepGreen: 0x03180a,     
+                accentRed: 0x990000,     
+            },
+            particles: {
+                count: 600,     
+                dustCount: 800, 
+                treeHeight: 20,  
+                treeRadius: 6.5    
+            },
+            camera: {
+                z: 55
+            }
+        };
+
+        const STATE = {
+            mode: 'TREE', 
+            focusTarget: null,
+            hand: { detected: false, x: 0, y: 0 },
+            rotation: { x: 0, y: 0 },
+            touch: {
+                isDragging: false,
+                lastX: 0,
+                lastY: 0,
+                pinchDistance: 0
+            },
+            cameraAllowed: false // 新增：记录用户是否允许使用摄像头
+        };
+
+        let scene, camera, renderer, composer;
+        let mainGroup; 
+        let clock = new THREE.Clock();
+        let particleSystem = []; 
+        let photoMeshGroup = new THREE.Group();
+        let handLandmarker, video;
+        let caneTexture; 
+
+        // 处理权限请求
+        function setupPermissionModal() {
+            const modal = document.getElementById('permission-modal');
+            const allowBtn = document.getElementById('allow-camera');
+            const denyBtn = document.getElementById('deny-camera');
+            const loader = document.getElementById('loader');
+
+            // 首先检查是否支持媒体设备
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                // 设备不支持，直接跳过手势识别
+                console.log('设备不支持摄像头访问');
+                modal.classList.add('hidden');
+                loader.classList.remove('hidden');
+                initApp(false);
+                return;
+            }
+
+            allowBtn.addEventListener('click', async () => {
+                try {
+                    // 先请求摄像头权限
+                    // const stream = await navigator.mediaDevices.getUserMedia({ 
+                    //     video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } } 
+                    // });
+                    
+                    // 停止流中的轨道（我们会在 initMediaPipe 中重新获取）
+                    // stream.getTracks().forEach(track => track.stop());
+                    
+                    STATE.cameraAllowed = true;
+                    modal.classList.add('hidden');
+                    loader.classList.remove('hidden');
+                    initApp(true);
+                } catch (err) {
+                    console.warn('摄像头访问被拒绝:', err);
+                    // 用户拒绝了权限，使用无手势版本
+                    modal.classList.add('hidden');
+                    loader.classList.remove('hidden');
+                    initApp(false);
+                }
+            });
+
+            denyBtn.addEventListener('click', () => {
+                STATE.cameraAllowed = false;
+                modal.classList.add('hidden');
+                loader.classList.remove('hidden');
+                initApp(false);
+            });
+
+            // 可选：添加键盘支持
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !modal.classList.contains('hidden')) {
+                    allowBtn.click();
+                } else if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                    denyBtn.click();
+                }
+            });
+        }
+
+        // 初始化应用
+        async function initApp(enableGestureControl) {
+            initThree();
+            setupEnvironment(); 
+            setupLights();
+            createTextures();
+            createParticles(); 
+            createDust();     
+            createDefaultPhotos();
+            setupPostProcessing();
+            setupEvents();
+            
+            if (enableGestureControl) {
+                await initMediaPipe();
+            } else {
+                // 如果用户选择不使用手势控制，隐藏手势提示
+                document.querySelector('.hint-text').textContent = "📱 触摸旋转/缩放 · 📤 添加照片";
+            }
+            
+            const loader = document.getElementById('loader');
+            loader.style.opacity = 0;
+            setTimeout(() => loader.remove(), 800);
+
+            animate();
+        }
+
+        function initThree() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(CONFIG.colors.bg);
+            scene.fog = new THREE.FogExp2(CONFIG.colors.bg, 0.01); 
+
+            camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 2, CONFIG.camera.z); 
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ReinhardToneMapping; 
+            renderer.toneMappingExposure = 2.2; 
+            container.appendChild(renderer.domElement);
+
+            mainGroup = new THREE.Group();
+            scene.add(mainGroup);
+        }
+
+        function setupEnvironment() {
+            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+        }
+
+        function setupLights() {
+            const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambient);
+
+            const innerLight = new THREE.PointLight(0xffaa00, 2, 20);
+            innerLight.position.set(0, 5, 0);
+            mainGroup.add(innerLight);
+
+            const spotGold = new THREE.SpotLight(0xffcc66, 1200);
+            spotGold.position.set(30, 40, 40);
+            spotGold.angle = 0.5;
+            spotGold.penumbra = 0.5;
+            scene.add(spotGold);
+
+            const spotBlue = new THREE.SpotLight(0x6688ff, 600);
+            spotBlue.position.set(-30, 20, -30);
+            scene.add(spotBlue);
+            
+            const fill = new THREE.DirectionalLight(0xffeebb, 0.8);
+            fill.position.set(0, 0, 50);
+            scene.add(fill);
+        }
+
+        function setupPostProcessing() {
+            const renderScene = new RenderPass(scene, camera);
+            const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+            bloomPass.threshold = 0.7; 
+            bloomPass.strength = 0.45; 
+            bloomPass.radius = 0.4;
+
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+        }
+
+        function createTextures() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0,0,128,128);
+            ctx.fillStyle = '#880000'; 
+            ctx.beginPath();
+            for(let i=-128; i<256; i+=32) {
+                ctx.moveTo(i, 0); ctx.lineTo(i+32, 128); ctx.lineTo(i+16, 128); ctx.lineTo(i-16, 0);
+            }
+            ctx.fill();
+            caneTexture = new THREE.CanvasTexture(canvas);
+            caneTexture.wrapS = THREE.RepeatWrapping;
+            caneTexture.wrapT = THREE.RepeatWrapping;
+            caneTexture.repeat.set(3, 3);
+        }
+
+        class Particle {
+            constructor(mesh, type, isDust = false) {
+                this.mesh = mesh;
+                this.type = type;
+                this.isDust = isDust;
+                
+                this.posTree = new THREE.Vector3();
+                this.posScatter = new THREE.Vector3();
+                this.baseScale = mesh.scale.x; 
+
+                const speedMult = (type === 'PHOTO') ? 0.3 : 2.0;
+                this.spinSpeed = new THREE.Vector3(
+                    (Math.random() - 0.5) * speedMult,
+                    (Math.random() - 0.5) * speedMult,
+                    (Math.random() - 0.5) * speedMult
+                );
+
+                this.calculatePositions();
+            }
+
+            calculatePositions() {
+                const h = CONFIG.particles.treeHeight;
+                const halfH = h / 2;
+                let t = Math.random(); 
+                t = Math.pow(t, 0.8); 
+                const y = (t * h) - halfH;
+                let rMax = CONFIG.particles.treeRadius * (1.0 - t); 
+                if (rMax < 0.5) rMax = 0.5;
+                const angle = t * 50 * Math.PI + Math.random() * Math.PI; 
+                const r = rMax * (0.8 + Math.random() * 0.4); 
+                this.posTree.set(Math.cos(angle) * r, y, Math.sin(angle) * r);
+
+                let rScatter = this.isDust ? (12 + Math.random()*20) : (8 + Math.random()*12);
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                this.posScatter.set(
+                    rScatter * Math.sin(phi) * Math.cos(theta),
+                    rScatter * Math.sin(phi) * Math.sin(theta),
+                    rScatter * Math.cos(phi)
+                );
+            }
+
+            update(dt, mode, focusTargetMesh) {
+                let target = this.posTree;
+                
+                if (mode === 'SCATTER') target = this.posScatter;
+                else if (mode === 'FOCUS') {
+                    if (this.mesh === focusTargetMesh) {
+                        const desiredWorldPos = new THREE.Vector3(0, 2, 35);
+                        const invMatrix = new THREE.Matrix4().copy(mainGroup.matrixWorld).invert();
+                        target = desiredWorldPos.applyMatrix4(invMatrix);
+                    } else {
+                        target = this.posScatter;
+                    }
+                }
+
+                const lerpSpeed = (mode === 'FOCUS' && this.mesh === focusTargetMesh) ? 5.0 : 2.0; 
+                this.mesh.position.lerp(target, lerpSpeed * dt);
+
+                if (mode === 'SCATTER') {
+                    this.mesh.rotation.x += this.spinSpeed.x * dt;
+                    this.mesh.rotation.y += this.spinSpeed.y * dt;
+                    this.mesh.rotation.z += this.spinSpeed.z * dt;
+                } else if (mode === 'TREE') {
+                    this.mesh.rotation.x = THREE.MathUtils.lerp(this.mesh.rotation.x, 0, dt);
+                    this.mesh.rotation.z = THREE.MathUtils.lerp(this.mesh.rotation.z, 0, dt);
+                    this.mesh.rotation.y += 0.5 * dt; 
+                }
+                
+                if (mode === 'FOCUS' && this.mesh === focusTargetMesh) {
+                    this.mesh.lookAt(camera.position); 
+                }
+
+                let s = this.baseScale;
+                if (this.isDust) {
+                    s = this.baseScale * (0.8 + 0.4 * Math.sin(clock.elapsedTime * 4 + this.mesh.id));
+                    if (mode === 'TREE') s = 0; 
+                } else if (mode === 'SCATTER' && this.type === 'PHOTO') {
+                    s = this.baseScale * 2.5; 
+                } else if (mode === 'FOCUS') {
+                    if (this.mesh === focusTargetMesh) s = 4.5; 
+                    else s = this.baseScale * 0.8; 
+                }
+                
+                this.mesh.scale.lerp(new THREE.Vector3(s,s,s), 4*dt);
+            }
+        }
+
+        function createParticles() {
+            const sphereGeo = new THREE.SphereGeometry(0.5, 32, 32); 
+            const boxGeo = new THREE.BoxGeometry(0.55, 0.55, 0.55); 
+            const curve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(0, -0.5, 0), new THREE.Vector3(0, 0.3, 0),
+                new THREE.Vector3(0.1, 0.5, 0), new THREE.Vector3(0.3, 0.4, 0)
+            ]);
+            const candyGeo = new THREE.TubeGeometry(curve, 16, 0.08, 8, false);
+
+            const goldMat = new THREE.MeshStandardMaterial({
+                color: CONFIG.colors.champagneGold,
+                metalness: 1.0, roughness: 0.1,
+                envMapIntensity: 2.0, 
+                emissive: 0x443300,   
+                emissiveIntensity: 0.3
+            });
+
+            const greenMat = new THREE.MeshStandardMaterial({
+                color: CONFIG.colors.deepGreen,
+                metalness: 0.2, roughness: 0.8,
+                emissive: 0x002200,
+                emissiveIntensity: 0.2 
+            });
+
+            const redMat = new THREE.MeshPhysicalMaterial({
+                color: CONFIG.colors.accentRed,
+                metalness: 0.3, roughness: 0.2, clearcoat: 1.0,
+                emissive: 0x330000
+            });
+            
+            const candyMat = new THREE.MeshStandardMaterial({ map: caneTexture, roughness: 0.4 });
+
+            for (let i = 0; i < CONFIG.particles.count; i++) {
+                const rand = Math.random();
+                let mesh, type;
+                
+                if (rand < 0.40) {
+                    mesh = new THREE.Mesh(boxGeo, greenMat);
+                    type = 'BOX';
+                } else if (rand < 0.70) {
+                    mesh = new THREE.Mesh(boxGeo, goldMat);
+                    type = 'GOLD_BOX';
+                } else if (rand < 0.92) {
+                    mesh = new THREE.Mesh(sphereGeo, goldMat);
+                    type = 'GOLD_SPHERE';
+                } else if (rand < 0.97) {
+                    mesh = new THREE.Mesh(sphereGeo, redMat);
+                    type = 'RED';
+                } else {
+                    mesh = new THREE.Mesh(candyGeo, candyMat);
+                    type = 'CANE';
+                }
+
+                const s = 0.4 + Math.random() * 0.5;
+                mesh.scale.set(s,s,s);
+                mesh.rotation.set(Math.random()*6, Math.random()*6, Math.random()*6);
+                
+                mainGroup.add(mesh);
+                particleSystem.push(new Particle(mesh, type, false));
+            }
+
+            const starGeo = new THREE.OctahedronGeometry(1.2, 0);
+            const starMat = new THREE.MeshStandardMaterial({
+                color: 0xffdd88, emissive: 0xffaa00, emissiveIntensity: 1.0,
+                metalness: 1.0, roughness: 0
+            });
+            const star = new THREE.Mesh(starGeo, starMat);
+            star.position.set(0, CONFIG.particles.treeHeight/2 + 1.2, 0);
+            mainGroup.add(star);
+            
+            mainGroup.add(photoMeshGroup);
+        }
+
+        function createDust() {
+            const geo = new THREE.TetrahedronGeometry(0.08, 0);
+            const mat = new THREE.MeshBasicMaterial({ color: 0xffeebb, transparent: true, opacity: 0.8 });
+            
+            for(let i=0; i<CONFIG.particles.dustCount; i++) {
+                 const mesh = new THREE.Mesh(geo, mat);
+                 mesh.scale.setScalar(0.5 + Math.random());
+                 mainGroup.add(mesh);
+                 particleSystem.push(new Particle(mesh, 'DUST', true));
+            }
+        }
+
+        function createDefaultPhotos() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#050505'; ctx.fillRect(0,0,512,512);
+            ctx.strokeStyle = '#eebb66'; ctx.lineWidth = 15; ctx.strokeRect(20,20,472,472);
+            ctx.font = '500 60px Times New Roman'; ctx.fillStyle = '#eebb66';
+            ctx.textAlign = 'center'; 
+            ctx.fillText("JOYEUX", 256, 230);
+            ctx.fillText("NOEL", 256, 300);
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            addPhotoToScene(tex);
+        }
+
+        function addPhotoToScene(texture) {
+            const frameGeo = new THREE.BoxGeometry(1.4, 1.4, 0.05);
+            const frameMat = new THREE.MeshStandardMaterial({ color: CONFIG.colors.champagneGold, metalness: 1.0, roughness: 0.1 });
+            const frame = new THREE.Mesh(frameGeo, frameMat);
+
+            const photoGeo = new THREE.PlaneGeometry(1.2, 1.2);
+            const photoMat = new THREE.MeshBasicMaterial({ map: texture });
+            const photo = new THREE.Mesh(photoGeo, photoMat);
+            photo.position.z = 0.04;
+
+            const group = new THREE.Group();
+            group.add(frame);
+            group.add(photo);
+            
+            const s = 0.8;
+            group.scale.set(s,s,s);
+            
+            photoMeshGroup.add(group);
+            particleSystem.push(new Particle(group, 'PHOTO', false));
+        }
+        
+        function handleImageUpload(e) {
+            const files = e.target.files;
+            if(!files.length) return;
+            Array.from(files).forEach(f => {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    new THREE.TextureLoader().load(ev.target.result, (t) => {
+                        t.colorSpace = THREE.SRGBColorSpace;
+                        addPhotoToScene(t);
+                    });
+                }
+                reader.readAsDataURL(f);
+            });
+        }
+
+        // --- MEDIAPIPE 手势识别 ---
+        async function initMediaPipe() {
+            try {
+                video = document.getElementById('webcam');
+
+                const vision = await FilesetResolver.forVisionTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+                );
+                handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+                        delegate: "GPU"
+                    },
+                    runningMode: "VIDEO",
+                    numHands: 1
+                });
+                
+                if (navigator.mediaDevices?.getUserMedia) {
+                    const constraints = {
+                        video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } }
+                    };
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    video.srcObject = stream;
+                    video.addEventListener("loadeddata", predictWebcam);
+                }
+            } catch (err) {
+                console.warn('MediaPipe initialization failed:', err);
+                // 手势识别初始化失败，回退到无手势控制
+                document.querySelector('.hint-text').textContent = "📱 触摸旋转/缩放 · 📤 添加照片";
+            }
+        }
+
+        let lastVideoTime = -1;
+        async function predictWebcam() {
+            if (video.currentTime !== lastVideoTime) {
+                lastVideoTime = video.currentTime;
+                if (handLandmarker) {
+                    const result = handLandmarker.detectForVideo(video, performance.now());
+                    processGestures(result);
+                }
+            }
+            requestAnimationFrame(predictWebcam);
+        }
+
+        // 检测单根手指是否弯曲（使用多个关节点判断）
+        function isFingerCurled(lm, tipIdx, pipIdx, mcpIdx) {
+            const tip = lm[tipIdx];
+            const pip = lm[pipIdx];
+            const mcp = lm[mcpIdx];
+            const wrist = lm[0];
+            
+            // 方法1：指尖到手腕的距离 vs 指根到手腕的距离
+            const tipToWrist = Math.hypot(tip.x - wrist.x, tip.y - wrist.y, tip.z - wrist.z);
+            const mcpToWrist = Math.hypot(mcp.x - wrist.x, mcp.y - wrist.y, mcp.z - wrist.z);
+            
+            // 方法2：检查Y轴（在正常手势下，弯曲的手指tip.y > pip.y）
+            // 这里用相对比较，更鲁棒
+            const tipBelowPip = tip.y > pip.y + 0.02; // 指尖在PIP关节下方
+            
+            // 综合判断：指尖比指根更接近手腕，或者指尖在PIP下方
+            return (tipToWrist < mcpToWrist * 0.85) || tipBelowPip;
+        }
+
+        // 检测拇指是否弯曲（拇指结构不同，单独处理）
+        function isThumbCurled(lm) {
+            const thumbTip = lm[4];
+            const thumbIp = lm[3];
+            const thumbMcp = lm[2];
+            const indexMcp = lm[5];
+            
+            // 拇指尖到食指根部的距离（弯曲时会靠近）
+            const thumbToIndex = Math.hypot(thumbTip.x - indexMcp.x, thumbTip.y - indexMcp.y);
+            
+            // 拇指尖到拇指根的距离
+            const thumbLength = Math.hypot(thumbTip.x - thumbMcp.x, thumbTip.y - thumbMcp.y);
+            
+            return thumbToIndex < 0.1 || thumbLength < 0.08;
+        }
+
+        function processGestures(result) {
+            if (result.landmarks && result.landmarks.length > 0) {
+                STATE.hand.detected = true;
+                const lm = result.landmarks[0];
+                STATE.hand.x = (lm[9].x - 0.5) * 2; 
+                STATE.hand.y = (lm[9].y - 0.5) * 2;
+
+                // 检测每根手指是否弯曲
+                const indexCurled = isFingerCurled(lm, 8, 6, 5);   // 食指
+                const middleCurled = isFingerCurled(lm, 12, 10, 9); // 中指
+                const ringCurled = isFingerCurled(lm, 16, 14, 13);  // 无名指
+                const pinkyCurled = isFingerCurled(lm, 20, 18, 17); // 小指
+                const thumbCurled = isThumbCurled(lm);
+                
+                // 计算弯曲手指数量
+                const curledCount = [indexCurled, middleCurled, ringCurled, pinkyCurled].filter(Boolean).length;
+                
+                // 捏合检测：拇指和食指靠近
+                const thumbTip = lm[4];
+                const indexTip = lm[8];
+                const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y, thumbTip.z - indexTip.z);
+                const isPinching = pinchDist < 0.08; // 放宽阈值
+                
+                // 检测OK手势：拇指+食指靠近形成圆圈，其他三指伸直
+                const otherFingersStraight = !middleCurled && !ringCurled && !pinkyCurled;
+                const isOkGesture = isPinching && otherFingersStraight;
+                
+                // 手势判断逻辑
+                // 1. OK手势（👌）：拇指食指形成圆圈，其他手指伸直 → 聚焦
+                // 2. 握拳（✊）：3根以上手指弯曲 → 树形
+                // 3. 张开（🖐️）：2根以下手指弯曲 → 散开
+                
+                if (isOkGesture) {
+                    // OK手势 → 聚焦照片
+                    if (STATE.mode !== 'FOCUS') {
+                        STATE.mode = 'FOCUS';
+                        const photos = particleSystem.filter(p => p.type === 'PHOTO');
+                        if (photos.length) STATE.focusTarget = photos[Math.floor(Math.random()*photos.length)].mesh;
+                    }
+                } else if (curledCount >= 3) {
+                    // 握拳（3根以上手指弯曲）
+                    STATE.mode = 'TREE';
+                    STATE.focusTarget = null;
+                } else if (curledCount <= 1 && !isPinching) {
+                    // 张开手掌（最多1根手指弯曲，且不是捏合状态）
+                    STATE.mode = 'SCATTER';
+                    STATE.focusTarget = null;
+                }
+                // 过渡状态保持当前模式
+                
+            } else {
+                // 未检测到手势时恢复树形状态
+                STATE.hand.detected = false;
+                STATE.mode = 'TREE';
+                STATE.focusTarget = null;
+            }
+        }
+
+        function setupEvents() {
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                composer.setSize(window.innerWidth, window.innerHeight);
+            });
+            
+            document.getElementById('file-input').addEventListener('change', handleImageUpload);
+
+            // 触摸旋转
+            const canvas = renderer.domElement;
+            
+            canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    STATE.touch.isDragging = true;
+                    STATE.touch.lastX = e.touches[0].clientX;
+                    STATE.touch.lastY = e.touches[0].clientY;
+                } else if (e.touches.length === 2) {
+                    STATE.touch.pinchDistance = getPinchDistance(e.touches);
+                }
+            }, { passive: true });
+
+            canvas.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 1 && STATE.touch.isDragging) {
+                    const deltaX = e.touches[0].clientX - STATE.touch.lastX;
+                    const deltaY = e.touches[0].clientY - STATE.touch.lastY;
+                    
+                    STATE.rotation.y += deltaX * 0.008;
+                    STATE.rotation.x += deltaY * 0.004;
+                    STATE.rotation.x = Math.max(-0.5, Math.min(0.5, STATE.rotation.x));
+                    
+                    STATE.touch.lastX = e.touches[0].clientX;
+                    STATE.touch.lastY = e.touches[0].clientY;
+                } else if (e.touches.length === 2) {
+                    const newDistance = getPinchDistance(e.touches);
+                    const scale = newDistance / STATE.touch.pinchDistance;
+                    camera.position.z = Math.max(25, Math.min(80, camera.position.z / scale));
+                    STATE.touch.pinchDistance = newDistance;
+                }
+            }, { passive: true });
+
+            canvas.addEventListener('touchend', () => {
+                STATE.touch.isDragging = false;
+            }, { passive: true });
+        }
+
+        function getPinchDistance(touches) {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = clock.getDelta();
+
+            const autoRotate = !STATE.touch.isDragging;
+            
+            // 手势控制旋转（仅在启用手势控制时）
+            if (STATE.cameraAllowed && STATE.mode === 'SCATTER' && STATE.hand.detected) {
+                const targetRotY = STATE.hand.x * Math.PI * 0.9; 
+                const targetRotX = STATE.hand.y * Math.PI * 0.25;
+                STATE.rotation.y += (targetRotY - STATE.rotation.y) * 3.0 * dt;
+                STATE.rotation.x += (targetRotX - STATE.rotation.x) * 3.0 * dt;
+            } else if (autoRotate) {
+                if(STATE.mode === 'TREE') {
+                    STATE.rotation.y += 0.3 * dt;
+                    STATE.rotation.x += (0 - STATE.rotation.x) * 2.0 * dt;
+                } else {
+                    STATE.rotation.y += 0.1 * dt; 
+                }
+            }
+
+            mainGroup.rotation.y = STATE.rotation.y;
+            mainGroup.rotation.x = STATE.rotation.x;
+
+            particleSystem.forEach(p => p.update(dt, STATE.mode, STATE.focusTarget));
+            composer.render();
+        }
+
+        // 页面加载完成后启动主函数
+        document.addEventListener('DOMContentLoaded', main);
+    </script>
+</body>
+</html>
