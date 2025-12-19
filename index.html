@@ -50,32 +50,59 @@
         }
 
         /* Buttons & Controls */
+        .controls-container {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 0 20px;
+            pointer-events: auto;
+            z-index: 20;
+        }
+        
+        .top-left-controls,
+        .top-right-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
         .upload-container {
             display: flex; gap: 15px; margin-top: 20px; pointer-events: auto;
             text-align: center; transition: opacity 0.5s ease;
         }
         .upload-btn {
-            background: rgba(20, 20, 20, 0.6);
-            border: 1px solid rgba(212, 175, 55, 0.4);
-            color: #d4af37; padding: 10px 25px; cursor: pointer;
-            text-transform: uppercase; letter-spacing: 3px; font-size: 10px;
-            transition: all 0.4s; display: inline-block; backdrop-filter: blur(5px);
+            background: rgba(20, 20, 20, 0.8);
+            border: 1px solid rgba(212, 175, 55, 0.6);
+            color: #d4af37; padding: 8px 20px; cursor: pointer;
+            text-transform: uppercase; letter-spacing: 2px; font-size: 10px;
+            transition: all 0.3s; display: inline-block; backdrop-filter: blur(8px);
+            border-radius: 15px;
+            min-width: 100px;
         }
-        .upload-btn:hover { background: #d4af37; color: #000; box-shadow: 0 0 20px rgba(212, 175, 55, 0.5); }
+        .upload-btn:hover { 
+            background: #d4af37; color: #000; 
+            box-shadow: 0 0 10px rgba(212, 175, 55, 0.6); 
+            transform: scale(1.05);
+        }
 
 
         /* 提示按钮样式 */
         .hint-btn {
-            background: rgba(20, 20, 20, 0.6);
-            border: 1px solid rgba(212, 175, 55, 0.4);
-            color: #d4af37; padding: 8px 15px; cursor: pointer;
-            letter-spacing: 1px; font-size: 10px; margin-top: 10px;
-            transition: all 0.4s; display: inline-block; backdrop-filter: blur(5px);
-            border-radius: 20px; pointer-events: auto;
+            background: rgba(20, 20, 20, 0.8);
+            border: 1px solid rgba(212, 175, 55, 0.6);
+            color: #d4af37; padding: 6px 12px; cursor: pointer;
+            letter-spacing: 1px; font-size: 10px;
+            transition: all 0.3s; display: inline-block; backdrop-filter: blur(8px);
+            border-radius: 15px; pointer-events: auto;
+            min-width: 80px;
         }
         .hint-btn:hover { 
             background: #d4af37; color: #000; 
-            box-shadow: 0 0 15px rgba(212, 175, 55, 0.5); 
+            box-shadow: 0 0 10px rgba(212, 175, 55, 0.6); 
             transform: scale(1.05);
         }
 
@@ -568,7 +595,6 @@
             <button class="camera-btn camera-yes" id="camera-yes">启用摄像头</button>
             <button class="camera-btn camera-no" id="camera-no">使用触摸交互</button>
         </div>
-        <p class="camera-hint">您可以在设置中随时更改此选项</p>
     </div>
 </div>
 
@@ -590,12 +616,16 @@
 
 <div id="ui-layer">
     <h1>Merry Christmas</h1>
-    <div class="upload-container">
-        <div class="upload-wrapper">
-            <label class="upload-btn">增加回忆<input type="file" id="file-input" multiple accept="image/*"></label>
+    <div class="controls-container">
+        <div class="top-left-controls">
+            <div class="upload-wrapper">
+                <label class="upload-btn">增加回忆<input type="file" id="file-input" multiple accept="image/*"></label>
+            </div>
+        </div>
+        <div class="top-right-controls">
+            <button class="hint-btn" id="hint-btn">💡 手势提示</button>
         </div>
     </div>
-    <button class="hint-btn" id="hint-btn">💡 手势提示</button>
     <div class="hint-modal" id="hint-modal">
         <div class="hint-content">
             <h3>手势操作说明</h3>
@@ -944,15 +974,15 @@
     }
 
     function setupLights() {
-        const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+        const ambient = new THREE.AmbientLight(0xffffff, 0.3); // 降低环境光强度
         scene.add(ambient);
-        const innerLight = new THREE.PointLight(0xffaa00, 2.5, 30);
+        const innerLight = new THREE.PointLight(0xffaa00, 0.8, 30); // 降低点光源强度
         innerLight.position.set(0, 5, 0);
         mainGroup.add(innerLight);
-        const spotGold = new THREE.SpotLight(0xfff0cc, 1500);
+        const spotGold = new THREE.SpotLight(0xfff0cc, 500); // 降低金色聚光灯强度
         spotGold.position.set(40, 50, 40); spotGold.angle = 0.5; spotGold.penumbra = 0.5;
         scene.add(spotGold);
-        const spotBlue = new THREE.SpotLight(0x88ccff, 800);
+        const spotBlue = new THREE.SpotLight(0x88ccff, 300); // 降低蓝色聚光灯强度
         spotBlue.position.set(-40, 30, -30);
         scene.add(spotBlue);
     }
@@ -1427,11 +1457,18 @@
         let width = 1.5;
         let height = 1.5;
         const aspect = img.width / img.height;
-        if (aspect >= 1) { height = width / aspect; }
+        if(aspect > 1) { height = width / aspect; }
         else { width = height * aspect; }
 
         const photoGeo = new THREE.PlaneGeometry(width, height);
-        const photoMat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+        const photoMat = new THREE.MeshStandardMaterial({ 
+            map: texture, 
+            side: THREE.DoubleSide,
+            roughness: 0.9,        // 增加粗糙度减少反光
+            metalness: 0.0,        // 无金属质感
+            emissive: 0x000000,    // 无自发光
+            emissiveIntensity: 0.0 // 自发光强度为0
+        });
         const photo = new THREE.Mesh(photoGeo, photoMat);
         photo.position.z = 0.05;
 
@@ -1552,7 +1589,7 @@
         
         window.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'h') {
-                ['.upload-container', '.hint-btn'].forEach(s => {
+                ['.top-left-controls', '.top-right-controls'].forEach(s => {
                     const el = document.querySelector(s); if(el) el.classList.toggle('ui-hidden');
                 });
             }
