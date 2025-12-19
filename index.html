@@ -430,18 +430,23 @@
             h1 {
                 font-size: 36px;
                 letter-spacing: 3px;
-                margin-top: 20px;
+                margin-top: 10px;
             }
             
             .upload-container {
                 flex-direction: column;
                 gap: 10px;
-                margin-top: 15px;
+                margin-top: 10px;
             }
             
             .upload-btn {
                 padding: 8px 20px;
                 font-size: 9px;
+            }
+            
+            /* 调整UI层整体位置 */
+            #ui-layer {
+                padding-top: 20px;
             }
             
             /* 音乐控制移动端适配 */
@@ -479,6 +484,15 @@
             h1 {
                 font-size: 28px;
                 letter-spacing: 2px;
+                margin-top: 5px;
+            }
+            
+            .upload-container {
+                margin-top: 5px;
+            }
+            
+            #ui-layer {
+                padding-top: 15px;
             }
             
             .touch-btn {
@@ -504,7 +518,7 @@
 
 <div id="loader">
     <div class="spinner"></div>
-    <div class="loader-text">Summoning Holiday Magic...</div>
+    <div class="loader-text">正在加载...</div>
 </div>
 
 <!-- 倒计时弹出框 -->
@@ -577,19 +591,8 @@
     <h1>Merry Christmas</h1>
     <div class="upload-container">
         <div class="upload-wrapper">
-            <label class="upload-btn">Add Memories <input type="file" id="file-input" multiple accept="image/*"></label>
+            <label class="upload-btn">点击添加回忆照片 <input type="file" id="file-input" multiple accept="image/*"></label>
         </div>
-        <div class="upload-wrapper">
-            <label class="upload-btn">Add Music <input type="file" id="music-input" accept="audio/mp3"></label>
-        </div>
-    </div>
-    <div class="music-controls">
-        <button class="music-btn" id="play-pause-btn">▶️</button>
-        <button class="music-btn" id="restart-btn">🔄</button>
-    </div>
-    <div class="volume-control" id="volume-control">
-        <div class="volume-slider" id="volume-slider"></div>
-        <div class="volume-handle" id="volume-handle"></div>
     </div>
     <div class="hint-text">Gesture: '✌️' for Fireworks | '☝️' for Letter | '👌' for Photo</div>
 </div>
@@ -634,7 +637,7 @@
         letter: {
             title: "To My Dearest Friend",
             // 使用 \n 换行
-            content: "May this Christmas bring you happiness and joy.\n\n愿你的圣诞充满温馨与快乐，\n新的一年万事如意，心想事成。\n\nBest Wishes,\nSanta's Helper,\n2025.12.16"
+            content: "May this Christmas bring you happiness and joy.\n\n愿兮眠的圣诞充满温馨与快乐，\n新的一年万事如意，心想事成。\n抽卡永不歪\n\nBest Wishes,\n阴天种的西瓜,\n2025.12.25"
         }
     };
 
