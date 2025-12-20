@@ -562,6 +562,85 @@
                 font-size: 10px;
             }
         }
+        
+        /* 圣诞节后提示弹窗样式 */
+        .after-christmas-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95); z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(15px);
+            transition: opacity 0.8s ease-in-out;
+            opacity: 0; pointer-events: none; visibility: hidden;
+        }
+        .after-christmas-modal.hidden { 
+            opacity: 0; pointer-events: none; visibility: hidden; 
+        }
+        .after-christmas-modal:not(.hidden) { 
+            opacity: 1; visibility: visible; pointer-events: auto; 
+        }
+        
+        .after-christmas-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            border: 2px solid rgba(212, 175, 55, 0.4);
+            border-radius: 20px; padding: 40px;
+            text-align: center; max-width: 500px; width: 90%;
+            box-shadow: 0 0 60px rgba(212, 175, 55, 0.4);
+            backdrop-filter: blur(20px);
+        }
+        
+        .after-christmas-title {
+            color: #d4af37; font-size: 32px; margin-bottom: 20px;
+            text-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
+            font-family: 'Cinzel', 'Times New Roman', serif;
+            letter-spacing: 3px;
+        }
+        
+        .after-christmas-message {
+            color: rgba(255, 255, 255, 0.9); font-size: 18px;
+            margin-bottom: 30px; line-height: 1.6;
+            letter-spacing: 1px;
+        }
+        
+        .after-christmas-btn {
+            background: linear-gradient(45deg, #d4af37, #ffd700);
+            border: none; color: #000; padding: 15px 30px;
+            border-radius: 25px; cursor: pointer;
+            font-size: 16px; font-weight: bold; letter-spacing: 2px;
+            text-transform: uppercase; transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
+        }
+        
+        .after-christmas-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(212, 175, 55, 0.8);
+        }
+        
+        /* 移动端适配 - 圣诞节后弹窗 */
+        @media (max-width: 768px) {
+            .after-christmas-content {
+                padding: 25px 20px;
+                margin: 0 15px;
+                max-width: 95%;
+                border-radius: 15px;
+            }
+            
+            .after-christmas-title {
+                font-size: 24px;
+                margin-bottom: 15px;
+                letter-spacing: 2px;
+            }
+            
+            .after-christmas-message {
+                font-size: 16px;
+                margin-bottom: 20px;
+            }
+            
+            .after-christmas-btn {
+                padding: 12px 20px;
+                font-size: 14px;
+                letter-spacing: 1px;
+            }
+        }
     </style>
 
     <style>@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap');</style>
@@ -656,6 +735,15 @@
             <button class="touch-btn" data-gesture="LETTER">💌 信件</button>
             <button class="touch-btn" data-gesture="FOCUS">📷 聚焦照片</button>
         </div>
+    </div>
+</div>
+
+<!-- 圣诞节后提示弹窗 -->
+<div id="after-christmas-modal" class="after-christmas-modal hidden">
+    <div class="after-christmas-content">
+        <h2 class="after-christmas-title">🎄 圣诞回忆</h2>
+        <p class="after-christmas-message">今天不是圣诞节了，但无论是错过还是回味都欢迎回来。</p>
+        <button class="after-christmas-btn" id="enter-after-christmas">进入圣诞回忆</button>
     </div>
 </div>
 
@@ -762,6 +850,11 @@
         return now.getFullYear() === 2025 && 
                now.getMonth() === 11 && // 月份从0开始，11表示12月
                now.getDate() === 25;
+    }
+
+    function isAfterChristmas() {
+        const now = new Date();
+        return now > TARGET_DATE;
     }
 
     function showCountdown() {
@@ -947,14 +1040,33 @@
     }
 
     async function init() {
-        // 检查当前日期是否为2025年12月25日
+        // 检查当前日期
         if (isChristmasDay()) {
             // 如果是圣诞节，直接进入主应用
             startMainApplication();
+        } else if (isAfterChristmas()) {
+            // 如果是圣诞节之后，显示圣诞节后提示弹窗
+            showAfterChristmasModal();
         } else {
-            // 如果不是圣诞节，显示倒计时界面
+            // 如果是圣诞节之前，显示倒计时界面
             showCountdown();
         }
+    }
+
+    function showAfterChristmasModal() {
+        const modal = document.getElementById('after-christmas-modal');
+        modal.classList.remove('hidden');
+        
+        // 添加进入按钮事件
+        document.getElementById('enter-after-christmas').addEventListener('click', () => {
+            hideAfterChristmasModal();
+            startMainApplication();
+        });
+    }
+
+    function hideAfterChristmasModal() {
+        const modal = document.getElementById('after-christmas-modal');
+        modal.classList.add('hidden');
     }
 
     // --- 字体生成 ---
