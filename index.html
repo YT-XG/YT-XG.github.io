@@ -250,7 +250,7 @@
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             border: 2px solid rgba(212, 175, 55, 0.4);
             border-radius: 20px; padding: 40px;
-            text-align: center; max-width: 500px; width: 90%;
+            text-align: center; max-width: 600px; width: 90%;
             box-shadow: 0 0 60px rgba(212, 175, 55, 0.4);
             backdrop-filter: blur(20px);
         }
@@ -268,17 +268,51 @@
         }
         
         .feature-list {
-            list-style: none; padding: 0; margin: 15px 0;
+            display: flex; gap: 30px; margin: 20px 0;
+            justify-content: space-between;
         }
         
-        .feature-list li {
-            color: rgba(255, 255, 255, 0.8); font-size: 14px;
-            margin: 8px 0; padding-left: 0;
+        .feature-option {
+            flex: 1; background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px; padding: 20px;
+            border: 1px solid rgba(212, 175, 55, 0.2);
+        }
+        
+        .feature-option h4 {
+            color: #d4af37; font-size: 16px; margin: 0 0 15px 0;
+            text-align: center; font-weight: 600;
+        }
+        
+        .feature-option ul {
+            list-style: none; padding: 0; margin: 0;
+        }
+        
+        .feature-option li {
+            color: rgba(255, 255, 255, 0.8); font-size: 12px;
+            margin: 6px 0; padding-left: 0;
             display: flex; align-items: center;
         }
         
-        .feature-list li::before {
-            content: "🎯"; margin-right: 10px; font-size: 16px;
+        .feature-option li::before {
+            content: "✨"; margin-right: 8px; font-size: 12px;
+        }
+        
+        /* 响应式样式 */
+        @media (max-width: 768px) {
+            .feature-list {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .camera-content {
+                padding: 30px 20px;
+                max-width: 90%;
+            }
+            
+            .camera-options {
+                flex-direction: column;
+                gap: 15px;
+            }
         }
         
         .camera-options {
@@ -579,17 +613,30 @@
 <!-- 摄像头权限请求弹窗 -->
 <div id="camera-modal" class="camera-modal hidden">
     <div class="camera-content">
-        <h2 class="camera-title">摄像头权限请求</h2>
+        <h2 class="camera-title">选择交互方式</h2>
         <div class="camera-description">
-            <p>🎄 圣诞魔法需要您的摄像头来识别手势交互</p>
-            <p>通过手势控制可以：</p>
-            <ul class="feature-list">
-                <li>✌️ 比耶 - 触发烟花效果</li>
-                <li>☝️ 比1 - 打开圣诞信件</li>
-                <li>👌 捏合 - 聚焦照片</li>
-                <li>🖐️ 张开 - 散开圣诞树</li>
-                <li>✊ 握拳 - 恢复圣诞树</li>
-            </ul>
+            <p>🎄 请选择您喜欢的圣诞魔法交互方式：</p>
+            <div class="feature-list">
+                <div class="feature-option">
+                    <h4>🎥 摄像头手势控制</h4>
+                    <ul>
+                        <li>✌️ 比耶 - 触发烟花效果</li>
+                        <li>☝️ 比1 - 打开圣诞信件</li>
+                        <li>👌 捏合 - 聚焦照片</li>
+                        <li>🖐️ 张开 - 散开圣诞树</li>
+                        <li>✊ 握拳 - 恢复圣诞树</li>
+                    </ul>
+                </div>
+                <div class="feature-option">
+                    <h4>👆 触摸按钮控制</h4>
+                    <ul>
+                        <li>🎄 圣诞树 - 显示/隐藏圣诞树</li>
+                        <li>✨ 散开 - 散开圣诞树</li>
+                        <li>🎆 烟花文字 - 显示烟花文字</li>
+                        <li>💌 信件 - 打开圣诞信件</li>
+                    </ul>
+                </div>
+            </div>
         </div>
         <div class="camera-options">
             <button class="camera-btn camera-yes" id="camera-yes">启用摄像头</button>
@@ -856,15 +903,8 @@
         loader.style.opacity = 0;
         setTimeout(() => loader.remove(), 800);
         
-        // 检查摄像头可用性
-        checkCameraAvailability().then(hasCamera => {
-            if (hasCamera) {
-                showCameraModal();
-            } else {
-                // 没有摄像头，直接使用触摸模式
-                enableTouchMode();
-            }
-        });
+        // 直接显示摄像头选择模态框，让用户自行选择
+        showCameraModal();
     }
 
     async function startMainApplicationWithCamera() {
