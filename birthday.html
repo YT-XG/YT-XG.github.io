@@ -3,18 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>生日祝福</title>
+    <title>2026年生日祝福 - 兮眠</title>
     <style>
         body { 
             margin: 0; 
-            overflow: hidden; 
+            overflow: auto; 
             background: linear-gradient(135deg, #ff6b6b, #ff8e8e, #ffaaaa);
             font-family: 'Arial', sans-serif; 
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
             position: relative;
         }
 
@@ -50,6 +49,7 @@
             color: white;
             max-width: 800px;
             padding: 40px;
+            margin: 40px auto;
             background: rgba(255, 255, 255, 0.1);
             border-radius: 20px;
             backdrop-filter: blur(10px);
@@ -58,20 +58,60 @@
         }
 
         .birthday-title {
-            font-size: 48px;
-            margin-bottom: 20px;
-            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-            background: linear-gradient(45deg, #fff, #ffeaa7);
+            font-size: 52px;
+            margin-bottom: 10px;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            background: linear-gradient(45deg, #ff6b6b, #ff8e8e, #ffeaa7);
             -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
             font-weight: bold;
+            letter-spacing: 2px;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+        }
+
+        .birthday-year {
+            font-size: 28px;
+            color: #fff;
+            margin-bottom: 30px;
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+            font-weight: 600;
+            letter-spacing: 1px;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 8px 20px;
+            border-radius: 15px;
+            display: inline-block;
         }
 
         .birthday-message {
+            font-size: 22px;
+            line-height: 1.8;
+            margin-bottom: 40px;
+            text-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
+            font-weight: 300;
+        }
+
+        .blessing-section {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 15px;
+            padding: 25px;
+            margin: 25px 0;
+            border-left: 4px solid #ffeaa7;
+            text-align: left;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .blessing-title {
             font-size: 20px;
+            color: #ffeaa7;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .blessing-content {
+            font-size: 18px;
             line-height: 1.6;
-            margin-bottom: 30px;
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            color: rgba(255, 255, 255, 0.9);
         }
 
         .cake-container {
@@ -198,13 +238,49 @@
         }
 
         /* 响应式设计 */
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
+            .birthday-container {
+                padding: 30px;
+                max-width: 90%;
+            }
+            
             .birthday-title {
-                font-size: 36px;
+                font-size: 42px;
+            }
+            
+            .birthday-year {
+                font-size: 22px;
+            }
+            
+            .birthday-message {
+                font-size: 20px;
+            }
+            
+            .blessing-content {
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .birthday-container {
+                padding: 25px 20px;
+                margin: 30px 15px;
+            }
+            
+            .birthday-title {
+                font-size: 32px;
+                letter-spacing: 1px;
+            }
+            
+            .birthday-year {
+                font-size: 18px;
+                margin-bottom: 20px;
             }
             
             .birthday-message {
                 font-size: 16px;
+                line-height: 1.6;
+                margin-bottom: 30px;
             }
             
             .cake {
@@ -216,6 +292,49 @@
                 width: 40px;
                 height: 60px;
             }
+            
+            .blessing-section {
+                padding: 20px;
+                margin: 15px 0;
+            }
+            
+            .blessing-title {
+                font-size: 18px;
+            }
+            
+            .blessing-content {
+                font-size: 14px;
+                line-height: 1.5;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .birthday-title {
+                font-size: 28px;
+            }
+            
+            .birthday-year {
+                font-size: 16px;
+            }
+            
+            .cake {
+                width: 120px;
+                height: 60px;
+            }
+            
+            .cake::before {
+                width: 100px;
+                height: 15px;
+            }
+            
+            .balloons {
+                gap: 15px;
+            }
+            
+            .balloon {
+                width: 35px;
+                height: 50px;
+            }
         }
     </style>
 </head>
@@ -225,7 +344,8 @@
 
     <!-- 生日祝福内容 -->
     <div class="birthday-container">
-        <h1 class="birthday-title">🎂 生日快乐！ 🎉</h1>
+        <h1 class="birthday-title">🎂 兮眠生日快乐！ 🎉</h1>
+        <div class="birthday-year">✨ 2026年专属祝福 ✨</div>
         
         <div class="cake-container">
             <div class="cake">
@@ -246,7 +366,32 @@
             愿你远离感冒，保持健康！<br>
             祝你生日快乐，天天开心！
         </div>
+
+        <!-- 祝福分区 -->
+        <div class="blessing-section">
+            <div class="blessing-title">🎯 2026年目标与祝福</div>
+            <div class="blessing-content">
+                • 愿你在2026年实现所有梦想<br>
+                • 愿你身体健康，远离疾病困扰<br>
+                • 愿你每天都充满阳光和正能量<br>
+                • 愿你的笑容永远灿烂如初
+            </div>
+        </div>
+
+        <div class="blessing-section">
+            <div class="blessing-title">💝 特别祝福</div>
+            <div class="blessing-content">
+                • 愿你的每一天都像今天一样特别<br>
+                • 愿你的心中永远充满爱与希望<br>
+                • 愿你的未来比想象中更加美好<br>
+                • 愿你的生日愿望都能成真<br>
+                • 愿你的2026年充满惊喜和收获
+            </div>
+        </div>
     </div>
+
+    <!-- 底部间距 -->
+    <div style="height: 60px;"></div>
 
     <!-- 五彩纸屑效果 -->
     <div class="confetti" id="confetti"></div>
