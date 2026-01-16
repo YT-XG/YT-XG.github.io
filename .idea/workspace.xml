@@ -4,9 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4ebad7a4-8248-4787-9e59-dea6e9eac8a8" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/index.html" afterDir="false" />
-    </list>
+    <list default="true" id="4ebad7a4-8248-4787-9e59-dea6e9eac8a8" name="更改" comment="refactor: 重构节日祝福页面结构，将生日祝福页面独立为单独文件&#10;&#10;将原生日祝福页面从index.html移动到birthday.html&#10;更新choose.html中的链接指向新的生日祝福页面&#10;重构index.html为节日选择主页面" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -70,8 +68,17 @@
       <option name="presentableId" value="Default" />
       <updated>1753413409728</updated>
       <workItem from="1766132745919" duration="5859000" />
-      <workItem from="1768530132063" duration="894000" />
+      <workItem from="1768530132063" duration="1200000" />
     </task>
+    <task id="LOCAL-00001" summary="refactor: 重构节日祝福页面结构，将生日祝福页面独立为单独文件&#10;&#10;将原生日祝福页面从index.html移动到birthday.html&#10;更新choose.html中的链接指向新的生日祝福页面&#10;重构index.html为节日选择主页面">
+      <option name="closed" value="true" />
+      <created>1768531321619</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1768531321619</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -99,5 +106,9 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="refactor: 重构节日祝福页面结构，将生日祝福页面独立为单独文件&#10;&#10;将原生日祝福页面从index.html移动到birthday.html&#10;更新choose.html中的链接指向新的生日祝福页面&#10;重构index.html为节日选择主页面" />
+    <option name="LAST_COMMIT_MESSAGE" value="refactor: 重构节日祝福页面结构，将生日祝福页面独立为单独文件&#10;&#10;将原生日祝福页面从index.html移动到birthday.html&#10;更新choose.html中的链接指向新的生日祝福页面&#10;重构index.html为节日选择主页面" />
   </component>
 </project>

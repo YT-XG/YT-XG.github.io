@@ -169,7 +169,31 @@
             border-color: rgba(255, 107, 107, 0.6);
         }
 
+        /* 敬请期待卡片 */
+        .coming-soon-card {
+            background: linear-gradient(135deg, rgba(108, 92, 231, 0.2), rgba(76, 201, 240, 0.2));
+            border-color: rgba(108, 92, 231, 0.4);
+            cursor: default;
+        }
+
+        .coming-soon-card:hover {
+            background: linear-gradient(135deg, rgba(108, 92, 231, 0.25), rgba(76, 201, 240, 0.25));
+            border-color: rgba(108, 92, 231, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+        }
+
         /* 响应式设计 */
+        @media (max-width: 1024px) {
+            .selection-buttons {
+                gap: 20px;
+            }
+            
+            .holiday-card {
+                width: 220px;
+            }
+        }
+
         @media (max-width: 768px) {
             .selection-container {
                 padding: 30px 20px;
@@ -243,11 +267,18 @@
             </a>
             
             <!-- 生日祝福 -->
-            <a href="brithday.html" class="holiday-card birthday-card">
+            <a href="birthday.html" class="holiday-card birthday-card">
                 <span class="holiday-icon">🎂</span>
                 <h3 class="holiday-title">生日祝福</h3>
                 <p class="holiday-description">送上最温暖的生日祝福，蛋糕、气球和五彩纸屑为你庆祝</p>
             </a>
+            
+            <!-- 敬请期待 -->
+            <div class="holiday-card coming-soon-card">
+                <span class="holiday-icon">✨</span>
+                <h3 class="holiday-title">敬请期待</h3>
+                <p class="holiday-description">更多精彩内容正在筹备中，敬请期待...</p>
+            </div>
         </div>
     </div>
 
