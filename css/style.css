@@ -660,3 +660,13 @@ button:active{transform:translateY(1px);border-bottom-width:1px;}
 .tb-tab i{font-style:normal;font-size:10px;color:#5c6a80;}
 .tb-tab.on{border-color:rgba(120,190,255,.55);background:rgba(90,150,255,.12);color:#d8ecff;}
 /* 手机多列网格由 mobile.css 控制 */
+
+/* 押注行：左右两个按钮各自对齐到本方名字下方 */
+.tb-bet{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+  align-items:center;gap:8px;
+}
+.tb-bet .tb-odd.a{grid-column:1;justify-self:start;}
+.tb-bet .tb-odd.b{grid-column:3;justify-self:end;}
+.tb-bet .tb-prob{grid-column:2;justify-self:center;}

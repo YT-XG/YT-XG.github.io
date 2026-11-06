@@ -310,3 +310,17 @@
   .tb-groups.narrow{grid-template-columns:minmax(0,1fr);}
   .tb-groups.narrow.four{grid-template-rows:repeat(4, minmax(90px,1fr));}
 }
+
+/* 手机：预测文字隐藏后，两个押注按钮仍各自居中在本方名字下方 */
+@media (max-width: 980px){
+  .tb-bet{grid-template-columns:minmax(0,1fr) 0 auto;}
+  .tb-bet .tb-odd.a{grid-column:1;justify-self:center;}
+  .tb-bet .tb-odd.b{grid-column:3;justify-self:center;}
+}
+
+/* 押注按钮与名字对齐：红方右对齐、蓝方左对齐（和名字/积分的对齐方向一致） */
+@media (max-width: 980px){
+  .tb-bet{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);}
+  .tb-bet .tb-odd.a{grid-column:1;justify-self:end;}
+  .tb-bet .tb-odd.b{grid-column:3;justify-self:start;}
+}
