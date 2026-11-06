@@ -27,7 +27,8 @@ function rageSummary(key) {
     parts.push('投弹 ' + R.bomb.interval + 's/颗 → 最快 ' + R.bomb.intervalMin + 's/颗，' +
       '引信 ' + R.bomb.fuse + 's，半径 ' + R.bomb.radius + 'px，伤害 ' + R.bomb.dmg);
   }
-  if (R.dmgPerSec) parts.push('撞击伤害每秒 +' + R.dmgPerSec + '（无上限）');
+  if (R.dmgPerSec) parts.push('撞击伤害每秒 +' + R.dmgPerSec +
+      (R.dmgCap ? '（上限 +' + R.dmgCap + '）' : '（无上限）'));
   if (R.shield) parts.push('每 ' + R.shield.interval + ' 秒刷新 ' + R.shield.amount + ' 点护盾');
   return parts.join('；');
 }
