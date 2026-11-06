@@ -670,3 +670,38 @@ button:active{transform:translateY(1px);border-bottom-width:1px;}
 .tb-bet .tb-odd.a{grid-column:1;justify-self:start;}
 .tb-bet .tb-odd.b{grid-column:3;justify-self:end;}
 .tb-bet .tb-prob{grid-column:2;justify-self:center;}
+
+/* ============================================================
+   竞猜反馈：飘字 / 资金闪光 / 按钮按压（第 72 条）
+   ============================================================ */
+.bet-pop{
+  position:fixed;z-index:300;pointer-events:none;
+  font-size:13px;font-weight:700;color:#7fe0a0;
+  text-shadow:0 2px 10px rgba(0,0,0,.85);
+  transform:translate(-50%, 0);
+  animation:bet-pop .85s ease-out forwards;
+}
+.bet-pop.bad{color:#ff9a8a;font-size:12px;}
+@keyframes bet-pop{
+  0%  {opacity:0;transform:translate(-50%, 4px) scale(.9);}
+  15% {opacity:1;transform:translate(-50%, -2px) scale(1.05);}
+  100%{opacity:0;transform:translate(-50%, -34px) scale(1);}
+}
+
+.tb-odd{transition:transform .08s ease, background .15s, border-color .15s, color .15s;}
+.tb-odd:active:not(:disabled){transform:scale(.94);}
+.tb-odd.has{
+  border-color:rgba(255,205,120,.55);color:#ffd9a8;background:rgba(255,205,120,.10);
+}
+.tb-odd.has::after{content:' ✓';font-size:10px;}
+
+.flash-gain{animation:flashGain .65s ease-out;}
+.flash-loss{animation:flashLoss .65s ease-out;}
+@keyframes flashGain{
+  0%{color:#7fe0a0;text-shadow:0 0 16px rgba(120,230,160,.9);}
+  100%{color:#ffd9a8;text-shadow:none;}
+}
+@keyframes flashLoss{
+  0%{color:#ff8a7a;text-shadow:0 0 16px rgba(255,120,100,.9);}
+  100%{color:#ffd9a8;text-shadow:none;}
+}

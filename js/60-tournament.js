@@ -268,9 +268,40 @@ function tourBetOf(fx) {
   return null;
 }
 
+/* 下注反馈：在按钮位置飘一个 -100，并让资金数字闪一下 */
+function tourBetPop(rect, amount, ok) {
+  var d = document.createElement('div');
+  d.className = 'bet-pop' + (ok ? '' : ' bad');
+  d.textContent = (ok ? '-' : '') + amount + (ok ? '' : ' 资金不足');
+  d.style.left = (rect.left + rect.width / 2) + 'px';
+  d.style.top = (rect.top - 4) + 'px';
+  document.body.appendChild(d);
+  setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 900);
+}
+
+function tourFlashBank(kind) {
+  tour.flash = kind;            // 'gain' | 'loss'
+  var els = document.querySelectorAll('.tb-bank, .mb-bank b');
+  for (var i = 0; i < els.length; i++) {
+    els[i].classList.remove('flash-gain', 'flash-loss');
+    void els[i].offsetWidth;
+    els[i].classList.add(kind === 'gain' ? 'flash-gain' : 'flash-loss');
+  }
+  setTimeout(function () { if (tour) tour.flash = null; }, 700);
+}
+
 function tourPlaceBet(fx, side, amount) {
   if (!tour || fx.done) return;
-  if (tour.bank < amount) { tourLog('资金不足，无法下注'); tourRender(); return; }
+  if (tour.bank < amount) {
+    tourLog('资金不足，无法下注');
+    tourRender();
+    var lowEls = document.querySelectorAll('.tb-odd:not(:disabled)');
+    if (lowEls.length) {
+      var r = lowEls[0].getBoundingClientRect();
+      tourBetPop(r, amount, false);
+    }
+    return;
+  }
   var pct = tourPredict(fx.a, fx.b);
   var odds = tourOdds(side === 'A' ? pct : 100 - pct);
   var key = tourBetKey(fx);
@@ -312,9 +343,11 @@ function tourSettleBets(fx, draw) {
     var payout = Math.round(bet.stake * bet.odds);
     tour.bank += payout;
     tour.winBets++;
-    tourLog('竞猜：押 ' + bet.name + ' 赢，+' + (payout - bet.stake) + '（余额 ' + tour.bank + '）');
+    tourLog('竞猜：押 ' + bet.name + ' 赢 +' + (payout - bet.stake) + '（余额 ' + tour.bank + '）');
+    tourFlashBank('gain');
   } else {
-    tourLog('竞猜：押 ' + bet.name + ' 输，-' + bet.stake + '（余额 ' + tour.bank + '）');
+    tourLog('竞猜：押 ' + bet.name + ' 输 -' + bet.stake + '（余额 ' + tour.bank + '）');
+    tourFlashBank('loss');
   }
 }
 
@@ -327,11 +360,11 @@ function tourBetRow(fx) {
   var stakeB = bet && bet.side === 'B' ? bet.stake : 0;
   var key = tourBetKey(fx);
   return '<div class="tb-bet">' +
-    '<button type="button" class="tb-odd a" data-bet="A" data-key="' + key + '"' +
+    '<button type="button" class="tb-odd a' + (stakeA ? ' has' : '') + '" data-bet="A" data-key="' + key + '"' +
       (tour.bank < 50 ? ' disabled' : '') + '>' +
       '押红 ' + tourFmtOdds(oa) + (stakeA ? ' · ' + stakeA : '') + '</button>' +
     '<span class="tb-prob">预测 ' + pct + '% · ' + (100 - pct) + '%</span>' +
-    '<button type="button" class="tb-odd b" data-bet="B" data-key="' + key + '"' +
+    '<button type="button" class="tb-odd b' + (stakeB ? ' has' : '') + '" data-bet="B" data-key="' + key + '"' +
       (tour.bank < 50 ? ' disabled' : '') + '>' +
       '押蓝 ' + tourFmtOdds(ob) + (stakeB ? ' · ' + stakeB : '') + '</button>' +
     '</div>';
@@ -870,7 +903,12 @@ function bindBoardClicks() {
         fx = tourKoMatch(betBtn.getAttribute('data-zone'),
           parseInt(betBtn.getAttribute('data-ri'), 10), parseInt(betBtn.getAttribute('data-mi'), 10));
       }
-      if (fx) tourPlaceBet(fx, side, 100);
+      if (fx) {
+        var r0 = betBtn.getBoundingClientRect();
+        var okBefore = tour.bank >= 100 && !fx.done;
+        tourPlaceBet(fx, side, 100);
+        if (okBefore) tourBetPop(r0, 100, true);
+      }
       return;
     }
 
