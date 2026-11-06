@@ -25,7 +25,8 @@ body{
   font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,-apple-system,sans-serif;
   -webkit-font-smoothing:antialiased;
 }
-.app{width:clamp(320px, calc((100vh - 128px) * 2.15), 1700px);}
+/* 场地宽度：优先占满可视宽度，其次受高度限制（2.15:1），减少左右空白 */
+.app{width:min(98vw, calc((100dvh - 96px) * 2.15));}
 
 header{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:8px;}
 h1{margin:0;font-size:19px;font-weight:700;letter-spacing:.01em;}
@@ -552,3 +553,119 @@ button:active{transform:translateY(1px);border-bottom-width:1px;}
   .tb-card{padding:4px 8px;}
   .tb-group{padding:6px 8px;}
 }
+
+/* ============================================================
+   赛事：宽屏左右栏 + 竞猜 + 双败赛程（第 69 条）
+   ============================================================ */
+.tb-wrap{
+  display:flex;align-items:flex-start;gap:16px;
+  width:min(1560px,96vw);margin-top:6px;
+}
+.tb-left{
+  flex:0 0 240px;display:none;flex-direction:column;gap:10px;
+  padding:12px;border:1px solid #1e2836;border-radius:12px;background:rgba(255,255,255,.02);
+}
+.tb-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;}
+@media (min-width: 1240px){ .tb-left{display:flex;} }
+
+.tb-side-block{display:flex;flex-direction:column;gap:4px;}
+.tb-side-block.grow{flex:1;min-height:0;}
+.tb-side-t{font-size:11px;color:#68758b;letter-spacing:.12em;}
+.tb-bank{font-size:26px;font-weight:700;color:#ffd9a8;font-variant-numeric:tabular-nums;line-height:1.1;}
+.tb-side-sub{font-size:10px;color:#66738a;line-height:1.5;}
+.tb-side-row{display:flex;justify-content:space-between;font-size:11px;color:#9fb0c8;}
+.tb-side-row b{color:#ffd9a8;font-variant-numeric:tabular-nums;}
+.tb-log{display:flex;flex-direction:column;gap:3px;max-height:220px;overflow:auto;}
+.tb-log-row{font-size:10.5px;color:#6f7d93;line-height:1.45;border-left:2px solid #1e2836;padding-left:6px;}
+
+/* 对阵卡押注行 */
+.tb-bet{
+  grid-column:1 / -1;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin-top:6px;padding-top:6px;border-top:1px dashed rgba(255,255,255,.06);
+}
+.tb-odd{
+  padding:3px 10px;border-radius:6px;font-size:11px;cursor:pointer;
+  border:1px solid #2a3a52;background:#141a25;color:#9aa7bc;
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.tb-odd.a:hover:not(:disabled){border-color:rgba(232,72,63,.6);color:#ffb3ab;background:#1d1418;}
+.tb-odd.b:hover:not(:disabled){border-color:rgba(74,123,240,.6);color:#a9c0ff;background:#12182a;}
+.tb-odd:disabled{opacity:.35;cursor:default;}
+
+/* 小组积分排名 */
+.tb-rank{display:flex;flex-direction:column;gap:2px;margin-top:6px;}
+.tb-rank-head,.tb-rank-row{
+  display:grid;grid-template-columns:26px 1fr 1.5fr 54px 46px 56px;
+  gap:6px;align-items:center;font-size:11.5px;
+}
+.tb-rank-head{color:#5c6a80;font-size:10px;letter-spacing:.08em;padding-bottom:4px;border-bottom:1px solid #1e2836;}
+.tb-rank-row{padding:5px 0;color:#c6d3e6;border-bottom:1px solid rgba(255,255,255,.04);}
+.tb-rank-row.q{background:rgba(120,190,255,.05);}
+.tb-rank-row .nm{color:#e8eef8;font-weight:600;}
+.tb-rank-row .ro{color:#6f7d93;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tb-rank-row .pt{color:#ffd9a8;font-weight:600;font-variant-numeric:tabular-nums;}
+
+/* 双败赛程 */
+.tb-lanes{display:grid;grid-template-columns:1fr;gap:12px;}
+@media (min-width: 1040px){ .tb-lanes{grid-template-columns:1.35fr 1fr;} .tb-lane.gf{grid-column:1 / -1;} }
+.tb-lane{
+  border:1px solid #1e2836;border-radius:12px;padding:10px 12px;background:rgba(255,255,255,.015);
+  display:flex;flex-direction:column;gap:8px;
+}
+.tb-lane.wb{border-color:rgba(120,190,255,.28);}
+.tb-lane.lb{border-color:rgba(255,140,110,.28);}
+.tb-lane.gf{border-color:rgba(255,205,120,.35);}
+.tb-lane-t{font-size:11px;letter-spacing:.14em;color:#8b98ad;}
+.tb-lane.wb .tb-lane-t{color:#9fc4ff;}
+.tb-lane.lb .tb-lane-t{color:#ffab97;}
+.tb-lane.gf .tb-lane-t{color:#ffd9a8;}
+.tb-lane-body{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px;}
+.tb-round{display:flex;flex-direction:column;gap:8px;min-width:180px;}
+.tb-round-t{font-size:10.5px;color:#5c6a80;letter-spacing:.06em;}
+.tb-match{
+  border:1px solid rgba(255,255,255,.08);border-radius:9px;padding:7px 9px;
+  background:rgba(255,255,255,.02);display:flex;flex-direction:column;gap:4px;min-width:180px;
+}
+.tb-match.done{border-color:rgba(255,180,120,.32);}
+.tb-match.playable{border-color:rgba(120,190,255,.5);background:rgba(90,150,255,.07);}
+.tb-mt-row{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;gap:6px;}
+.tb-mt-row .nm{color:#c6d3e6;}
+.tb-mt-row .nm.a{color:#ffb3ab;}
+.tb-mt-row .nm.b{color:#a9c0ff;}
+.tb-mt-row .nm.win{color:#ffd9a8;font-weight:600;}
+.tb-mt-row b{color:#e8eef8;font-variant-numeric:tabular-nums;font-size:13px;}
+.tb-mt-odds{font-size:10px;color:#6b788e;}
+.tb-mt-btns{display:flex;gap:6px;flex-wrap:wrap;}
+.tb-mt-btns button{
+  padding:3px 9px;border-radius:6px;font-size:11px;cursor:pointer;
+  border:1px solid #2a3a52;background:#1a2330;color:#9fd0ff;
+}
+.tb-mt-btns button:hover:not(:disabled){background:#24344a;color:#d8ecff;}
+.tb-wait{font-size:10.5px;color:#4d5a70;}
+
+/* 领奖台 */
+.tb-podium{display:flex;gap:12px;justify-content:center;margin:4px 0 10px;}
+.tb-podium > div{
+  flex:0 1 220px;border:1px solid #24303f;border-radius:12px;padding:10px 14px;
+  display:flex;flex-direction:column;gap:2px;background:rgba(255,255,255,.02);
+}
+.tb-podium span{font-size:10px;color:#68758b;letter-spacing:.16em;}
+.tb-podium b{font-size:18px;color:#e8eef8;}
+.tb-podium i{font-style:normal;font-size:11px;color:#7e8ba1;}
+.tb-podium .p1{border-color:rgba(255,205,120,.5);background:rgba(255,205,120,.06);}
+.tb-podium .p1 b{color:#ffd9a8;}
+
+/* 比分条：可收起 */
+.tour-fold{
+  position:absolute;top:6px;right:8px;width:22px;height:22px;line-height:1;
+  border-radius:6px;border:1px solid #2a3a52;background:#141a25;color:#9aa7bc;
+  font-size:11px;cursor:pointer;
+}
+.tour-fold:hover{color:#dfe7f4;border-color:#3a475c;}
+.tour-panel{position:relative;}
+.tour-panel.folded{width:min(240px,70vw);}
+.tour-panel.folded .tour-roles,
+.tour-panel.folded .tour-prob,
+.tour-panel.folded .tour-btns,
+.tour-panel.folded .tour-head{display:none;}
+.tour-panel.folded .tour-vs b{font-size:18px;}
