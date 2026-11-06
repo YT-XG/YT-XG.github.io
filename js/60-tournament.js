@@ -182,7 +182,9 @@ function tourStartGame() {
   el.banner.classList.remove('show');
   el.tourBoard.classList.remove('show');
   el.tourPanel.classList.add('show');
-  el.tourPanel.classList.remove('folded');
+  // 手机上场地小，默认把比分条收成一行，需要时再展开
+  if (window.innerWidth <= 980) el.tourPanel.classList.add('folded');
+  else el.tourPanel.classList.remove('folded');
   pick.A = c.fx.a.roles.slice(0, 2);
   pick.B = c.fx.b.roles.slice(0, 2);
   teamSize = 2;
@@ -472,10 +474,58 @@ function tourAdvanceKO() {
     el.banner.querySelector('em').textContent =
       tourRolesText(tour.champion) + ' · 亚军 ' + (tour.runnerUp ? tour.runnerUp.name : '—') +
       ' · 季军 ' + (tour.third ? tour.third.name : '—');
+    tour.finalView = 'rank';
     el.banner.classList.add('show');
     tourLog('冠军：' + tour.champion.name + '（亚军 ' + (tour.runnerUp ? tour.runnerUp.name : '—') +
       ' · 季军 ' + (tour.third ? tour.third.name : '—') + '）');
   }
+}
+
+/* 最终排名：冠军 → 亚军 → 季军 → 其余按「淘汰赛胜场 / 小组积分 / 总伤害」排 */
+function tourFinalRanking() {
+  var list = tour.players.map(function (p) {
+    var koWins = 0;
+    if (tour.ko) {
+      var all = [];
+      tour.ko.wb.forEach(function (rd) { rd.matches.forEach(function (m) { all.push(m); }); });
+      tour.ko.lb.forEach(function (rd) { rd.matches.forEach(function (m) { all.push(m); }); });
+      all.push(tour.ko.gf);
+      all.forEach(function (m) { if (m.done && m.winner === p) koWins++; });
+    }
+    var koPlayed = 0;
+    if (tour.ko) {
+      var all2 = [];
+      tour.ko.wb.forEach(function (rd) { rd.matches.forEach(function (m) { all2.push(m); }); });
+      tour.ko.lb.forEach(function (rd) { rd.matches.forEach(function (m) { all2.push(m); }); });
+      all2.push(tour.ko.gf);
+      all2.forEach(function (m) { if (m.done && (m.a === p || m.b === p)) koPlayed++; });
+    }
+    return { p: p, koWins: koWins, koPlayed: koPlayed, place: 0, tag: '' };
+  });
+
+  list.forEach(function (r) {
+    if (tour.champion && r.p === tour.champion) { r.place = 1; r.tag = '冠军'; }
+    else if (tour.runnerUp && r.p === tour.runnerUp) { r.place = 2; r.tag = '亚军'; }
+    else if (tour.third && r.p === tour.third) { r.place = 3; r.tag = '季军'; }
+  });
+
+  var rest = list.filter(function (r) { return !r.place; });
+  rest.sort(function (a, b) {
+    if (b.koWins !== a.koWins) return b.koWins - a.koWins;
+    if (b.p.pts !== a.p.pts) return b.p.pts - a.p.pts;
+    return b.p.dmg - a.p.dmg;
+  });
+  rest.forEach(function (r, i) { r.place = 4 + i; });
+
+  var restPlace = 4;
+  rest.forEach(function (r) {
+    r.tag = r.koPlayed === 0 ? '小组赛止步'
+      : (r.koPlayed >= 3 || r.koWins >= 2 ? '四强' : '八强');
+    r.place = restPlace++;
+  });
+
+  list.sort(function (a, b) { return a.place - b.place; });
+  return list;
 }
 
 function tourGroupDone() {
@@ -510,6 +560,18 @@ function tourRender() {
   else renderGroups();
 }
 
+/* ---------- 手机顶部资金条 ---------- */
+function tourMobileBar() {
+  var pending = tour.bets.reduce(function (sum, b) { return sum + b.stake; }, 0);
+  var h = '<div class="tb-mobile-bar">' +
+    '<span class="mb-bank">资金 <b>' + tour.bank + '</b></span>' +
+    '<span class="mb-sub">押注中 ' + pending + '</span>' +
+    '<span class="mb-sub">已结算 ' + tour.settled + '</span>' +
+    (tour.settled ? '<span class="mb-sub">赢 ' + tour.winBets + '</span>' : '') +
+    '</div>';
+  return h;
+}
+
 /* ---------- 侧栏（资金 / 竞猜 / 日志） ---------- */
 function tourSideHtml() {
   var pending = tour.bets.reduce(function (s, b) { return s + b.stake; }, 0);
@@ -542,7 +604,8 @@ function renderGroups() {
   var html = '<div class="tb-head">赛事模式 · ' + tour.size + ' 名玩家 · 以 ' + gCount + ' 组为例' +
     (tour.restored ? ' <i class="tb-tag">已恢复上次进度</i>' : '') + '</div>';
 
-  html += '<div class="tb-wrap"><aside class="tb-left">' + tourSideHtml() + '</aside><main class="tb-main">';
+  html += '<div class="tb-wrap"><aside class="tb-left">' + tourSideHtml() + '</aside><main class="tb-main">' +
+    tourMobileBar();
 
   if (tour.stage === 'setup') {
     html += '<div class="tb-sub">点下面的按钮，随机分配玩家、角色与分组</div>';
@@ -605,7 +668,8 @@ function renderGroups() {
 function renderStandings() {
   var b = el.tourBoard;
   var html = '<div class="tb-head">小组赛结束 · 积分排名</div>';
-  html += '<div class="tb-wrap"><aside class="tb-left">' + tourSideHtml() + '</aside><main class="tb-main">';
+  html += '<div class="tb-wrap"><aside class="tb-left">' + tourSideHtml() + '</aside><main class="tb-main">' +
+    tourMobileBar();
   html += '<div class="tb-sub">每组前两名晋级双败淘汰赛 · 同分看胜负差，再看总伤害</div>';
 
   html += '<div class="tb-groups">';
@@ -621,7 +685,7 @@ function renderStandings() {
         '<span class="ro">' + tourRolesText(p) + '</span>' +
         '<span>' + p.w + '-' + p.l + '</span>' +
         '<span class="pt">' + p.pts + '</span>' +
-        '<span>' + p.dmg + '</span>' +
+        '<span>' + Math.round(p.dmg) + '</span>' +
         '</div>';
     });
     html += '</div></div>';
@@ -671,11 +735,44 @@ function renderBracket() {
   var b = el.tourBoard;
   var ko = tour.ko;
   var html = '<div class="tb-head">' + (tour.stage === 'done'
-    ? '赛事结束 · 冠军 ' + tour.champion.name
+    ? ('赛事结束 · 冠军 ' + tour.champion.name +
+       (tour.finalView === 'bracket' ? ' <i class="tb-tag">赛程</i>' : ' <i class="tb-tag">最终排名</i>'))
     : '淘汰赛（双败）· ' + (ko.gf.a && ko.gf.b ? '总决赛' : '进行中')) + '</div>';
-  html += '<div class="tb-wrap"><aside class="tb-left">' + tourSideHtml() + '</aside><main class="tb-main">';
+  html += '<div class="tb-wrap"><aside class="tb-left">' + tourSideHtml() + '</aside><main class="tb-main">' +
+    tourMobileBar();
 
-  if (tour.stage === 'done') {
+  if (tour.stage === 'done' && tour.finalView !== 'bracket') {
+    var net = tour.bank - TOUR_START_BANK;
+    html += '<div class="tb-podium">' +
+      '<div class="p1"><span>冠军</span><b>' + tour.champion.name + '</b><i>' + tourRolesText(tour.champion) + '</i></div>' +
+      '<div class="p2"><span>亚军</span><b>' + (tour.runnerUp ? tour.runnerUp.name : '—') + '</b></div>' +
+      '<div class="p3"><span>季军</span><b>' + (tour.third ? tour.third.name : '—') + '</b></div>' +
+      '</div>';
+
+    html += '<div class="tb-final">' +
+      '<div class="tb-final-head">全部 ' + tour.size + ' 名玩家最终排名</div>' +
+      '<div class="tb-rank tb-rank-final">' +
+      '<div class="tb-rank-head"><span>#</span><span>玩家</span><span>角色</span><span>名次</span><span>胜-负</span><span>积分</span><span>伤害</span></div>';
+    tourFinalRanking().forEach(function (r) {
+      html += '<div class="tb-rank-row' + (r.place <= 3 ? ' top top' + r.place : '') + '">' +
+        '<span>' + r.place + '</span>' +
+        '<span class="nm">' + r.p.name + '</span>' +
+        '<span class="ro">' + tourRolesText(r.p) + '</span>' +
+        '<span class="tag">' + r.tag + '</span>' +
+        '<span>' + r.p.w + '-' + r.p.l + '</span>' +
+        '<span class="pt">' + r.p.pts + '</span>' +
+        '<span>' + Math.round(r.p.dmg) + '</span>' +
+        '</div>';
+    });
+    html += '</div></div>';
+
+    html += '<div class="tb-cash">' +
+      '<div class="cash-label">最终资金</div>' +
+      '<div class="cash-value">' + tour.bank + '</div>' +
+      '<div class="cash-detail">初始 ' + TOUR_START_BANK + ' · 结算 ' + tour.settled +
+        ' 场（赢 ' + tour.winBets + '）· 净' + (net >= 0 ? '赚 ' : '亏 ') + Math.abs(net) + '</div>' +
+      '</div>';
+  } else if (tour.stage === 'done') {
     html += '<div class="tb-podium">' +
       '<div class="p1"><span>冠军</span><b>' + tour.champion.name + '</b><i>' + tourRolesText(tour.champion) + '</i></div>' +
       '<div class="p2"><span>亚军</span><b>' + (tour.runnerUp ? tour.runnerUp.name : '—') + '</b></div>' +
@@ -683,7 +780,8 @@ function renderBracket() {
       '</div>';
   }
 
-  html += '<div class="tb-lanes">';
+  if (!(tour.stage === 'done' && tour.finalView !== 'bracket')) {
+    html += '<div class="tb-lanes">';
   html += '<div class="tb-lane wb"><div class="tb-lane-t">胜者组</div><div class="tb-lane-body">';
   ko.wb.forEach(function (rd, ri) {
     html += '<div class="tb-round"><div class="tb-round-t">' + rd.name + '</div>';
@@ -703,9 +801,13 @@ function renderBracket() {
   html += '<div class="tb-lane gf"><div class="tb-lane-t">总决赛 BO5</div><div class="tb-lane-body">' +
     '<div class="tb-round">' + koCard('gf', 0, 0, ko.gf) + '</div></div></div>';
   html += '</div>';
+  }
 
   html += '<div class="tb-foot">' +
-    (tour.stage === 'done' ? '' : '<span class="tb-hint">胜者组输了会掉进败者组；败者组输了就淘汰。季军赛胜者进总决赛，败者得季军。</span>') +
+    (tour.stage === 'done'
+      ? '<button type="button" class="tb-ghost" data-act="toggleView">' +
+        (tour.finalView === 'bracket' ? '← 回到排名' : '查看赛程 →') + '</button>'
+      : '<span class="tb-hint">胜者组输了会掉进败者组；败者组输了就淘汰。季军赛胜者进总决赛，败者得季军。</span>') +
     '<button type="button" class="tb-ghost" data-act="restart">重开赛事</button>' +
     '<button type="button" class="tb-ghost" data-act="exit">退出赛事</button></div>';
 
@@ -786,6 +888,9 @@ function bindBoardClicks() {
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(function () {});
       } else if (document.exitFullscreen) document.exitFullscreen();
+    } else if (act === 'toggleView') {
+      tour.finalView = tour.finalView === 'bracket' ? 'rank' : 'bracket';
+      tourRender();
     } else if (act === 'restart') { tourWipe(); tourOpen(tour ? tour.size : 8); }
     else if (act === 'exit') tourClose();
   };
