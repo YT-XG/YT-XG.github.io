@@ -598,3 +598,65 @@ button:active{transform:translateY(1px);border-bottom-width:1px;}
 .tb-mobile-bar .mb-bank b{color:#ffd9a8;font-size:16px;font-variant-numeric:tabular-nums;}
 .tb-mobile-bar .mb-sub{font-size:11px;color:#6f7d93;}
 @media (min-width: 1240px){ .tb-mobile-bar{display:none;} }
+
+/* ============================================================
+   赛事棋盘：整页不滚动，各列自己滚（第 71 条）
+   ============================================================ */
+.tour-board{
+  height:100dvh;overflow:hidden;
+  padding:14px 18px 12px;gap:8px;
+  justify-content:flex-start;
+}
+.tour-board > .tb-head,
+.tour-board > .tb-sub{flex:0 0 auto;}
+.tb-wrap{flex:1 1 auto;min-height:0;align-items:stretch;margin-top:4px;}
+.tb-left{min-height:0;overflow:hidden;}
+.tb-main{min-height:0;overflow:hidden;}
+.tb-main > .tb-mobile-bar,
+.tb-main > .tb-head,
+.tb-main > .tb-sub,
+.tb-main > .tb-podium,
+.tb-main > .tb-foot{flex:0 0 auto;}
+
+/* 分组：容器占满剩余高度，每个组框自己滚 */
+.tb-groups{
+  flex:1 1 auto;min-height:0;overflow:hidden;
+  grid-template-rows:repeat(2, minmax(0, 1fr));
+}
+.tb-group{min-height:0;overflow:hidden;}
+.tb-cards{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding-right:4px;}
+
+/* 积分榜 / 结算屏：表单区域自己滚 */
+.tb-rank{overflow-y:auto;min-height:0;flex:1 1 auto;padding-right:4px;}
+.tb-final{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+.tb-final .tb-rank{flex:1 1 auto;}
+.tb-cash{flex:0 0 auto;}
+
+/* 双败赛程：泳道自己滚（横向 + 纵向），页面不滚 */
+.tb-lanes{flex:1 1 auto;min-height:0;overflow:hidden;}
+.tb-lane{min-height:0;overflow:hidden;}
+.tb-lane-body{flex:1 1 auto;min-height:0;overflow:auto;}
+
+/* 左侧日志 */
+.tb-log{flex:1 1 auto;min-height:0;max-height:none;}
+
+/* 滚动条隐藏（仍可滚：滚轮 / 触摸 / 拖拽） */
+.tb-cards,.tb-lane-body,.tb-rank,.tb-log,.tb-final,.tb-main,.tb-left,.tour-board{
+  scrollbar-width:none;-ms-overflow-style:none;
+}
+.tb-cards::-webkit-scrollbar,.tb-lane-body::-webkit-scrollbar,
+.tb-rank::-webkit-scrollbar,.tb-log::-webkit-scrollbar,
+.tb-final::-webkit-scrollbar,.tb-main::-webkit-scrollbar,
+.tb-left::-webkit-scrollbar,.tour-board::-webkit-scrollbar{width:0;height:0;display:none;}
+
+
+/* 组标签（窄屏切换查看某一组） */
+.tb-tabs{display:flex;gap:6px;flex-wrap:wrap;flex:0 0 auto;}
+.tb-tab{
+  padding:5px 12px;border-radius:8px;font-size:12px;cursor:pointer;
+  border:1px solid #24303f;background:#11161f;color:#8b98ad;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.tb-tab i{font-style:normal;font-size:10px;color:#5c6a80;}
+.tb-tab.on{border-color:rgba(120,190,255,.55);background:rgba(90,150,255,.12);color:#d8ecff;}
+/* 手机多列网格由 mobile.css 控制 */

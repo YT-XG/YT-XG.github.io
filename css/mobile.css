@@ -233,3 +233,80 @@
   .tb-cash .cash-value{font-size:24px;}
   .tb-cash .cash-detail{font-size:10px;}
 }
+
+/* ============================================================
+   手机：各列独立滚动（第 71 条）
+   ============================================================ */
+@media (max-width: 980px){
+  .tour-board{height:100dvh;overflow:hidden;padding:6px 6px 8px;}
+  .tb-wrap{min-height:0;}
+  .tb-main{min-height:0;overflow:hidden;}
+  .tb-groups{flex:1 1 auto;min-height:0;overflow:hidden;grid-template-rows:minmax(0,1fr);}
+  .tb-cards{flex:1 1 auto;min-height:0;overflow-y:auto;}
+  .tb-lanes{flex:1 1 auto;min-height:0;overflow:hidden;}
+  .tb-lane-body{overflow:auto;}
+  .tb-foot{flex:0 0 auto;}
+}
+
+/* 手机：滚动条一律隐藏（惯性滚动保留） */
+.tb-cards,.tb-lane-body,.tb-rank,.tb-log,.tb-final,.tour-board,.tb-group,#tourBoard{
+  scrollbar-width:none;-ms-overflow-style:none;
+}
+.tb-cards::-webkit-scrollbar,.tb-lane-body::-webkit-scrollbar,
+.tb-rank::-webkit-scrollbar,.tb-log::-webkit-scrollbar,
+.tb-final::-webkit-scrollbar,.tour-board::-webkit-scrollbar{width:0;height:0;display:none;}
+
+
+@media (max-width: 980px){
+  .tb-tabs{gap:5px;}
+  .tb-tab{padding:4px 10px;font-size:11px;min-height:28px;}
+  .tb-tab i{font-size:9px;}
+
+}
+
+/* ============================================================
+   手机：整页不滚动，全部局部滚动（第 73 条）
+   ============================================================ */
+@media (max-width: 980px){
+  html,body{
+    height:100%;
+    max-height:100%;
+    overflow:hidden;          /* 页面本体永不滚动 */
+    overscroll-behavior:none; /* 禁止橡皮筋/下拉刷新 */
+  }
+  body{position:fixed;inset:0;width:100%;}
+  .app{height:100dvh;display:flex;flex-direction:column;}
+  .stage{flex:1 1 auto;min-height:0;}
+  canvas{height:100%;width:auto;max-width:100%;object-fit:contain;}
+
+  /* 菜单：覆盖层内部滚动 */
+  .menu{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+
+  /* 赛事棋盘：头/脚固定，中间列表局部滚动 */
+  .tour-board{overflow:hidden;}
+  .tb-main{overflow:hidden;min-height:0;}
+  .tb-cards,.tb-lane-body,.tb-rank,.tb-log{
+    -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  }
+
+  /* 比分条内部不滚动 */
+  .tour-panel{overflow:hidden;}
+}
+
+/* 手机：多列网格（替代单列），每组内部滚动 */
+@media (max-width: 980px){
+  .tb-groups.narrow{
+    grid-template-columns:repeat(2, minmax(0,1fr));
+    grid-template-rows:minmax(0,1fr);
+  }
+  .tb-groups.narrow.four{
+    grid-template-rows:repeat(2, minmax(0,1fr));
+  }
+  .tb-group{padding:5px 6px;}
+  .tb-gtitle{font-size:10px;margin-bottom:2px;}
+  .tb-card{max-width:none;}
+}
+@media (max-width: 560px){
+  .tb-groups.narrow{grid-template-columns:minmax(0,1fr);}
+  .tb-groups.narrow.four{grid-template-rows:repeat(4, minmax(90px,1fr));}
+}

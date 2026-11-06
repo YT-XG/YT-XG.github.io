@@ -88,6 +88,7 @@ function tourOpen(size) {
     stage: 'setup',
     champion: null, runnerUp: null, third: null,
     bank: TOUR_START_BANK, bets: [], settled: 0, winBets: 0,
+    mg: 0,                     // 手机端当前查看的组
     log: []
   };
   tourSpeed = 1;
@@ -623,7 +624,8 @@ function renderGroups() {
     return;
   }
 
-  html += '<div class="tb-groups">';
+  var narrow = window.innerWidth <= 980;
+  html += '<div class="tb-groups' + (narrow ? ' narrow' : '') + (tour.groups.length > 2 ? ' four' : '') + '">';
   for (var g = 0; g < tour.groups.length; g++) {
     html += '<div class="tb-group"><div class="tb-gtitle">组' + (g + 1) + '</div><div class="tb-cards">';
     tour.fixtures.forEach(function (f, idx) {
@@ -672,7 +674,8 @@ function renderStandings() {
     tourMobileBar();
   html += '<div class="tb-sub">每组前两名晋级双败淘汰赛 · 同分看胜负差，再看总伤害</div>';
 
-  html += '<div class="tb-groups">';
+  var narrowS = window.innerWidth <= 980;
+  html += '<div class="tb-groups' + (narrowS ? ' narrow' : '') + (tour.groups.length > 2 ? ' four' : '') + '">';
   for (var g = 0; g < tour.groups.length; g++) {
     var st = tourStandings(g);
     html += '<div class="tb-group"><div class="tb-gtitle">组' + (g + 1) + '</div>' +
