@@ -1,307 +1,121 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>兮眠生日快乐</title>
-    <style>
-        body { 
-            margin: 0; 
-            padding: 0; 
-            min-height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            font-family: 'Arial', sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-        /* 背景装饰 */
-        .background-decoration {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: -1;
-        }
-
-        .decoration-circle {
-            position: absolute;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.1);
-            animation: float 6s ease-in-out infinite;
-        }
-
-        .decoration-circle:nth-child(1) {
-            width: 200px;
-            height: 200px;
-            top: 10%;
-            left: 10%;
-            animation-delay: 0s;
-        }
-
-        .decoration-circle:nth-child(2) {
-            width: 150px;
-            height: 150px;
-            top: 60%;
-            right: 15%;
-            animation-delay: 2s;
-        }
-
-        .decoration-circle:nth-child(3) {
-            width: 100px;
-            height: 100px;
-            bottom: 20%;
-            left: 20%;
-            animation-delay: 4s;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-20px); }
-        }
-
-        /* 主容器 */
-        .selection-container {
-            text-align: center;
-            max-width: 800px;
-            padding: 40px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-        }
-
-        .selection-title {
-            font-size: 48px;
-            color: white;
-            margin-bottom: 10px;
-            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-            font-weight: bold;
-        }
-        .selection-title1 {
-            font-size: 36px;
-            color: white;
-            margin-bottom: 10px;
-            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-            font-weight: bold;
-        }
-        .selection-subtitle {
-            font-size: 18px;
-            color: rgba(255, 255, 255, 0.8);
-            margin-bottom: 40px;
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-        }
-
-        /* 选择按钮容器 */
-        .selection-buttons {
-            display: flex;
-            gap: 30px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        /* 节日选择卡片 */
-        .holiday-card {
-            background: rgba(255, 255, 255, 0.15);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 15px;
-            padding: 30px;
-            width: 250px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            color: inherit;
-            backdrop-filter: blur(5px);
-        }
-
-        .holiday-card:hover {
-            transform: translateY(-5px);
-            background: rgba(255, 255, 255, 0.25);
-            border-color: rgba(255, 255, 255, 0.5);
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
-        }
-
-        .holiday-icon {
-            font-size: 60px;
-            margin-bottom: 15px;
-            display: block;
-        }
-
-        .holiday-title {
-            font-size: 24px;
-            color: white;
-            margin-bottom: 10px;
-            font-weight: bold;
-        }
-
-        .holiday-description {
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.8);
-            line-height: 1.4;
-        }
-
-        /* 圣诞主题卡片 */
-        .christmas-card {
-            background: linear-gradient(135deg, rgba(220, 53, 69, 0.2), rgba(255, 193, 7, 0.2));
-            border-color: rgba(220, 53, 69, 0.4);
-        }
-
-        .christmas-card:hover {
-            background: linear-gradient(135deg, rgba(220, 53, 69, 0.3), rgba(255, 193, 7, 0.3));
-            border-color: rgba(220, 53, 69, 0.6);
-        }
-
-        /* 生日主题卡片 */
-        .birthday-card {
-            background: linear-gradient(135deg, rgba(255, 107, 107, 0.2), rgba(255, 168, 168, 0.2));
-            border-color: rgba(255, 107, 107, 0.4);
-        }
-
-        .birthday-card:hover {
-            background: linear-gradient(135deg, rgba(255, 107, 107, 0.3), rgba(255, 168, 168, 0.3));
-            border-color: rgba(255, 107, 107, 0.6);
-        }
-
-        /* 敬请期待卡片 */
-        .coming-soon-card {
-            background: linear-gradient(135deg, rgba(108, 92, 231, 0.2), rgba(76, 201, 240, 0.2));
-            border-color: rgba(108, 92, 231, 0.4);
-            cursor: default;
-        }
-
-        .coming-soon-card:hover {
-            background: linear-gradient(135deg, rgba(108, 92, 231, 0.25), rgba(76, 201, 240, 0.25));
-            border-color: rgba(108, 92, 231, 0.5);
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
-        }
-
-        /* 响应式设计 */
-        @media (max-width: 1024px) {
-            .selection-buttons {
-                gap: 20px;
-            }
-            
-            .holiday-card {
-                width: 220px;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .selection-container {
-                padding: 30px 20px;
-                margin: 0 20px;
-            }
-
-            .selection-title {
-                font-size: 36px;
-            }
-
-            .selection-subtitle {
-                font-size: 16px;
-            }
-
-            .selection-buttons {
-                flex-direction: column;
-                align-items: center;
-                gap: 20px;
-            }
-
-            .holiday-card {
-                width: 100%;
-                max-width: 300px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .selection-title {
-                font-size: 28px;
-            }
-
-            .holiday-icon {
-                font-size: 50px;
-            }
-
-            .holiday-title {
-                font-size: 20px;
-            }
-        }
-
-        /* 底部版权信息 */
-        .footer {
-            position: absolute;
-            bottom: 20px;
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 12px;
-            text-align: center;
-        }
-    </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>MC 方块对决 · 组合作战</title>
+<link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-    <!-- 背景装饰 -->
-    <div class="background-decoration">
-        <div class="decoration-circle"></div>
-        <div class="decoration-circle"></div>
-        <div class="decoration-circle"></div>
-    </div>
+<div class="app">
+  <header>
+    <h1>MC 方块对决 <em>1v1</em><em>角色池选人 · 红青组合算 1 个整体</em></h1>
+    <div class="hint"><kbd>R</kbd> 重开 · <kbd>空格</kbd> 暂停 · <kbd>F</kbd> 加速 · <kbd>Esc</kbd> 主菜单</div>
+  </header>
 
-    <!-- 主选择容器 -->
-    <div class="selection-container">
-        <h1 class="selection-title"> 兮眠 </h1>
-        <h2 class="selection-title1">🎉 节日祝福 🎊</h2>
-        <p class="selection-subtitle">专为兮眠定制的节日祝福，给你带来独特的互动体验</p>
-        
-        <div class="selection-buttons">
-            <!-- 圣诞祝福 -->
-            <a href="christmas.html" class="holiday-card christmas-card">
-                <span class="holiday-icon">🎄</span>
-                <h3 class="holiday-title">圣诞祝福</h3>
-                <p class="holiday-description">进入充满魔法的圣诞世界，体验手势交互的圣诞惊喜</p>
-            </a>
-            
-            <!-- 生日祝福 -->
-            <a href="birthday.html" class="holiday-card birthday-card">
-                <span class="holiday-icon">🎂</span>
-                <h3 class="holiday-title">生日祝福</h3>
-                <p class="holiday-description">送上最温暖的生日祝福，蛋糕、气球和五彩纸屑为你庆祝</p>
-            </a>
-            
-            <!-- 敬请期待 -->
-            <div class="holiday-card coming-soon-card">
-                <span class="holiday-icon">✨</span>
-                <h3 class="holiday-title">敬请期待</h3>
-                <p class="holiday-description">更多精彩内容正在筹备中，敬请期待...</p>
-            </div>
+  <div class="stage" id="stage">
+    <canvas id="cv" width="1290" height="600"></canvas>
+    <div class="hud">
+      <div class="team a">
+        <div class="tname" id="nameA">红方 · 红石块 + 青金石块</div>
+        <div class="bar"><i id="hpA"></i></div>
+      </div>
+      <div class="clock"><b id="timer">180</b><small id="timerLabel">SEC</small></div>
+      <div class="team b">
+        <div class="tname" id="nameB">蓝方 · 长矛</div>
+        <div class="bar b"><i id="hpB"></i></div>
+      </div>
+    </div>
+    <div class="banner" id="banner"><strong></strong><em></em></div>
+  <div class="tour-panel" id="tourPanel"></div>
+  <div class="tour-board" id="tourBoard"></div>
+  <div class="tour-fx" id="tourFx"></div>
+  <div class="rotate-tip" id="rotateTip"><b>请横屏使用</b><span>把手机横过来，画面会大很多</span><button type="button" onclick="document.getElementById('rotateTip').style.display='none'">仍然竖屏使用</button></div>
+
+  </div>
+
+  <div class="menu" id="menu">
+    <div class="menu-grid">
+      <aside class="detail detail-a" id="detailA">
+        <div class="detail-title">角色技能数值详细介绍</div>
+        <div class="detail-body" id="detailBodyA"></div>
+      </aside>
+
+      <section class="arena-pick">
+        <div class="pick-kicker">
+          <b>MC 方块对决</b>
+          <span>角色池选人 · 支持 1v1 / 2v2 / 3v3 / 3v3 接力 · 红青组合算 1 个整体</span>
         </div>
-    </div>
+        <div class="pick-sides">
+          <div class="pick-side">
+            <div class="side-head">
+              <span class="side-tag a">红</span>
+              <button class="dice" id="diceA" type="button" title="随机红方阵容">随机</button>
+            </div>
+            <div class="pick-card" id="cardA"></div>
+          </div>
+          <div class="pick-vs">vs</div>
+          <div class="pick-side">
+            <div class="side-head">
+              <span class="side-tag b">蓝</span>
+              <button class="dice" id="diceB" type="button" title="随机蓝方阵容">随机</button>
+            </div>
+            <div class="pick-card" id="cardB"></div>
+          </div>
+        </div>
+        <div class="pick-foot">
+          <div class="pick-summary" id="pickSummary"></div>
+          <div class="round-pick" id="modePick"></div>
+          <div class="round-pick" id="roundPick"></div>
+          <button class="primary" id="btnStart">开始对战</button>
+          <select id="tourSize" title="参赛人数"><option value="8">8 人</option><option value="16">16 人</option></select>
+          <button id="btnTour" type="button" title="8 人自动赛事：小组赛 BO2 → 淘汰赛 BO3 → 决赛 BO5">赛事模式</button>
+          <button id="btnRandom" type="button" title="双方阵容全部随机">随机双方</button>
+        </div>
+      </section>
 
-    <!-- 底部版权信息 -->
-    <div class="footer">
-        © 2025-2026 兮眠专属祝福 | 西瓜用心制作的每一份祝福
-    </div>
+      <aside class="detail detail-b" id="detailB">
+        <div class="detail-title">角色技能数值详细介绍</div>
+        <div class="detail-body" id="detailBodyB"></div>
+      </aside>
 
-    <script>
-        // 添加页面加载动画效果
-        document.addEventListener('DOMContentLoaded', function() {
-            const cards = document.querySelectorAll('.holiday-card');
-            cards.forEach((card, index) => {
-                card.style.opacity = '0';
-                card.style.transform = 'translateY(20px)';
-                
-                setTimeout(() => {
-                    card.style.transition = 'all 0.5s ease';
-                    card.style.opacity = '1';
-                    card.style.transform = 'translateY(0)';
-                }, index * 200);
-            });
-        });
-    </script>
+      <section class="pool-panel">
+        <div class="pool-head">
+          <div class="pool-title">角色池</div>
+          <div class="pool-hint">点红/蓝卡片切换选择方，再点角色</div>
+        </div>
+        <div class="pool" id="pool"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <div class="foot">
+    <div class="hint">纯 Canvas 2D + 原生 JS，零依赖，单文件可直接双击打开。</div>
+    <div class="btns" id="btns">
+      <button id="btnRestart">重开</button>
+      <button id="btnPause">暂停</button>
+      <button id="btnSpeed">速度 ×1</button>
+      <button id="btnMenu">主菜单</button>
+    </div>
+  </div>
+</div>
+
+    <script src="js/00-base.js"></script>
+    <script src="js/items/red.js"></script>
+    <script src="js/items/lapis.js"></script>
+    <script src="js/items/spear.js"></script>
+    <script src="js/items/bow.js"></script>
+    <script src="js/items/ice.js"></script>
+    <script src="js/items/dog.js"></script>
+    <script src="js/items/grass.js"></script>
+    <script src="js/items/pool.js"></script>
+    <script src="js/10-core.js"></script>
+    <script src="js/20-menu.js"></script>
+    <script src="js/30-sim.js"></script>
+    <script src="js/40-render.js"></script>
+    <script src="js/50-ui.js"></script>
+    <script src="js/60-tournament.js"></script>
 </body>
 </html>
