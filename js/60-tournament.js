@@ -351,23 +351,18 @@ function tourSettleBets(fx, draw) {
   }
 }
 
-function tourBetRow(fx) {
+function tourBetBtn(fx, side) {
   if (fx.done) return '';
   var pct = tourPredict(fx.a, fx.b);
-  var oa = tourOdds(pct), ob = tourOdds(100 - pct);
+  var odds = tourOdds(side === 'A' ? pct : 100 - pct);
   var bet = tourBetOf(fx);
-  var stakeA = bet && bet.side === 'A' ? bet.stake : 0;
-  var stakeB = bet && bet.side === 'B' ? bet.stake : 0;
+  var stake = bet && bet.side === side ? bet.stake : 0;
   var key = tourBetKey(fx);
-  return '<div class="tb-bet">' +
-    '<button type="button" class="tb-odd a' + (stakeA ? ' has' : '') + '" data-bet="A" data-key="' + key + '"' +
-      (tour.bank < 50 ? ' disabled' : '') + '>' +
-      '押红 ' + tourFmtOdds(oa) + (stakeA ? ' · ' + stakeA : '') + '</button>' +
-    '<span class="tb-prob">预测 ' + pct + '% · ' + (100 - pct) + '%</span>' +
-    '<button type="button" class="tb-odd b' + (stakeB ? ' has' : '') + '" data-bet="B" data-key="' + key + '"' +
-      (tour.bank < 50 ? ' disabled' : '') + '>' +
-      '押蓝 ' + tourFmtOdds(ob) + (stakeB ? ' · ' + stakeB : '') + '</button>' +
-    '</div>';
+  return '<button type="button" class="tb-odd ' + (side === 'A' ? 'a' : 'b') +
+    (stake ? ' has' : '') + '" data-bet="' + side + '" data-key="' + key + '"' +
+    (tour.bank < 100 ? ' disabled' : '') + '>' +
+    (side === 'A' ? '押红 ' : '押蓝 ') + tourFmtOdds(odds) +
+    (stake ? ' · ' + stake : '') + '</button>';
 }
 
 /* ---------- 淘汰赛结构（双败） ---------- */
@@ -668,19 +663,21 @@ function renderGroups() {
           '<span class="tb-nm a' + (f.winner === f.a ? ' win' : '') + '">' + f.a.name + '</span>' +
           '<span class="tb-roles">' + tourRolesText(f.a) + '</span>' +
           '<span class="tb-pt">' + f.a.pts + ' 分</span>' +
+          tourBetBtn(f, 'A') +
         '</div>' +
         '<div class="tb-mid">' +
           '<span class="tb-sc">' + (f.done ? f.score : 'vs') + '</span>' +
           (f.done
             ? '<span class="tb-done">已完</span>'
             : '<button type="button" data-act="play" data-idx="' + idx + '"' + (tour.cur ? ' disabled' : '') + '>开始</button>') +
+          '<span class="tb-prob">' + tourPredict(f.a, f.b) + '%·' + (100 - tourPredict(f.a, f.b)) + '%</span>' +
         '</div>' +
         '<div class="tb-side b">' +
           '<span class="tb-nm b' + (f.winner === f.b ? ' win' : '') + '">' + f.b.name + '</span>' +
           '<span class="tb-roles">' + tourRolesText(f.b) + '</span>' +
           '<span class="tb-pt">' + f.b.pts + ' 分</span>' +
+          tourBetBtn(f, 'B') +
         '</div>' +
-        tourBetRow(f) +
       '</div>';
     });
     html += '</div></div>';
