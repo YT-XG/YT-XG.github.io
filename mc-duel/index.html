@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>MC 方块对决 · 组合作战</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>MC 方块对决 <em>1v1</em><em>角色池选人 · 红青组合算 1 个整体</em></h1>
+    <div class="hint"><kbd>R</kbd> 重开 · <kbd>空格</kbd> 暂停 · <kbd>F</kbd> 加速 · <kbd>Esc</kbd> 主菜单</div>
+  </header>
+
+  <div class="stage" id="stage">
+    <canvas id="cv" width="1290" height="600"></canvas>
+    <div class="hud">
+      <div class="team a">
+        <div class="tname" id="nameA">红方 · 红石块 + 青金石块</div>
+        <div class="bar"><i id="hpA"></i></div>
+      </div>
+      <div class="clock"><b id="timer">180</b><small id="timerLabel">SEC</small></div>
+      <div class="team b">
+        <div class="tname" id="nameB">蓝方 · 长矛</div>
+        <div class="bar b"><i id="hpB"></i></div>
+      </div>
+    </div>
+    <div class="banner" id="banner"><strong></strong><em></em></div>
+  <div class="tour-panel" id="tourPanel"></div>
+  <div class="tour-board" id="tourBoard"></div>
+  <div class="tour-fx" id="tourFx"></div>
+  <div class="rotate-tip" id="rotateTip"><b>请横屏使用</b><span>把手机横过来，画面会大很多</span><button type="button" onclick="document.getElementById('rotateTip').style.display='none'">仍然竖屏使用</button></div>
+
+  </div>
+
+  <div class="menu" id="menu">
+    <div class="menu-grid">
+      <aside class="detail detail-a" id="detailA">
+        <div class="detail-title">角色技能数值详细介绍</div>
+        <div class="detail-body" id="detailBodyA"></div>
+      </aside>
+
+      <section class="arena-pick">
+        <div class="pick-kicker">
+          <b>MC 方块对决</b>
+          <span>角色池选人 · 支持 1v1 / 2v2 / 3v3 / 3v3 接力 · 红青组合算 1 个整体</span>
+        </div>
+        <div class="pick-sides">
+          <div class="pick-side">
+            <div class="side-head">
+              <span class="side-tag a">红</span>
+              <button class="dice" id="diceA" type="button" title="随机红方阵容">随机</button>
+            </div>
+            <div class="pick-card" id="cardA"></div>
+          </div>
+          <div class="pick-vs">vs</div>
+          <div class="pick-side">
+            <div class="side-head">
+              <span class="side-tag b">蓝</span>
+              <button class="dice" id="diceB" type="button" title="随机蓝方阵容">随机</button>
+            </div>
+            <div class="pick-card" id="cardB"></div>
+          </div>
+        </div>
+        <div class="pick-foot">
+          <div class="pick-summary" id="pickSummary"></div>
+          <div class="round-pick" id="modePick"></div>
+          <div class="round-pick" id="roundPick"></div>
+          <button class="primary" id="btnStart">开始对战</button>
+          <select id="tourSize" title="参赛人数"><option value="8">8 人</option><option value="16">16 人</option></select>
+          <button id="btnTour" type="button" title="8 人自动赛事：小组赛 BO2 → 淘汰赛 BO3 → 决赛 BO5">赛事模式</button>
+          <button id="btnRandom" type="button" title="双方阵容全部随机">随机双方</button>
+        </div>
+      </section>
+
+      <aside class="detail detail-b" id="detailB">
+        <div class="detail-title">角色技能数值详细介绍</div>
+        <div class="detail-body" id="detailBodyB"></div>
+      </aside>
+
+      <section class="pool-panel">
+        <div class="pool-head">
+          <div class="pool-title">角色池</div>
+          <div class="pool-hint">点红/蓝卡片切换选择方，再点角色</div>
+        </div>
+        <div class="pool" id="pool"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <div class="foot">
+    <div class="hint">纯 Canvas 2D + 原生 JS，零依赖，单文件可直接双击打开。</div>
+    <div class="btns" id="btns">
+      <button id="btnRestart">重开</button>
+      <button id="btnPause">暂停</button>
+      <button id="btnSpeed">速度 ×1</button>
+      <button id="btnMenu">主菜单</button>
+    </div>
+  </div>
+</div>
+
+    <script src="js/00-base.js"></script>
+    <script src="js/items/red.js"></script>
+    <script src="js/items/lapis.js"></script>
+    <script src="js/items/spear.js"></script>
+    <script src="js/items/bow.js"></script>
+    <script src="js/items/ice.js"></script>
+    <script src="js/items/dog.js"></script>
+    <script src="js/items/grass.js"></script>
+    <script src="js/items/pool.js"></script>
+    <script src="js/10-core.js"></script>
+    <script src="js/20-menu.js"></script>
+    <script src="js/30-sim.js"></script>
+    <script src="js/40-render.js"></script>
+    <script src="js/50-ui.js"></script>
+    <script src="js/60-tournament.js"></script>
+</body>
+</html>
