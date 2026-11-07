@@ -32,6 +32,17 @@ function floater(x, y, text, color, size) {
 function hurt(u, amount, src) {
   if (!u.alive || amount <= 0) return;
 
+  // 野生狗奶：引导期间受击先扣「打断护盾」（80 点）；护盾存在时不掉血，打空立即打断
+  if (u.st && u.st.milkT > 0) {
+    var absorbed = Math.min(u.st.shield, amount);
+    u.st.shield -= absorbed;
+    u.taken += amount;       // 承伤统计照常累加（含被护盾吸收的部分）
+    floater(u.x, u.y - u.r - 12, '护盾 ' + Math.ceil(Math.max(0, u.st.shield)), '#93b6ff', 12);
+    ring(u.x, u.y, u.r + 4, u.r + 30, 0.2, '#93b6ff');
+    if (u.st.shield <= 0.01) { u.st.shield = 0; interruptMilk(u); }
+    return;
+  }
+
   // 羁绊狂暴前的 3 秒：原地无敌
   if (u.st.rage && u.st.rage.phase === 'shake') {
     floater(u.x, u.y - u.r - 14, '无敌', '#ffe08a', 12);
@@ -176,6 +187,121 @@ function updateBombs(dt) {
         hurt(v, b.dmg, b.owner);
       }
     }
+
+    // 敌方种子同样被炸弹波及（半径 + 种子身位）
+    for (var q = seeds.length - 1; q >= 0; q--) {
+      var sd = seeds[q];
+      if (sd.team === b.team) continue;
+      if (Math.hypot(sd.x - b.x, sd.y - b.y) >= b.radius + sd.r) continue;
+      hurtSeed(sd, b.dmg, b.owner);
+      if (sd.hp <= 0) destroySeed(q, '种子被炸碎');
+    }
+  }
+}
+
+/* ============================================================
+   野生狗奶：全域引导（百分比扣血 / 次数盾打断）
+   ------------------------------------------------------------
+   · 引导期间自身不可移动（speedOf 返回 0）、免疫伤害（hurt() 直接返回）
+   · 每秒对「所有敌方单位 + 敌方召唤物（草的种子）」扣 6.6% 最大生命
+   · 百分比扣血走 hurt()：会被护盾吸收、计入 dealt / taken、可触发死亡与羁绊
+   · 不推人、不改 ang，符合匀速直线运动红线
+   ============================================================ */
+function isMilkChannel(u) {
+  return !!(u && u.st && u.st.milkT > 0);
+}
+
+// 每次引导满 1 秒结算一次：敌方单位走 hurt()，敌方种子直接扣血（种子没有护盾 / 无敌）
+function milkDrain(u, D) {
+  var i;
+  for (i = 0; i < units.length; i++) {
+    var v = units[i];
+    if (!v.alive || v.team === u.team) continue;
+    hurt(v, v.maxHp * D.pctPerSec, u);
+  }
+  for (i = seeds.length - 1; i >= 0; i--) {
+    var s = seeds[i];
+    if (s.team === u.team) continue;
+    hurtSeed(s, s.maxHp * D.pctPerSec, u);
+    if (s.hp <= 0) destroySeed(i, '种子枯萎');
+  }
+}
+
+// 打断护盾（80）打空：立即打断引导，CD 从 0 重新计（= 完整 8 秒），不进入新的引导
+function interruptMilk(u) {
+  u.st.milkT = 0;
+  u.st.milkAcc = 0;
+  u.st.shield = 0;
+  u.cd = TYPES.milk.skill.cd;
+  ring(u.x, u.y, u.r, u.r + 80, 0.55, '#ff9c6b');
+  burst(u.x, u.y, 20, '#ffb4aa', 260);
+  floater(u.x, u.y - u.r - 26, '引导被打断', '#ff8f7a', 14);
+  shake = Math.max(shake, 4);
+}
+
+/* ============================================================
+   铁砧：落点预警圆 → 延迟砸落
+   ------------------------------------------------------------
+   · 落点在生成瞬间锁定坐标（不跟随敌人），delay 秒后结算
+   · 砸落时对圆内敌方一次性结算伤害：核心区全额、外圈 edgeMul
+   · 伤害统一走 hurt()（护盾可吸收 / 无敌抖动免疫），与炸弹一致
+   · 不推人、不改 ang，只做伤害与表现，符合匀速直线运动红线
+   ============================================================ */
+function spawnAnvilMark(owner, x, y) {
+  var C = TYPES.anvil.anvil;
+  anvilMarks.push({
+    x: x, y: y, r: C.markR,
+    t: C.delay, max: C.delay,
+    team: owner.team, owner: owner
+  });
+  if (anvilMarks.length > ANVIL_MARK_MAX) {
+    anvilMarks.splice(0, anvilMarks.length - ANVIL_MARK_MAX);
+  }
+}
+
+function updateAnvilMarks(dt) {
+  var C = TYPES.anvil.anvil;
+  for (var i = anvilMarks.length - 1; i >= 0; i--) {
+    var m = anvilMarks[i];
+    m.t -= dt;
+    if (m.t > 0) continue;
+    anvilMarks.splice(i, 1);
+
+    // 砸落表现：地面冲击环 + 碎石粒子（不改变任何单位的位置/朝向）
+    ring(m.x, m.y, 10, m.r, 0.5, '#cfd9e8');
+    ring(m.x, m.y, 5, m.r * 0.6, 0.3, '#ffffff');
+    burst(m.x, m.y, 26, '#dfe8f4', 330);
+    shake = Math.min(15, shake + 6);
+    hitStop = Math.max(hitStop, 0.03);
+
+    // 圆内敌人：最近的一个承受全额，其余只吃 splashMul（避免一次落点同时清场）
+    var hits = [];
+    for (var k = 0; k < units.length; k++) {
+      var v = units[k];
+      if (!v.alive || v.team === m.team) continue;
+      var d = Math.hypot(v.x - m.x, v.y - m.y);
+      if (d > m.r + v.r * 0.5) continue;   // 圆外 + 半个身位都算没砸到
+      hits.push({ v: v, d: d });
+    }
+    hits.sort(function (a, b) { return a.d - b.d; });
+    for (var h = 0; h < hits.length; h++) {
+      var dmg = C.dmg;
+      if (hits[h].d > m.r * C.coreRatio) dmg *= C.edgeMul;   // 边缘区减伤
+      if (h > 0) dmg *= C.splashMul;                          // 非最近目标只吃溅射
+      hurt(hits[h].v, dmg, m.owner);
+    }
+
+    // 敌方种子永远按"非最近目标"处理：只吃溅射（外圈再乘 edgeMul），不会顶掉单位的全额伤害
+    for (var q = seeds.length - 1; q >= 0; q--) {
+      var sd = seeds[q];
+      if (sd.team === m.team) continue;
+      var sdD = Math.hypot(sd.x - m.x, sd.y - m.y);
+      if (sdD > m.r + sd.r * 0.5) continue;
+      var sdDmg = C.dmg * C.splashMul;
+      if (sdD > m.r * C.coreRatio) sdDmg *= C.edgeMul;
+      hurtSeed(sd, sdDmg, m.owner);
+      if (sd.hp <= 0) destroySeed(q, '种子被砸碎');
+    }
   }
 }
 
@@ -253,6 +379,24 @@ function updateArrows(dt) {
       if (!a.power) { a.life = 0; break; }   // 普通箭命中即消失
     }
 
+    // 箭矢也能命中敌方种子（种子是实体）；普通箭命中即消失，强化箭对每个种子只结算一次
+    if (a.life > 0) {
+      for (var q = seeds.length - 1; q >= 0; q--) {
+        var sd = seeds[q];
+        if (sd.team === a.team) continue;
+        if (a.seedHit && a.seedHit.indexOf(sd) >= 0) continue;
+        if (segDist(sd.x, sd.y, a.px, a.py, a.x, a.y) > sd.r + a.hitR) continue;
+
+        a.seedHit = a.seedHit || [];
+        a.seedHit.push(sd);
+        hurtSeed(sd, a.dmg, a.owner);
+        ring(sd.x, sd.y, 3, 24, 0.2, a.power ? '#ffd166' : '#c9f59b');
+        burst(sd.x, sd.y, a.power ? 8 : 4, a.power ? '#ffd166' : '#b9e88a', 180);
+        if (sd.hp <= 0) destroySeed(q, '种子被射落');
+        if (!a.power) { a.life = 0; break; }
+      }
+    }
+
     // 出界即销毁（箭不反弹）
     if (a.life <= 0 || a.x < A.x - 24 || a.x > A.x + A.w + 24 ||
         a.y < A.y - 24 || a.y > A.y + A.h + 24) {
@@ -318,17 +462,62 @@ function updateIcePatches(dt) {
       v.iceTick = Math.min(C.dotInterval, v.iceTick + dt);
     }
   }
+
+  // 种子同样会被敌方冰面侵蚀：判定口径与单位一致（半径 + 0.35 身位），每 dotInterval 秒扣 dot 点
+  for (i = seeds.length - 1; i >= 0; i--) {
+    var sd = seeds[i];
+    var sdIce = false, sdSrc = null;
+    for (j = 0; j < icePatches.length; j++) {
+      var p2 = icePatches[j];
+      if (p2.team === sd.team) continue;
+      var sdx = sd.x - p2.x, sdy = sd.y - p2.y;
+      var srr = p2.r + sd.r * 0.35;
+      if (sdx * sdx + sdy * sdy <= srr * srr) { sdIce = true; sdSrc = p2.owner; break; }
+    }
+    if (sdIce) {
+      sd.iceTick -= dt;
+      if (sd.iceTick <= 0) {
+        sd.iceTick += C.dotInterval;
+        hurtSeed(sd, C.dot, sdSrc);
+      }
+    } else if (sd.iceTick < C.dotInterval) {
+      sd.iceTick = Math.min(C.dotInterval, sd.iceTick + dt);
+    }
+    if (sd.hp <= 0) destroySeed(i, '种子被冻碎');
+  }
 }
 
 /* ============================================================
    草：种子 / 藤蔓 / 在种子上复活
    ------------------------------------------------------------
    · plantSeed   在当前位置种一颗种子（100 HP、不移动、不挡路）
-   · updateSeeds 敌方单位贴身会打掉种子（每次命中 25，0.35s 内不重复）
-   · tryVine     向范围内最近的敌人伸藤蔓：定身 3s + 中毒 5s（每秒 20）
+   · hurtSeed    种子唯一的受击入口：没有护盾 / 无敌，血量归零才消失
+   · updateSeeds 普通贴身接触不再掉血；敌方技能冲刺撞到才算攻击，
+                 同时每满 1 秒给 healRadius 内友军回复 5 HP（同队只留最新一颗，不叠加）
+   · tryVine     向范围内最近的敌人伸藤蔓：定身 3s + 中毒 5s（每秒 12）
    · queueRevive 草阵亡时消耗一颗自己的种子，延迟 1s 原地复活
    ============================================================ */
-var SEED_HIT_DMG = 25, SEED_HIT_CD = 0.35;
+
+// 种子受伤：统一入口。种子不参与 dealt 排行以外的单位结算，但伤害仍计入攻击方 dealt
+function hurtSeed(s, amount, src) {
+  if (!s || s.hp <= 0 || amount <= 0) return;
+  s.hp -= amount;
+  s.flash = 0.22;
+  s.lastHit = t;
+  if (src && typeof src.dealt === 'number') src.dealt += amount;
+  floater(s.x, s.y - s.r - 22, '-' + Math.round(amount), '#ffb1a0', 11);
+  burst(s.x, s.y, 4, '#c8f5b0', 120);
+}
+
+// 种子被摧毁（血量归零）：统一的表现 + 移除
+function destroySeed(i, text) {
+  var s = seeds[i];
+  if (!s) return;
+  burst(s.x, s.y, 18, '#9be36f', 230);
+  ring(s.x, s.y, s.r, s.r + 42, 0.3, '#c8f5b0');
+  floater(s.x, s.y - 16, text || '种子枯萎', '#c8f5b0', 12);
+  seeds.splice(i, 1);
+}
 
 function plantSeed(u, cfg) {
   // 同队同时只保留最新的一颗：再种就先把旧的收掉，避免满地种子
@@ -340,7 +529,8 @@ function plantSeed(u, cfg) {
   }
   seeds.push({
     x: u.x, y: u.y, r: cfg.r, hp: cfg.hp, maxHp: cfg.hp,
-    team: u.team, owner: u, hitCd: 0, phase: rand(0, TAU)
+    team: u.team, owner: u, hitCd: 0, phase: rand(0, TAU),
+    healAcc: 1.0, iceTick: 1.0, flash: 0, lastHit: -99
   });
   if (seeds.length > SEED_MAX) seeds.shift();
 
@@ -350,25 +540,42 @@ function plantSeed(u, cfg) {
 }
 
 function updateSeeds(dt) {
+  var S = TYPES.grass.seed;
   for (var i = seeds.length - 1; i >= 0; i--) {
     var s = seeds[i];
     s.hitCd = Math.max(0, s.hitCd - dt);
+    if (s.flash > 0) s.flash = Math.max(0, s.flash - dt);
 
+    // 1) 只有「技能冲刺」撞到种子才算被攻击；普通贴身接触不再掉血（种子是独立血条实体）
     for (var j = 0; j < units.length; j++) {
       var v = units[j];
-      if (!v.alive || v.team === s.team) continue;
+      if (!v.alive || v.team === s.team || v.dashT <= 0) continue;
       var reach = v.r + s.r;
-      if ((v.x - s.x) * (v.x - s.x) + (v.y - s.y) * (v.y - s.y) > reach * reach) continue;
+      var ddx = v.x - s.x, ddy = v.y - s.y;
+      if (ddx * ddx + ddy * ddy > reach * reach) continue;
       if (s.hitCd > 0) continue;
+      s.hitCd = S.hitCd;
+      hurtSeed(s, dmgOf(v, v.dashSpeed, s), v);
+    }
+    if (s.hp <= 0) { destroySeed(i, '种子被击碎'); continue; }
 
-      s.hitCd = SEED_HIT_CD;
-      s.hp -= SEED_HIT_DMG;
-      burst(s.x, s.y, 6, '#c8f5b0', 150);
-      if (s.hp <= 0) {
-        burst(s.x, s.y, 18, '#9be36f', 230);
-        floater(s.x, s.y - 16, '种子被踩碎', '#c8f5b0', 12);
-        seeds.splice(i, 1);
-        break;
+    // 2) 治疗光环：每满 1 秒给 healRadius 内「除自己以外」的友方单位回 5 HP
+    s.healAcc += dt;
+    if (s.healAcc >= 1.0) {
+      s.healAcc -= 1.0;
+      var healed = false;
+      for (var k = 0; k < units.length; k++) {
+        var a = units[k];
+        if (!a.alive || a.team !== s.team) continue;
+        if (a.hp >= a.maxHp) continue;
+        var hx = a.x - s.x, hy = a.y - s.y;
+        if (hx * hx + hy * hy > S.healRadius * S.healRadius) continue;
+        a.hp = Math.min(a.maxHp, a.hp + S.healPerSec);
+        healed = true;
+      }
+      if (healed) {
+        ring(s.x, s.y, s.r, S.healRadius, 0.5, 'rgba(140,224,106,.55)');
+        floater(s.x, s.y - s.r - 30, '回春 +' + S.healPerSec, '#8ce06a', 12);
       }
     }
   }
@@ -479,14 +686,11 @@ function updateShrink(dt) {
     if (u.x - u.r < ARENA.x) u.x = ARENA.x + u.r;
     if (u.x + u.r > ARENA.x + ARENA.w) u.x = ARENA.x + ARENA.w - u.r;
   }
-  // 落在墙外的种子被压碎
+  // 种子不移动，但会被新墙"推"回场内（不改任何状态；只有血量归零才会消失）
   for (var j = seeds.length - 1; j >= 0; j--) {
     var s = seeds[j];
-    if (s.x < ARENA.x || s.x > ARENA.x + ARENA.w) {
-      burst(s.x, s.y, 12, '#9be36f', 180);
-      floater(s.x, s.y - 14, '种子被压碎', '#c8f5b0', 12);
-      seeds.splice(j, 1);
-    }
+    if (s.x < ARENA.x + s.r) s.x = ARENA.x + s.r;
+    else if (s.x > ARENA.x + ARENA.w - s.r) s.x = ARENA.x + ARENA.w - s.r;
   }
 }
 
@@ -503,6 +707,14 @@ function laserStrike(u, L) {
     if (segDist(v.x, v.y, u.x, u.y, ex, ey) > L.width * 0.5 + v.r) continue;
     hurt(v, L.dmg, u);
   }
+  // 敌方种子同样被光束扫到：每段（0.1s）扣段伤 3，口径与单位一致
+  for (var j = seeds.length - 1; j >= 0; j--) {
+    var sd = seeds[j];
+    if (sd.team === u.team) continue;
+    if (segDist(sd.x, sd.y, u.x, u.y, ex, ey) > L.width * 0.5 + sd.r) continue;
+    hurtSeed(sd, L.dmg, u);
+    if (sd.hp <= 0) destroySeed(j, '种子被激光烧毁');
+  }
 }
 
 function statusText() {
@@ -513,7 +725,13 @@ function statusText() {
   for (var i = 0; i < units.length; i++) {
     var u = units[i];
     var R = u.st.rage;
-    if (!u.alive || !R) continue;
+    if (!u.alive) continue;
+    // 野生狗奶：引导剩余时间 + 剩余打断护盾
+    if (u.st.milkT > 0) {
+      parts.push(u.name + ' 引导 ' + u.st.milkT.toFixed(1) + 's · 护盾 ' +
+        Math.ceil(Math.max(0, u.st.shield)) + '/' + TYPES.milk.shieldMax);
+    }
+    if (!R) continue;
     if (R.phase === 'shake') {
       parts.push(u.name + ' 无敌抖动 ' + Math.max(0, Math.ceil(R.t)) + 's');
     } else {
@@ -658,8 +876,9 @@ function collide() {
       var pass = canPassThrough(a, b) || canPassThrough(b, a);
 
       if (!pass) {
-        // 无敌抖动中的单位必须原地不动：只推另一方
-        var aFixed = isShaking(a), bFixed = isShaking(b);
+        // 无敌抖动 / 野生狗奶引导中：原地不动，只推另一方
+        var aFixed = isShaking(a) || isMilkChannel(a);
+        var bFixed = isShaking(b) || isMilkChannel(b);
         if (!aFixed) {
           var ka = bFixed ? 1 : 0.5;
           a.x -= nx * overlap * ka;
@@ -684,9 +903,10 @@ function collide() {
 
       // 穿透时不做弹性反弹：方向保持不变，但撞击伤害照常结算
       if (!pass) {
-        // 等质量弹性碰撞：交换法线方向的速度分量，大小各自保持不变
-        a.ang = Math.atan2(vay + rel * ny, vax + rel * nx);
-        b.ang = Math.atan2(vby - rel * ny, vbx - rel * nx);
+        // 等质量弹性碰撞：交换法线方向的速度分量，大小各自保持不变。
+        // 引导中的野生狗奶视为"不可推动的桩"，只反弹对方，自己不改朝向。
+        if (!isMilkChannel(a)) a.ang = Math.atan2(vay + rel * ny, vax + rel * nx);
+        if (!isMilkChannel(b)) b.ang = Math.atan2(vby - rel * ny, vbx - rel * nx);
       }
 
       var impact = -rel;
@@ -928,6 +1148,7 @@ function tick(dt) {
 
   collide();
   updateBombs(dt);
+  updateAnvilMarks(dt);
   updateArrows(dt);
   updateIcePatches(dt);
   updateSeeds(dt);

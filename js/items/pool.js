@@ -58,6 +58,25 @@ var POOL = [
     units: ['grass'],
     body: '#5fbf5a',
     glow: '#9be36f'
+  },
+  {
+    key: 'anvil',
+    name: '铁砧',
+    short: '铁砧',
+    role: '延迟爆发 / 区域压制',
+    units: ['anvil'],
+    body: '#8b98ab',
+    glow: '#c6d7ee'
+  },
+  {
+    key: 'milk',
+    name: '野生狗奶',
+    short: '狗奶',
+    role: '全域压制 / 引导',
+    units: ['milk'],
+    body: '#e6cfa8',
+    glow: '#ffe0a0',
+    img: 'assets/milk.png'
   }
 ];
 var POOL_BY_KEY = {};

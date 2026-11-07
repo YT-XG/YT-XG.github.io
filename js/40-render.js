@@ -542,12 +542,133 @@ function drawIcePatches() {
   ctx.globalAlpha = 1;
 }
 
-/* 草的种子：贴地的小芽 + 血条 + 阵营小环；满血时不画血条 */
+/* 铁砧的落点预警圆：贴地层（在单位之下）
+   ------------------------------------------------------------
+   · 外圈虚线 = 判定边界（核心区再画一圈细实线）
+   · 剩余时间用一圈顺时针扇形表示；最后 0.6 秒转红并加亮
+   ============================================================ */
+function drawAnvilMarks() {
+  for (var i = 0; i < anvilMarks.length; i++) {
+    var m = anvilMarks[i];
+    var k = 1 - m.t / m.max;                 // 0 → 1 预警进度
+    var urgent = m.t < 0.6;
+    var tint = urgent ? '#ff8f7a' : (m.team === 'A' ? '#ffb4aa' : '#b9cdff');
+
+    // 地面底色：脉动填充，越接近落地越明显
+    var g = ctx.createRadialGradient(m.x, m.y, m.r * 0.2, m.x, m.y, m.r);
+    g.addColorStop(0, rgba(tint, 0.16 + 0.10 * k));
+    g.addColorStop(1, rgba(tint, 0.02));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.r, 0, TAU);
+    ctx.fill();
+
+    // 外圈虚线（判定边界）
+    ctx.save();
+    ctx.setLineDash([10, 8]);
+    ctx.lineDashOffset = -t * 46;
+    ctx.strokeStyle = rgba(tint, 0.55 + 0.25 * k);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.r, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+
+    // 核心区细圈（全额伤害范围）
+    ctx.strokeStyle = rgba(tint, 0.30);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.r * TYPES.anvil.anvil.coreRatio, 0, TAU);
+    ctx.stroke();
+
+    // 剩余时间扇形：从 12 点顺时针收缩
+    ctx.strokeStyle = rgba(tint, 0.85);
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.r - 2, -Math.PI / 2, -Math.PI / 2 + TAU * (m.t / m.max));
+    ctx.stroke();
+
+    // 十字准星
+    ctx.strokeStyle = rgba(tint, 0.5);
+    ctx.lineWidth = 1.5;
+    var cr = m.r * 0.34;
+    ctx.beginPath();
+    ctx.moveTo(m.x - cr, m.y); ctx.lineTo(m.x + cr, m.y);
+    ctx.moveTo(m.x, m.y - cr); ctx.lineTo(m.x, m.y + cr);
+    ctx.stroke();
+  }
+}
+
+/* 落下的铁砧：只在最后 0.55 秒出现，画在单位之上
+   ------------------------------------------------------------
+   从上往下压近，同时地面阴影变大；落地瞬间由 updateAnvilMarks 生成冲击特效 */
+function drawAnvilDrops() {
+  for (var i = 0; i < anvilMarks.length; i++) {
+    var m = anvilMarks[i];
+    if (m.t > 0.55) continue;
+    var p = m.t / 0.55;                      // 1 → 0（越接近 0 越低）
+    var dropY = m.y - 22 - p * 240;
+    var sc = 1 + p * 0.2;
+
+    // 地面阴影
+    ctx.globalAlpha = 0.22 + 0.2 * (1 - p);
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(m.x, m.y + 6, 34 * (1.4 - p * 0.4), 12 * (1.4 - p * 0.4), 0, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // 下坠速度线
+    ctx.globalAlpha = 0.5 * (1 - p);
+    ctx.strokeStyle = '#dfe8f4';
+    ctx.lineWidth = 2;
+    for (var s = -1; s <= 1; s++) {
+      ctx.beginPath();
+      ctx.moveTo(m.x + s * 14, dropY - 26);
+      ctx.lineTo(m.x + s * 14, dropY - 66 - p * 40);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // 铁砧本体（简化的三段剪影）
+    ctx.save();
+    ctx.translate(m.x, dropY);
+    ctx.scale(sc, sc);
+    ctx.fillStyle = '#e6edf8';
+    ctx.strokeStyle = 'rgba(20,26,36,.6)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-38, -30); ctx.lineTo(38, -30);
+    ctx.lineTo(32, -12); ctx.lineTo(-32, -12);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillRect(-13, -12, 26, 32);
+    ctx.strokeRect(-13, -12, 26, 32);
+    ctx.beginPath();
+    ctx.moveTo(-30, 20); ctx.lineTo(30, 20);
+    ctx.lineTo(36, 34); ctx.lineTo(-36, 34);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/* 草的种子：贴地的小芽 + 常驻血条 + 阵营小环 + 治疗光环范围 */
 function drawSeeds() {
+  var S = TYPES.grass.seed;
   for (var i = 0; i < seeds.length; i++) {
     var s = seeds[i];
     var ph = s.phase;
     var sway = Math.sin(t * 2.2 + ph) * 2.2;
+
+    // 治疗光环范围（淡虚线圆，提示 200px 回血区间）
+    ctx.save();
+    ctx.strokeStyle = 'rgba(140,224,106,' + (0.10 + 0.05 * Math.sin(t * 2 + ph)).toFixed(3) + ')';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([6, 8]);
+    ctx.lineDashOffset = -t * 14;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, S.healRadius, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
 
     // 地面光晕
     var g = ctx.createRadialGradient(s.x, s.y, 2, s.x, s.y, s.r * 2.4);
@@ -590,15 +711,24 @@ function drawSeeds() {
     ctx.arc(s.x, s.y + s.r * 0.55, s.r * 1.15, 0, Math.PI, false);
     ctx.stroke();
 
-    // 血条（只在掉血后显示）
-    if (s.hp < s.maxHp) {
-      var bw = 30, bh = 3;
-      var bx = s.x - bw / 2, by = s.y - s.r - 14;
-      ctx.fillStyle = 'rgba(0,0,0,.6)';
-      roundRect(bx - 1, by - 1, bw + 2, bh + 2, 2);
-      ctx.fillStyle = '#7fd45f';
-      roundRect(bx, by, bw * Math.max(0, s.hp / s.maxHp), bh, 2);
+    // 受击闪白（种子被技能 / 箭矢 / 激光 / 冰面等打中时）
+    if (s.flash > 0) {
+      ctx.globalAlpha = Math.min(1, s.flash / 0.22) * 0.8;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y - s.r * 0.3, s.r * 1.12, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 1;
     }
+
+    // 血条：常驻显示（种子是有独立血条的实体），低血变橙 / 红
+    var bw = 34, bh = 4;
+    var bx = s.x - bw / 2, by = s.y - s.r - 16;
+    var ratio = Math.max(0, s.hp / s.maxHp);
+    ctx.fillStyle = 'rgba(0,0,0,.65)';
+    roundRect(bx - 1, by - 1, bw + 2, bh + 2, 2);
+    ctx.fillStyle = ratio > 0.5 ? '#7fd45f' : (ratio > 0.25 ? '#e0b23c' : '#e05a4a');
+    roundRect(bx, by, bw * ratio, bh, 2);
   }
 }
 
@@ -746,6 +876,180 @@ function drawDog(u) {
   roundRect(x - r * 0.7, y - r * 0.6, r * 0.62, r * 0.26, r * 0.1);
   ctx.fill();
   ctx.globalAlpha = 1;
+}
+
+/* 铁砧：深铁灰方块 + 铁砧剪影（顶面宽、腰部收、底座宽） */
+function drawAnvil(u) {
+  var r = u.r, x = u.x, y = u.y;
+
+  var gl = ctx.createRadialGradient(x, y, r * 0.3, x, y, r * 2.4);
+  gl.addColorStop(0, rgba(u.glow, 0.3));
+  gl.addColorStop(1, rgba(u.glow, 0));
+  ctx.fillStyle = gl;
+  ctx.beginPath();
+  ctx.arc(x, y, r * 2.4, 0, TAU);
+  ctx.fill();
+
+  var body = ctx.createLinearGradient(x - r, y - r, x + r, y + r);
+  body.addColorStop(0, u.light);
+  body.addColorStop(0.45, u.body);
+  body.addColorStop(1, u.dark);
+  roundRect(x - r, y - r, r * 2, r * 2, r * 0.22);
+  ctx.fillStyle = body;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = rgba('#000000', 0.38);
+  ctx.stroke();
+
+  // 铁砧剪影：顶面 / 腰 / 底座（浅钢色，压深描边）
+  ctx.fillStyle = '#dbe5f4';
+  ctx.strokeStyle = 'rgba(24,30,40,.55)';
+  ctx.lineWidth = 1.2;
+  // 顶面
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.78, y - r * 0.52);
+  ctx.lineTo(x + r * 0.78, y - r * 0.52);
+  ctx.lineTo(x + r * 0.68, y - r * 0.30);
+  ctx.lineTo(x - r * 0.68, y - r * 0.30);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // 腰
+  roundRect(x - r * 0.24, y - r * 0.30, r * 0.48, r * 0.58, r * 0.08);
+  ctx.fill();
+  ctx.stroke();
+  // 底座
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.60, y + r * 0.28);
+  ctx.lineTo(x + r * 0.60, y + r * 0.28);
+  ctx.lineTo(x + r * 0.72, y + r * 0.52);
+  ctx.lineTo(x - r * 0.72, y + r * 0.52);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.globalAlpha = 0.2;
+  ctx.fillStyle = '#ffffff';
+  roundRect(x - r * 0.7, y - r * 0.7, r * 0.62, r * 0.26, r * 0.1);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+/* 野生狗奶：使用本地贴图 assets/milk.png（MILK_SPRITE）绘制本体
+   ------------------------------------------------------------
+   · 贴图按单位半径等比适配，朝左时水平翻转
+   · 引导期间额外画：金色脉动光环 + 旋转虚线 + 上升的奶滴，
+     让"原地站桩 / 无敌"在画面上能一眼看出来
+   · 贴图加载失败时退化为纯色剪影兜底 */
+function drawMilk(u) {
+  var r = u.r, x = u.x, y = u.y;
+  var ch = u.st && u.st.milkT > 0;
+
+  var gl = ctx.createRadialGradient(x, y, r * 0.3, x, y, r * 2.3);
+  gl.addColorStop(0, rgba(u.glow, 0.26));
+  gl.addColorStop(1, rgba(u.glow, 0));
+  ctx.fillStyle = gl;
+  ctx.beginPath();
+  ctx.arc(x, y, r * 2.3, 0, TAU);
+  ctx.fill();
+
+  // 引导光环：金色脉动圈 + 慢速旋转虚线
+  if (ch) {
+    var pulse = 0.55 + 0.45 * Math.sin(t * 7);
+    ctx.strokeStyle = 'rgba(255,224,160,' + (0.35 + 0.4 * pulse) + ')';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 9 + pulse * 3, 0, TAU);
+    ctx.stroke();
+
+    ctx.save();
+    ctx.setLineDash([4, 10]);
+    ctx.lineDashOffset = -t * 40;
+    ctx.strokeStyle = 'rgba(255,244,214,.65)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 20, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+
+    // 上升奶滴
+    ctx.fillStyle = 'rgba(255,250,235,.75)';
+    for (var d = 0; d < 3; d++) {
+      var ph = (t * 0.9 + d / 3) % 1;
+      ctx.globalAlpha = 0.7 * (1 - ph);
+      ctx.beginPath();
+      ctx.arc(x + Math.sin(t * 2 + d * 2.1) * r * 0.5, y - r - ph * 26, 2.2, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // 本体贴图（本地资源）：按高度等比适配；朝左时水平翻转
+  if (MILK_SPRITE.ok) {
+    var im = MILK_SPRITE.img;
+    var iw = im.naturalWidth, ih = im.naturalHeight;
+    var maxH = r * 2.9, maxW = r * 3.1;
+    var sc = maxH / ih;
+    if (iw * sc > maxW) sc = maxW / iw;
+    var dw = iw * sc, dh = ih * sc;
+    ctx.save();
+    ctx.translate(x, y + r * 0.22);
+    if (Math.cos(u.ang) < 0) ctx.scale(-1, 1);
+    ctx.drawImage(im, -dw / 2, -dh * 0.82, dw, dh);
+    ctx.restore();
+  } else {
+    // 贴图未就绪 / 加载失败：纯色剪影兜底（不使用原来的占位美术）
+    ctx.fillStyle = u.body;
+    roundRect(x - r, y - r * 0.9, r * 2, r * 1.8, r * 0.42);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(90,64,38,.45)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+/* 野生狗奶的「全域流失」连线：从引导者拉向每个敌人 / 敌方种子
+   ------------------------------------------------------------
+   只做视觉提示（虚线 + 目标身上的红环），不改变任何单位的位置与朝向 */
+function drawMilkLinks() {
+  var i, j;
+  for (i = 0; i < units.length; i++) {
+    var u = units[i];
+    if (!u.alive || !u.st || !(u.st.milkT > 0)) continue;
+    var pulse = 0.4 + 0.24 * Math.sin(t * 4 + u.seed);
+
+    ctx.save();
+    ctx.setLineDash([7, 10]);
+    ctx.lineDashOffset = -t * 54;
+    for (j = 0; j < units.length; j++) {
+      var v = units[j];
+      if (!v.alive || v.team === u.team) continue;
+      ctx.strokeStyle = 'rgba(255,143,122,' + (pulse + 0.18) + ')';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(u.x, u.y);
+      ctx.lineTo(v.x, v.y);
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(255,143,122,' + (0.14 + 0.12 * Math.sin(t * 5 + v.seed)) + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(v.x, v.y, v.r + 7, 0, TAU);
+      ctx.stroke();
+    }
+    // 敌方召唤物（草的种子）：更细的一条
+    ctx.strokeStyle = 'rgba(255,176,140,' + (pulse + 0.1) + ')';
+    ctx.lineWidth = 1.2;
+    for (j = 0; j < seeds.length; j++) {
+      var s = seeds[j];
+      if (s.team === u.team) continue;
+      ctx.beginPath();
+      ctx.moveTo(u.x, u.y);
+      ctx.lineTo(s.x, s.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 }
 
 /* 大狗激光：三段叠加（光晕 / 中层 / 白热芯）+ 枪口闪光 + 命中亮点 */
@@ -921,6 +1225,7 @@ function drawUnit(u) {
     ctx.fill();
   }
 
+
   // 血条旁的具体数值：默认贴右侧；靠近右边界时改贴左侧，避免被画布裁掉
   var hpTxt = Math.ceil(Math.max(0, u.hp)) + '/' + u.maxHp;
   ctx.font = '600 10px ui-monospace,Consolas,monospace';
@@ -935,7 +1240,21 @@ function drawUnit(u) {
   ctx.textAlign = 'left';
 
   var cr = u.r + 16;
-  if (u.cd > 0) {
+  if (u.st && u.st.milkT > 0) {
+    // 引导进度环：金色，从 12 点顺时针填满（引导期间 CD 为 0，不能画成"就绪"）
+    var dur = TYPES.milk.drain.dur;
+    var cp = clamp(1 - u.st.milkT / dur, 0, 1);
+    ctx.strokeStyle = 'rgba(255,224,160,.14)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(u.x, u.y, cr, 0, TAU);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,224,160,.9)';
+    ctx.beginPath();
+    ctx.arc(u.x, u.y, cr, -Math.PI / 2, -Math.PI / 2 + TAU * cp);
+    ctx.stroke();
+  } else if (u.cd > 0) {
     var total = TYPES[u.key].skill.cd;
     var prog = clamp(1 - u.cd / total, 0, 1);
     ctx.strokeStyle = 'rgba(255,255,255,.10)';
@@ -1075,15 +1394,18 @@ function render() {
   drawDamagePanels();  // 场地左右留白里的「总伤害」信息条（每帧实时读取）
   drawIcePatches();   // 贴地层：在场地之上、单位与尾迹之下
   drawSeeds();        // 草的种子也贴地
+  drawAnvilMarks();   // 铁砧落点预警圆（贴地）
 
   for (var i = 0; i < units.length; i++) drawTrail(units[i]);
   drawBombs();
   drawFx();
   drawArrows();
+  drawMilkLinks();    // 野生狗奶引导时的全域流失连线（贴地，压在单位之下）
 
   var sorted = units.slice().sort(function (a, b) { return a.y - b.y; });
   for (var j = 0; j < sorted.length; j++) drawUnit(sorted[j]);
 
+  drawAnvilDrops();   // 落下的铁砧压在单位之上
   drawLasers();       // 大狗激光（压在单位之上）
   drawVines();        // 藤蔓压在最上层
 

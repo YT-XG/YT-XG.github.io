@@ -38,14 +38,16 @@ function tourRoleName(key) {
 
 function tourRolesText(p) { return p.roles.map(tourRoleName).join(' / '); }
 
-/* 6 角色两两对位实测胜率（对称化，数值 = 行角色胜率 %） */
+/* 8 角色两两对位实测胜率（对称化，数值 = 行角色胜率 %；铁砧 / 野生狗奶为 2026-11-7 新增实测） */
 var TOUR_MATCHUP = {
-  duo:   { spear: 23.5, bow: 53.2, ice: 53.2, grass: 26.6, dog: 23.5 },
-  spear: { duo: 76.5, bow: 68.8, ice: 53.8, grass: 46.9, dog: 78.1 },
-  bow:   { duo: 46.8, spear: 31.2, ice: 100.0, grass: 100.0, dog: 98.5 },
-  ice:   { duo: 46.8, spear: 46.2, bow: 0.0,  grass: 45.3, dog: 15.6 },
-  grass: { duo: 73.4, spear: 53.1, bow: 0.0,  ice: 54.7,   dog: 9.4 },
-  dog:   { duo: 76.5, spear: 21.9, bow: 1.5,  ice: 84.4,   grass: 90.6 }
+  duo:   { spear: 23.5, bow: 53.2, ice: 53.2, grass: 26.6, dog: 23.5, anvil: 0.2,  milk: 0.0 },
+  spear: { duo: 76.5, bow: 68.8, ice: 53.8, grass: 46.9, dog: 78.1, anvil: 74.2, milk: 95.5 },
+  bow:   { duo: 46.8, spear: 31.2, ice: 100.0, grass: 100.0, dog: 98.5, anvil: 64.0, milk: 44.0 },
+  ice:   { duo: 46.8, spear: 46.2, bow: 0.0,  grass: 45.3, dog: 15.6, anvil: 3.5,  milk: 0.0 },
+  grass: { duo: 73.4, spear: 53.1, bow: 0.0,  ice: 54.7,   dog: 9.4,  anvil: 13.5, milk: 0.0 },
+  dog:   { duo: 76.5, spear: 21.9, bow: 1.5,  ice: 84.4,   grass: 90.6, anvil: 42.2, milk: 0.0 },
+  anvil: { duo: 99.8, spear: 25.8, bow: 36.0, ice: 96.5,   grass: 86.5, dog: 57.8, milk: 52.5 },
+  milk:  { duo: 100.0, spear: 4.5, bow: 56.0, ice: 100.0,  grass: 100.0, dog: 100.0, anvil: 47.5 }
 };
 
 function tourPairProb(x, y) {

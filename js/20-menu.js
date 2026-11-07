@@ -92,7 +92,9 @@ function makeSlot(c) {
   slot.setAttribute('data-key', c.key);
   slot.title = c.name + ' · ' + c.units.length + ' 个单位';
   slot.innerHTML =
-    '<span class="ps-dot" style="background:' + c.body + ';box-shadow:0 0 6px ' + c.glow + '"></span>' +
+    (c.img
+      ? '<img class="ps-img" src="' + c.img + '" alt="' + c.name + '">'
+      : '<span class="ps-dot" style="background:' + c.body + ';box-shadow:0 0 6px ' + c.glow + '"></span>') +
     '<b>' + c.short + '</b>' +
     '<span class="ps-tags"><i class="t-a">红</i><i class="t-b">蓝</i></span>';
 
@@ -247,7 +249,9 @@ function syncPick() {
       var sel = (active && activeSlot === s) ? ' sel' : '';
       html += '<div class="slot-chip' + sel + '" data-team="' + team + '" data-slot="' + s + '">' +
         '<span class="sc-idx">' + (s + 1) + '</span>' +
-        '<span class="pc-dot" style="background:' + c.body + ';box-shadow:0 0 10px ' + c.glow + '"></span>' +
+        (c.img
+          ? '<img class="pc-img" src="' + c.img + '" alt="' + c.name + '">'
+          : '<span class="pc-dot" style="background:' + c.body + ';box-shadow:0 0 10px ' + c.glow + '"></span>') +
         '<b>' + c.name + '</b>' +
         '<small>' + c.units.length + ' 单位</small>' +
         '</div>';
@@ -291,6 +295,7 @@ function openMenu() {
   paused = false;
   speedMul = 1;
   units = []; particles = []; rings = []; floaters = []; bombs = []; arrows = []; icePatches = [];
+  anvilMarks = [];
   seeds = []; vines = []; reviveQueue = [];
   t = 0; roundTime = roundDuration; shake = 0; hitStop = 0;
   suddenDeath = false; deathAcc = 0; suddenStart = 0;

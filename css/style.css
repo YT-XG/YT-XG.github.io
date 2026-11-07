@@ -182,6 +182,7 @@ body.menu-open{overflow:hidden;}
   font-size:10px;line-height:16px;text-align:center;color:#8b96a9;
 }
 .pick-card .slot-chip .pc-dot{width:12px;height:12px;flex:0 0 12px;border-radius:4px;margin:0;}
+.pick-card .slot-chip .pc-img{width:18px;height:18px;flex:0 0 18px;border-radius:4px;object-fit:contain;margin:0;}
 .pick-card .slot-chip b{font-size:clamp(11px,1.5vh,15px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .pick-card .slot-chip small{margin-left:auto;font-size:clamp(9px,1.2vh,12px);color:#7b8698;white-space:nowrap;}
 
@@ -208,6 +209,7 @@ body.menu-open{overflow:hidden;}
 .pool-slot.picked-b{border-color:rgba(74,123,240,.55);}
 .pool-slot.empty{cursor:default;border-style:dashed;border-color:#1d2634;background:transparent;justify-content:center;color:#4d5a70;font-size:clamp(10px, 1.4vh, 16px);}
 .ps-dot{width:clamp(8px, 1.3vh, 14px);height:clamp(8px, 1.3vh, 14px);border-radius:3px;flex:none;display:block;}
+.ps-img{width:clamp(16px, 2.4vh, 26px);height:clamp(16px, 2.4vh, 26px);flex:none;display:block;object-fit:contain;border-radius:4px;}
 .pool-slot b{flex:1;min-width:0;font-size:clamp(11px, 1.6vh, 18px);font-weight:600;color:#dfe7f4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .ps-tags{display:flex;gap:3px;flex:none;}
 .ps-tags i{font-style:normal;font-size:clamp(9px, 1.3vh, 14px);line-height:1.2;padding:0 2px;border-radius:3px;background:#1a2130;color:#4e5b70;}
