@@ -89,6 +89,7 @@ function tourOpen(size) {
     champion: null, runnerUp: null, third: null,
     bank: TOUR_START_BANK, bets: [], settled: 0, winBets: 0,
     mg: 0,                     // 手机端当前查看的组
+    sel: null,                 // 赛程图里选中的场次 {zone, ri, mi}
     log: []
   };
   tourSpeed = 1;
@@ -538,6 +539,28 @@ function tourFinalRanking() {
     else if (tour.third && r.p === tour.third) { r.place = 3; r.tag = '季军'; }
   });
 
+  // 统计整届赛事（小组 + 淘汰）的胜负场
+  list.forEach(function (r) {
+    var w = 0, l = 0;
+    tour.fixtures.forEach(function (f) {
+      if (!f.done) return;
+      if (f.winner === r.p) w++;
+      else if (f.loser === r.p) l++;
+    });
+    if (tour.ko) {
+      var allM = [];
+      tour.ko.wb.forEach(function (rd) { rd.matches.forEach(function (m) { allM.push(m); }); });
+      tour.ko.lb.forEach(function (rd) { rd.matches.forEach(function (m) { allM.push(m); }); });
+      allM.push(tour.ko.gf);
+      allM.forEach(function (m) {
+        if (!m.done) return;
+        if (m.winner === r.p) w++;
+        else if (m.loser === r.p) l++;
+      });
+    }
+    r.w = w; r.l = l;
+  });
+
   var rest = list.filter(function (r) { return !r.place; });
   rest.sort(function (a, b) {
     if (b.koWins !== a.koWins) return b.koWins - a.koWins;
@@ -593,10 +616,9 @@ function tourRender() {
 function tourMobileBar() {
   var pending = tour.bets.reduce(function (sum, b) { return sum + b.stake; }, 0);
   var h = '<div class="tb-mobile-bar">' +
-    '<span class="mb-bank">资金 <b>' + tour.bank + '</b></span>' +
-    '<span class="mb-sub">押注中 ' + pending + '</span>' +
-    '<span class="mb-sub">已结算 ' + tour.settled + '</span>' +
-    (tour.settled ? '<span class="mb-sub">赢 ' + tour.winBets + '</span>' : '') +
+    '<div class="mb-line"><i>资金</i><b>' + tour.bank + '</b></div>' +
+    '<div class="mb-line small">押注 ' + pending + ' · 结算 ' + tour.settled +
+      (tour.settled ? ' · 赢 ' + tour.winBets : '') + '</div>' +
     '</div>';
   return h;
 }
@@ -781,59 +803,35 @@ function renderBracket() {
       '<div class="p2"><span>亚军</span><b>' + (tour.runnerUp ? tour.runnerUp.name : '—') + '</b></div>' +
       '<div class="p3"><span>季军</span><b>' + (tour.third ? tour.third.name : '—') + '</b></div>' +
       '</div>';
-
     html += '<div class="tb-final">' +
-      '<div class="tb-final-head">全部 ' + tour.size + ' 名玩家最终排名</div>' +
+      '<div class="tb-final-head">全部 ' + tour.size + ' 名玩家最终排名（战绩为整届赛事的胜负场）</div>' +
       '<div class="tb-rank tb-rank-final">' +
-      '<div class="tb-rank-head"><span>#</span><span>玩家</span><span>角色</span><span>名次</span><span>胜-负</span><span>积分</span><span>伤害</span></div>';
+      '<div class="tb-rank-head"><span>#</span><span>玩家</span><span>角色</span><span>名次</span><span>总胜负</span><span>积分</span><span>伤害</span></div>';
     tourFinalRanking().forEach(function (r) {
       html += '<div class="tb-rank-row' + (r.place <= 3 ? ' top top' + r.place : '') + '">' +
         '<span>' + r.place + '</span>' +
         '<span class="nm">' + r.p.name + '</span>' +
         '<span class="ro">' + tourRolesText(r.p) + '</span>' +
         '<span class="tag">' + r.tag + '</span>' +
-        '<span>' + r.p.w + '-' + r.p.l + '</span>' +
+        '<span>' + r.w + '-' + r.l + '</span>' +
         '<span class="pt">' + r.p.pts + '</span>' +
         '<span>' + Math.round(r.p.dmg) + '</span>' +
         '</div>';
     });
     html += '</div></div>';
-
-    html += '<div class="tb-cash">' +
-      '<div class="cash-label">最终资金</div>' +
-      '<div class="cash-value">' + tour.bank + '</div>' +
-      '<div class="cash-detail">初始 ' + TOUR_START_BANK + ' · 结算 ' + tour.settled +
-        ' 场（赢 ' + tour.winBets + '）· 净' + (net >= 0 ? '赚 ' : '亏 ') + Math.abs(net) + '</div>' +
-      '</div>';
-  } else if (tour.stage === 'done') {
-    html += '<div class="tb-podium">' +
-      '<div class="p1"><span>冠军</span><b>' + tour.champion.name + '</b><i>' + tourRolesText(tour.champion) + '</i></div>' +
-      '<div class="p2"><span>亚军</span><b>' + (tour.runnerUp ? tour.runnerUp.name : '—') + '</b></div>' +
-      '<div class="p3"><span>季军</span><b>' + (tour.third ? tour.third.name : '—') + '</b></div>' +
-      '</div>';
-  }
-
-  if (!(tour.stage === 'done' && tour.finalView !== 'bracket')) {
-    html += '<div class="tb-lanes">';
-  html += '<div class="tb-lane wb"><div class="tb-lane-t">胜者组</div><div class="tb-lane-body">';
-  ko.wb.forEach(function (rd, ri) {
-    html += '<div class="tb-round"><div class="tb-round-t">' + rd.name + '</div>';
-    rd.matches.forEach(function (m, mi) { html += koCard('wb', ri, mi, m); });
-    html += '</div>';
-  });
-  html += '</div></div>';
-
-  html += '<div class="tb-lane lb"><div class="tb-lane-t">败者组</div><div class="tb-lane-body">';
-  ko.lb.forEach(function (rd, ri) {
-    html += '<div class="tb-round"><div class="tb-round-t">' + rd.name + '</div>';
-    rd.matches.forEach(function (m, mi) { html += koCard('lb', ri, mi, m); });
-    html += '</div>';
-  });
-  html += '</div></div>';
-
-  html += '<div class="tb-lane gf"><div class="tb-lane-t">总决赛 BO5</div><div class="tb-lane-body">' +
-    '<div class="tb-round">' + koCard('gf', 0, 0, ko.gf) + '</div></div></div>';
-  html += '</div>';
+    html += '<div class="tb-cash-line">资金 ' + tour.bank + ' · 初始 ' + TOUR_START_BANK +
+      ' · 结算 ' + tour.settled + ' 场（赢 ' + tour.winBets + '）· 净' +
+      (net >= 0 ? '赚 ' : '亏 ') + Math.abs(net) + '</div>';
+  } else {
+    if (tour.stage === 'done') {
+      html += '<div class="tb-podium">' +
+        '<div class="p1"><span>冠军</span><b>' + tour.champion.name + '</b><i>' + tourRolesText(tour.champion) + '</i></div>' +
+        '<div class="p2"><span>亚军</span><b>' + (tour.runnerUp ? tour.runnerUp.name : '—') + '</b></div>' +
+        '<div class="p3"><span>季军</span><b>' + (tour.third ? tour.third.name : '—') + '</b></div>' +
+        '</div>';
+    }
+    html += koActBar();
+    html += '<div class="tb-chart">' + bracketSvg() + '</div>';
   }
 
   html += '<div class="tb-foot">' +
@@ -847,6 +845,164 @@ function renderBracket() {
   html += '</main></div>';
   b.innerHTML = html;
   bindBoardClicks();
+}
+
+/* ---------- 双败赛程图（SVG，方框 + 连线） ---------- */
+/* 赛程图选中某场后的操作条：押红 / 押蓝 / 开打 */
+function koActBar() {
+  if (!tour.sel) {
+    return '<div class="tb-actbar tip">点赛程图里带「开打」的方框选中一场，再押注或开打</div>';
+  }
+  var m = tourKoMatch(tour.sel.zone, tour.sel.ri, tour.sel.mi);
+  if (!m || m.done || !m.a || !m.b) {
+    tour.sel = null;
+    return '<div class="tb-actbar tip">该场已结束或还没产生对阵</div>';
+  }
+  var pct = tourPredict(m.a, m.b);
+  var oa = tourOdds(pct), ob = tourOdds(100 - pct);
+  var bet = tourBetOf(m);
+  var stakeA = bet && bet.side === 'A' ? bet.stake : 0;
+  var stakeB = bet && bet.side === 'B' ? bet.stake : 0;
+  var key = tourBetKey(m);
+  var z = tour.sel.zone, ri = tour.sel.ri, mi = tour.sel.mi;
+  return '<div class="tb-actbar">' +
+    '<span class="ab-vs"><b class="a">' + m.a.name + '</b> vs <b class="b">' + m.b.name + '</b></span>' +
+    '<span class="ab-pct">' + pct + '%·' + (100 - pct) + '%</span>' +
+    '<button type="button" class="tb-odd a' + (stakeA ? ' has' : '') + '" data-bet2="A" data-zone="' + z +
+      '" data-ri="' + ri + '" data-mi="' + mi + '">押红 ' + tourFmtOdds(oa) + (stakeA ? ' · ' + stakeA : '') + '</button>' +
+    '<button type="button" class="tb-odd b' + (stakeB ? ' has' : '') + '" data-bet2="B" data-zone="' + z +
+      '" data-ri="' + ri + '" data-mi="' + mi + '">押蓝 ' + tourFmtOdds(ob) + (stakeB ? ' · ' + stakeB : '') + '</button>' +
+    '<button type="button" class="tb-big sm" data-act="playKo" data-zone="' + z +
+      '" data-ri="' + ri + '" data-mi="' + mi + '">开打</button>' +
+    '</div>';
+}
+
+function bracketSvg() {
+  var ko = tour.ko;
+  var BW = 150, BH = 40, GAPX = 62, GAPY = 16;
+  var step = BH + GAPY;
+  var wbR = ko.wb.length, lbR = ko.lb.length;
+  var cols = Math.max(wbR, lbR);
+  var wbLeaves = ko.wb[0].matches.length * 2;
+
+  function ys(count, leaves) {
+    var span = Math.pow(2, Math.round(Math.log2(leaves / count)));
+    var out = [];
+    for (var i = 0; i < count; i++) out.push((i * span + (span - 1) / 2) * step);
+    return out;
+  }
+
+  var wbY = [], lbY = [];
+  for (var r = 0; r < wbR; r++) wbY.push(ys(ko.wb[r].matches.length, wbLeaves));
+  var lbLeaves = ko.lb[0].matches.length * 2;
+  for (var lr = 0; lr < lbR; lr++) lbY.push(ys(ko.lb[lr].matches.length, Math.max(lbLeaves, ko.lb[lr].matches.length * 2)));
+
+  var wbTop = 22;
+  var wbH = wbLeaves * step;
+  var lbTop = wbTop + wbH + 46;
+  var lbH = Math.max(lbLeaves, 4) * step;
+  var totalH = lbTop + lbH + 30;
+  var totalW = 40 + cols * (BW + GAPX) + BW + 30;
+
+  function xOf(col) { return 24 + col * (BW + GAPX); }
+
+  var out = ['<svg class="bk-svg" viewBox="0 0 ' + totalW + ' ' + totalH + '" preserveAspectRatio="xMidYMid meet">'];
+
+  // 区域标题
+  out.push('<text class="bk-lab wb" x="10" y="14">胜者组 · 输一场掉入败者组</text>');
+  out.push('<text class="bk-lab lb" x="10" y="' + (lbTop - 16) + '">败者组 · 再输一场即淘汰</text>');
+
+  function box(x, y, m, zone, ri, mi) {
+    var canPlay = !m.done && m.a && m.b && !tour.cur;
+    var isSel = tour.sel && tour.sel.zone === zone && tour.sel.ri === ri && tour.sel.mi === mi;
+    var cls = 'bk-mt' + (m.done ? ' done' : '') + (canPlay ? ' playable' : '') + (isSel ? ' sel' : '');
+    var aN = m.a ? m.a.name : '待定';
+    var bN = m.b ? m.b.name : '待定';
+    var sc = m.done ? m.score : (m.a && m.b ? '开打' : '待定');
+    var h = '<g class="' + cls + '"' + (canPlay ? ' data-zone="' + zone + '" data-ri="' + ri + '" data-mi="' + mi + '"' : '') + '>' +
+      '<rect x="' + x + '" y="' + y + '" width="' + BW + '" height="' + BH + '" rx="6"/>' +
+      '<text class="bk-n1' + (m.done && m.winner === m.a ? ' win' : '') + '" x="' + (x + 9) + '" y="' + (y + 16) + '">' + aN + '</text>' +
+      '<text class="bk-n2' + (m.done && m.winner === m.b ? ' win' : '') + '" x="' + (x + 9) + '" y="' + (y + 32) + '">' + bN + '</text>' +
+      '<text class="bk-sc" x="' + (x + BW - 9) + '" y="' + (y + 24) + '" text-anchor="end">' + sc + '</text>' +
+      '</g>';
+    return h;
+  }
+
+  function elb(x1, y1, x2, y2, dashed) {
+    var mx = (x1 + x2) / 2;
+    return '<path class="bk-edge' + (dashed ? ' dash' : '') + '" d="M' + x1 + ' ' + y1 +
+      ' H' + mx + ' V' + y2 + ' H' + x2 + '"/>';
+  }
+
+  // 胜者组方框 + 连线
+  for (var r2 = 0; r2 < wbR; r2++) {
+    var ms = ko.wb[r2].matches;
+    for (var i = 0; i < ms.length; i++) {
+      var x = xOf(r2), y = wbTop + wbY[r2][i];
+      out.push(box(x, y, ms[i], 'wb', r2, i));
+      if (r2 + 1 < wbR) {
+        var py = wbTop + wbY[r2 + 1][Math.floor(i / 2)];
+        out.push(elb(x + BW, y + BH / 2, xOf(r2 + 1), py + BH / 2, false));
+      }
+    }
+  }
+
+  // 败者组方框 + 连线
+  for (var l2 = 0; l2 < lbR; l2++) {
+    var lms = ko.lb[l2].matches;
+    for (var j = 0; j < lms.length; j++) {
+      var lx = xOf(l2), ly = lbTop + lbY[l2][j];
+      out.push(box(lx, ly, lms[j], 'lb', l2, j));
+      if (l2 + 1 < lbR && lms.length > 1) {
+        var nY = lbTop + lbY[l2 + 1][Math.floor(j / 2)];
+        out.push(elb(lx + BW, ly + BH / 2, xOf(l2 + 1), nY + BH / 2, false));
+      }
+    }
+  }
+
+  // 胜者组败者 → 败者组：从框底垂直落下，沿空隙横向，再进目标框顶
+  var plan = TOUR_LB_PLAN[wbR === 3 ? 8 : 4];
+  var dropBase = lbTop - 26;
+  for (var k = 0; k < plan.length; k++) {
+    var pl = plan[k];
+    if (pl.from === 'wbLoser') {
+      for (var w = 0; w < ko.wb[pl.r].matches.length; w++) {
+        var toI = Math.floor(w / 2);
+        if (!ko.lb[k].matches[toI]) continue;
+        var sx1 = xOf(pl.r) + BW / 2, sy1 = wbTop + wbY[pl.r][w] + BH;
+        var tx1 = xOf(k) + BW / 2, ty1 = lbTop + lbY[k][toI];
+        var gx1 = xOf(pl.r) - 16 - (w % 2) * 10;      // 走到框左侧的空隙，避免穿过下面的框
+        var my1 = dropBase - (w % 2) * 8;
+        out.push('<path class="bk-edge dash" d="M' + sx1 + ' ' + sy1 +
+          ' V' + (sy1 + 12) + ' H' + gx1 + ' V' + my1 + ' H' + tx1 + ' V' + ty1 + '"/>');
+      }
+    } else if (pl.from === 'mix') {
+      for (var q = 0; q < ko.wb[pl.wb].matches.length; q++) {
+        if (!ko.lb[k].matches[q]) continue;
+        var sx2 = xOf(pl.wb) + BW / 2, sy2 = wbTop + wbY[pl.wb][q] + BH;
+        var tx2 = xOf(k) + BW / 2, ty2 = lbTop + lbY[k][q];
+        var gx2 = xOf(pl.wb) - 16 - q * 10;
+        var my2 = dropBase - 14 - q * 6;
+        out.push('<path class="bk-edge dash" d="M' + sx2 + ' ' + sy2 +
+          ' V' + (sy2 + 12) + ' H' + gx2 + ' V' + my2 + ' H' + tx2 + ' V' + ty2 + '"/>');
+      }
+    }
+  }
+
+  // 总决赛（右下）
+  var gfX = xOf(cols), gfY = lbTop + lbY[lbR - 1][0] - 6;
+  out.push('<text class="bk-lab gf" x="' + (gfX - 6) + '" y="' + (gfY - 10) + '">总决赛 BO5</text>');
+  out.push(box(gfX, gfY, ko.gf, 'gf', 0, 0));
+
+  // 胜者组冠军 → 总决赛
+  var wbLast = ko.wb[wbR - 1].matches[0];
+  out.push(elb(xOf(wbR - 1) + BW, wbTop + wbY[wbR - 1][0] + BH / 2, gfX, gfY + BH / 2, false));
+  // 败者组冠军 → 总决赛
+  var lbLast = ko.lb[lbR - 1].matches[0];
+  out.push(elb(xOf(lbR - 1) + BW, lbTop + lbY[lbR - 1][0] + BH / 2, gfX, gfY + BH / 2, false));
+
+  out.push('</svg>');
+  return out.join('');
 }
 
 /* ---------- ④ 战斗中的比分条 ---------- */
@@ -905,6 +1061,21 @@ function bindBoardClicks() {
         var okBefore = tour.bank >= 100 && !fx.done;
         tourPlaceBet(fx, side, 100);
         if (okBefore) tourBetPop(r0, 100, true);
+      }
+      return;
+    }
+
+    var node = e.target.closest('[data-zone]');
+    if (node && tour && !tour.cur) {
+      var zz = node.getAttribute('data-zone');
+      var rr = parseInt(node.getAttribute('data-ri'), 10);
+      var mm = parseInt(node.getAttribute('data-mi'), 10);
+      var curSel = tour.sel;
+      if (curSel && curSel.zone === zz && curSel.ri === rr && curSel.mi === mm) {
+        tourPlayKo(zz, rr, mm);          // 同一场再点一次 = 直接开打
+      } else {
+        tour.sel = { zone: zz, ri: rr, mi: mm };
+        tourRender();
       }
       return;
     }
