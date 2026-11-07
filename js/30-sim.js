@@ -1000,6 +1000,10 @@ function finish(by) {
     sub = (by === 'death' ? '决杀 · ' : '') + '同归于尽 · 总伤害 ' + Math.round(dA) + ' : ' + Math.round(dB);
   }
 
+  /* 后台赔率模拟（第 83 条）：胜负已经算完，这里直接返回，
+     不走横幅 / 赛事演出 / DOM，保证无渲染模拟不产生任何界面副作用 */
+  if (typeof simHeadless !== 'undefined' && simHeadless) return;
+
   // 赛事模式：先播「放大 + 时缓 + 加分」演出，动画结束后才结算回赛程
   if (typeof tour !== 'undefined' && tour && tour.cur) {
     for (var ti = 0; ti < units.length; ti++) {

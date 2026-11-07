@@ -290,6 +290,8 @@ function syncPick() {
    主页面 / 战斗切换
    ============================================================ */
 function openMenu() {
+  // 后台赔率模拟占着引擎全局：先停下并还原，再做主菜单的重置
+  if (typeof tourOddsStop === 'function') tourOddsStop();
   phase = 'menu';
   winner = null;
   paused = false;
@@ -317,6 +319,8 @@ function openMenu() {
 }
 
 function startBattle() {
+  // R 键 / 重开按钮在赛事棋盘上也会触发：后台模拟期间先停下再重置，避免两边抢全局
+  if (typeof tourOddsStop === 'function') tourOddsStop();
   reset();
   phase = 'fight';
   paused = false;

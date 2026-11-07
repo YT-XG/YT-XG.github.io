@@ -15,7 +15,12 @@ function frame(now) {
   last = now;
   if (dt > 0.05) dt = 0.05;
 
-  if (!paused) {
+  /* 后台赔率模拟（第 83 条）期间引擎全局被模拟占用：
+     即使玩家按空格把 paused 改回 false，也不要再驱动这批状态，
+     否则会和模拟互相踩（双保险，另一道是 paused=true） */
+  var oddsBusy = (typeof oddsRunning !== 'undefined' && oddsRunning);
+
+  if (!paused && !oddsBusy) {
     var sdt = dt * speedMul;
     if (hitStop > 0) {
       hitStop -= dt;
@@ -43,6 +48,8 @@ function frame(now) {
    ============================================================ */
 function togglePause() {
   if (phase === 'menu') return;
+  // 后台赔率模拟期间不响应暂停：它自己已经把 paused 置为 true
+  if (typeof oddsRunning !== 'undefined' && oddsRunning) return;
   paused = !paused;
   el.btnPause.textContent = paused ? '继续' : '暂停';
 }

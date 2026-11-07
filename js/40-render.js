@@ -1378,6 +1378,10 @@ function drawFx() {
 }
 
 function render() {
+  /* 后台赔率模拟（第 83 条）期间画布上显示的是赛事棋盘，这里停画：
+     模拟状态和当前对局无关，绘制只会白白耗掉低端机的帧预算 */
+  if (typeof oddsRunning !== 'undefined' && oddsRunning) return;
+
   ctx.save();
   if (shake > 0.1) {
     ctx.translate(rand(-shake, shake) * 0.6, rand(-shake, shake) * 0.6);

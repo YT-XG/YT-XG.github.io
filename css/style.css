@@ -769,3 +769,50 @@ button:active{transform:translateY(1px);border-bottom-width:1px;}
 .bk-grp rect{fill:rgba(255,255,255,.03);stroke:rgba(255,255,255,.13);stroke-width:1;}
 .bk-grp .bk-gt{fill:#b7c4d6;font-size:11px;}
 .bk-grp .bk-gs{fill:#8b98ad;font-size:10px;}
+
+/* ============================================================
+   赛事抽签：A/B 档徽标 + 揭晓动画（第 82 条）
+   ------------------------------------------------------------
+   动画只用 transform / opacity（GPU 合成），不跑 JS 逐帧，
+   手机上也不会因为重排掉帧；延迟由 JS 写进 --gseq / --cseq。
+   ============================================================ */
+.tb-band{
+  display:inline-block;margin-left:3px;padding:0 3px;border-radius:3px;
+  font-style:normal;font-weight:700;font-size:9px;line-height:12px;
+  vertical-align:1px;letter-spacing:0;border:1px solid transparent;
+}
+.tb-band.a{color:#ffd9a8;background:rgba(255,205,120,.14);border-color:rgba(255,205,120,.34);}
+.tb-band.b{color:#9fd0ff;background:rgba(120,190,255,.14);border-color:rgba(120,190,255,.34);}
+.tb-band.both{color:#cfe3ff;background:rgba(180,200,230,.10);border-color:rgba(180,200,230,.26);}
+/* 淘汰赛卡片里的一行角色（带档位徽标） */
+.tb-mt-roles{
+  color:#6f7d93;font-size:10px;line-height:1.35;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+@keyframes tbDealGroup{
+  0%  {opacity:0;transform:translateY(12px) scale(.97);}
+  100%{opacity:1;transform:none;}
+}
+@keyframes tbDealCard{
+  0%  {opacity:0;transform:translateY(16px) scale(.93);}
+  55% {opacity:1;}
+  100%{opacity:1;transform:none;}
+}
+@keyframes tbDealBadge{
+  0%  {opacity:0;transform:scale(.35);}
+  65% {opacity:1;transform:scale(1.18);}
+  100%{opacity:1;transform:scale(1);}
+}
+/* fill-mode 用 backwards（不是 both）：延迟期间保持首帧（透明/缩小），
+   播完后交还普通样式，避免动画的最终帧永久压住 .tb-card.done 等后续状态 */
+.tb-group.deal{animation:tbDealGroup .34s ease-out backwards;animation-delay:calc(var(--gseq, 0) * 70ms);}
+.tb-card.deal{animation:tbDealCard .44s cubic-bezier(.2,.9,.3,1.15) backwards;animation-delay:calc(120ms + var(--cseq, 0) * 55ms);}
+.tb-card.deal .tb-band{animation:tbDealBadge .34s ease-out backwards;animation-delay:calc(300ms + var(--cseq, 0) * 55ms);}
+
+/* 系统开启「减少动态效果」时直接显示结果，只保留内容变化 */
+@media (prefers-reduced-motion: reduce){
+  .tb-group.deal,
+  .tb-card.deal,
+  .tb-card.deal .tb-band{animation:none;}
+}
