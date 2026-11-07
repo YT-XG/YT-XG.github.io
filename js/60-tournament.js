@@ -93,6 +93,7 @@ function tourOpen(size) {
     log: []
   };
   tourSpeed = 1;
+  bkResetView();               // 新赛事从自然尺寸（缩放 1）开始
   el.menu.classList.remove('show');
   document.body.classList.remove('menu-open');
   el.banner.classList.remove('show');
@@ -786,6 +787,441 @@ function koCard(zone, ri, mi, m) {
   return html;
 }
 
+/* ---------- ③.5 手机分段式赛程图（仍是树状连线，不做列表） ---------- */
+/* 窄屏放不下整张双败大图，就按「小组赛 / 胜者组 / 败者组 / 总决赛」
+   拆成四段独立的连线图纵向排列；每张图内部保留完整的方框 + 折线连接。
+   2026-11-7（第 78 条）：节点 / 字号 / 间距整体放大一档，节点内多一行
+   「双方物品」；外层 .tb-chart.mob 改由 transform 做双指缩放 + 拖动平移。 */
+
+// 统一尺寸（四张图共用）：宽 176 / 高 72（内含 4 行文字）/ 列距 68 / 行距 22
+var BK_BW = 176, BK_BH = 72, BK_GAPX = 68, BK_GAPY = 22;
+var BK_STEP = BK_BH + BK_GAPY, BK_TOP = 30;
+
+/* 节点内的物品行：把玩家两个角色的简称并成一行（如「红青组合 · 弓箭」） */
+function bkItemsText(p) {
+  if (!p || !p.roles || !p.roles.length) return '';
+  var out = [];
+  for (var i = 0; i < p.roles.length; i++) out.push(tourRoleName(p.roles[i]));
+  return out.join(' · ');
+}
+
+// 方框 + 折线沿用桌面 SVG 的类名与配色，保证两端视觉一致
+function bkPanelBox(x, y, bw, bh, m, zone, ri, mi) {
+  var canPlay = !m.done && m.a && m.b && !tour.cur;
+  var isSel = tour.sel && tour.sel.zone === zone && tour.sel.ri === ri && tour.sel.mi === mi;
+  var cls = 'bk-mt' + (m.done ? ' done' : '') + (canPlay ? ' playable' : '') + (isSel ? ' sel' : '');
+  var aN = m.a ? m.a.name : '待定';
+  var bN = m.b ? m.b.name : '待定';
+  var sc = m.done ? m.score : (m.a && m.b ? '开打' : '待定');
+  var pad = 10;
+  // 四行布局：A 名 / A 物品 / B 名 / B 物品（队名用红蓝主色，物品用更小字号柔色）；
+  // 比分靠右、垂直居中，单独占一条竖带，不与左列文字抢位置
+  return '<g class="' + cls + '"' + (canPlay ? ' data-zone="' + zone + '" data-ri="' + ri + '" data-mi="' + mi + '"' : '') + '>' +
+    '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + bh + '" rx="9"/>' +
+    '<text class="bk-n1' + (m.done && m.winner === m.a ? ' win' : '') + '" x="' + (x + pad) + '" y="' + (y + 22) + '">' + aN + '</text>' +
+    '<text class="bk-it" x="' + (x + pad) + '" y="' + (y + 35) + '">' + bkItemsText(m.a) + '</text>' +
+    '<text class="bk-n2' + (m.done && m.winner === m.b ? ' win' : '') + '" x="' + (x + pad) + '" y="' + (y + 55) + '">' + bN + '</text>' +
+    '<text class="bk-it" x="' + (x + pad) + '" y="' + (y + 68) + '">' + bkItemsText(m.b) + '</text>' +
+    '<text class="bk-sc" x="' + (x + bw - pad) + '" y="' + (y + bh / 2 + 5) + '" text-anchor="end">' + sc + '</text>' +
+    '</g>';
+}
+
+/* 折线：从右列节点右边中点 (x1,y1) 走到左列节点左边中点 (x2,y2)。
+   竖干固定落在两列正中线 colX（= (x1+x2)/2）：两个子节点汇入同一父节点时，
+   上子线只有 colX 以上、下子线只有 colX 以下，二者刚好在父节点中心上下对称，
+   不会出现两条半透明线压在同一条竖干上（重叠会明显变深、看起来像画歪了）。
+   折角用二次贝塞尔倒圆角，避免直角拐点在高分屏缩放后发毛。 */
+function bkEdgeD(x1, y1, x2, y2) {
+  var colX = (x1 + x2) / 2;
+  var dy = y2 - y1;
+  var r = Math.min(10, Math.abs(dy) / 2, Math.abs(colX - x1), Math.abs(x2 - colX));
+  if (Math.abs(dy) < 0.5) return 'M' + x1 + ' ' + y1 + ' H' + x2;   // 同一行：直接一根横线
+  if (r < 2) {                                                     // 折角太小放不下圆角：直角折线
+    return 'M' + x1 + ' ' + y1 + ' H' + colX + ' V' + y2 + ' H' + x2;
+  }
+  var s = dy > 0 ? 1 : -1;
+  return 'M' + x1 + ' ' + y1 +
+    ' H' + (colX - r) +
+    ' Q' + colX + ' ' + y1 + ' ' + colX + ' ' + (y1 + s * r) +
+    ' V' + (y2 - s * r) +
+    ' Q' + colX + ' ' + y2 + ' ' + (colX + r) + ' ' + y2 +
+    ' H' + x2;
+}
+
+function bkPanelEdge(x1, y1, x2, y2, dashed) {
+  return '<path class="bk-edge' + (dashed ? ' dash' : '') + '" d="' + bkEdgeD(x1, y1, x2, y2) + '"/>';
+}
+
+function bkPanelSvg(w, h, inner) {
+  // 固定为自然宽度（1:1）：四张图字号完全一致；
+  // 屏幕比图窄时不压缩成看不清，而是由外层 .tb-chart.mob 做缩放 / 平移
+  return '<svg class="bk-svg bk-panel" viewBox="0 0 ' + w + ' ' + h +
+    '" style="width:' + w + 'px;min-width:' + w + 'px">' + inner + '</svg>';
+}
+
+function bkPanelWB() {
+  var ko = tour.ko;
+  var BW = BK_BW, BH = BK_BH, GAPX = BK_GAPX, step = BK_STEP;
+  var wbR = ko.wb.length, leaves = ko.wb[0].matches.length * 2;
+
+  function ys(count) {
+    var span = Math.pow(2, Math.round(Math.log2(leaves / count)));
+    var arr = [];
+    for (var i = 0; i < count; i++) arr.push((i * span + (span - 1) / 2) * step);
+    return arr;
+  }
+
+  var yOf = [];
+  for (var r = 0; r < wbR; r++) yOf.push(ys(ko.wb[r].matches.length));
+
+  var top = BK_TOP;
+  var w = 24 + wbR * (BW + GAPX) + 70;
+  var out = [];
+  var maxBottom = 0;
+
+  for (var r2 = 0; r2 < wbR; r2++) {
+    // 每轮一列，列顶写轮次名（胜者组首轮 / 半决赛 / 决赛），层次一眼可辨
+    out.push('<text class="bk-lab wb" x="' + (24 + r2 * (BW + GAPX) + BW / 2) +
+      '" y="16" text-anchor="middle">' + ko.wb[r2].name + '</text>');
+    var ms = ko.wb[r2].matches;
+    for (var i = 0; i < ms.length; i++) {
+      var x = 24 + r2 * (BW + GAPX), y = top + yOf[r2][i];
+      out.push(bkPanelBox(x, y, BW, BH, ms[i], 'wb', r2, i));
+      if (y + BH > maxBottom) maxBottom = y + BH;
+      if (r2 + 1 < wbR) {
+        var py = top + yOf[r2 + 1][Math.floor(i / 2)];
+        out.push(bkPanelEdge(x + BW, y + BH / 2, 24 + (r2 + 1) * (BW + GAPX), py + BH / 2, false));
+      }
+    }
+  }
+
+  // 胜者组冠军出口：与总决赛面板里的来源标签对应
+  var lastY = top + yOf[wbR - 1][0];
+  out.push('<text class="bk-lab gf" x="' + (24 + (wbR - 1) * (BW + GAPX) + BW + 10) +
+    '" y="' + (lastY + BH / 2 + 5) + '">→ 总决赛</text>');
+
+  // 高度按实际最低的方框收紧，避免底部留一大片空白
+  return bkPanelSvg(w, maxBottom + 8, out.join(''));
+}
+
+function bkPanelLB() {
+  var ko = tour.ko;
+  var BW = BK_BW, BH = BK_BH, GAPX = BK_GAPX, step = BK_STEP;
+  var lbR = ko.lb.length;
+  var leaves = 0;
+  for (var t = 0; t < lbR; t++) leaves = Math.max(leaves, ko.lb[t].matches.length * 2);
+
+  function ys(count) {
+    var span = Math.pow(2, Math.round(Math.log2(leaves / count)));
+    var arr = [];
+    for (var i = 0; i < count; i++) arr.push((i * span + (span - 1) / 2) * step);
+    return arr;
+  }
+
+  var yOf = [];
+  for (var r = 0; r < lbR; r++) yOf.push(ys(ko.lb[r].matches.length));
+
+  var top = BK_TOP;
+  var w = 24 + lbR * (BW + GAPX) + 70;
+  var out = [];
+  var maxBottom = 0;
+
+  for (var r2 = 0; r2 < lbR; r2++) {
+    out.push('<text class="bk-lab lb" x="' + (24 + r2 * (BW + GAPX) + BW / 2) +
+      '" y="16" text-anchor="middle">' + ko.lb[r2].name + '</text>');
+    var ms = ko.lb[r2].matches;
+    for (var i = 0; i < ms.length; i++) {
+      var x = 24 + r2 * (BW + GAPX), y = top + yOf[r2][i];
+      out.push(bkPanelBox(x, y, BW, BH, ms[i], 'lb', r2, i));
+      if (y + BH > maxBottom) maxBottom = y + BH;
+      if (r2 + 1 < lbR) {
+        var nCount = ko.lb[r2 + 1].matches.length;
+        var ni = nCount === 1 ? 0 : Math.floor(i / 2);
+        var ny = top + yOf[r2 + 1][ni];
+        out.push(bkPanelEdge(x + BW, y + BH / 2, 24 + (r2 + 1) * (BW + GAPX), ny + BH / 2, false));
+      }
+    }
+  }
+
+  // 败者组冠军（末轮 = 季军赛）出口
+  var lastY = top + yOf[lbR - 1][0];
+  out.push('<text class="bk-lab gf" x="' + (24 + (lbR - 1) * (BW + GAPX) + BW + 10) +
+    '" y="' + (lastY + BH / 2 + 5) + '">→ 总决赛</text>');
+
+  // 高度按实际最低的方框收紧：单场轮次不会再留下整块空白
+  return bkPanelSvg(w, maxBottom + 8, out.join(''));
+}
+
+function bkPanelGF() {
+  // 两个来源框（胜者组冠军 / 败者组冠军）各占上下对称的一半，汇入同一张决赛框；
+  // 决赛框左边缘设两个入口（fy+24 / fy+48，关于框中心 fy+36 上下对称），
+  // 两条线的端点因此都落在节点边框上，不会挤在同一个点上糊成一团
+  var bw = BK_BW, bh = BK_BH;
+  var srcW = 150, srcH = 46;
+  var s1y = 30, s2y = 104;                 // 两个来源框顶边
+  var fx = 14 + srcW + BK_GAPX;            // 232
+  var fy = 54;                             // 决赛框顶边：来源中点 90 上下各 36
+  var w = fx + bw + 20;                    // 428
+  var h = Math.max(s2y + srcH, fy + bh) + 8;
+  var p1 = fy + 24, p2 = fy + bh - 24;     // 78 / 102，上下对称的两个入口
+
+  var out = [];
+  out.push('<g class="bk-src"><rect x="14" y="' + s1y + '" width="' + srcW + '" height="' + srcH + '" rx="8"/>' +
+    '<text x="24" y="' + (s1y + 29) + '">胜者组冠军</text></g>');
+  out.push('<g class="bk-src"><rect x="14" y="' + s2y + '" width="' + srcW + '" height="' + srcH + '" rx="8"/>' +
+    '<text x="24" y="' + (s2y + 29) + '">败者组冠军</text></g>');
+  out.push(bkPanelEdge(14 + srcW, s1y + srcH / 2, fx, p1, false));
+  out.push(bkPanelEdge(14 + srcW, s2y + srcH / 2, fx, p2, true));
+  out.push(bkPanelBox(fx, fy, bw, bh, tour.ko.gf, 'gf', 0, 0));
+
+  return bkPanelSvg(w, h, out.join(''));
+}
+
+function bkPanelGroup() {
+  if (!tour.groups || !tour.groups.length) return '';
+  var n = tour.groups.length;
+  var BW = BK_BW, BH = BK_BH, GAPX = BK_GAPX, step = BK_STEP;
+  var top = BK_TOP, col1 = 24, col2 = 24 + BW + GAPX;
+  var w = col2 + BW + 20;
+  var h = top + n * step + 8;
+  var out = [];
+
+  // 列标题：各组 / 晋级
+  out.push('<text class="bk-lab" x="' + (col1 + BW / 2) + '" y="16" text-anchor="middle">各组（前 2 晋级）</text>');
+  out.push('<text class="bk-lab" x="' + (col2 + BW / 2) + '" y="16" text-anchor="middle">晋级双败</text>');
+
+  var nodeY = top + ((n - 1) * step) / 2;
+  for (var g = 0; g < n; g++) {
+    var st = tourStandings(g);
+    var y = top + g * step;
+    var q1 = st[0] ? st[0].name : '—';
+    var q2 = st[1] ? st[1].name : '—';
+    out.push('<g class="bk-grp"><rect x="' + col1 + '" y="' + y + '" width="' + BW +
+      '" height="' + BH + '" rx="9"/>' +
+      '<text class="bk-gt" x="' + (col1 + 10) + '" y="' + (y + 31) + '">组' + (g + 1) + '</text>' +
+      '<text class="bk-gs" x="' + (col1 + 10) + '" y="' + (y + 53) + '">① ' + q1 + '　② ' + q2 + '</text></g>');
+    out.push(bkPanelEdge(col1 + BW, y + BH / 2, col2, nodeY + BH / 2, false));
+  }
+
+  // 汇入节点：双败阶段的参赛人数（每组 2 人）
+  out.push('<g class="bk-grp"><rect x="' + col2 + '" y="' + nodeY + '" width="' + BW + '" height="' + BH + '" rx="9"/>' +
+    '<text class="bk-gt" x="' + (col2 + 10) + '" y="' + (nodeY + 31) + '">晋级 ' + (n * 2) + ' 人</text>' +
+    '<text class="bk-gs" x="' + (col2 + 10) + '" y="' + (nodeY + 53) + '">进入双败淘汰</text></g>');
+
+  return bkPanelSvg(w, h, out.join(''));
+}
+
+function mobBracket() {
+  return '<div class="tb-bk-m">' +
+    '<section class="tb-bk-sec grp">' +
+      '<div class="tb-bk-h"><b>小组赛</b><i>每组前 2 名晋级双败</i></div>' +
+      '<div class="tb-graph">' + bkPanelGroup() + '</div>' +
+    '</section>' +
+    '<section class="tb-bk-sec wb">' +
+      '<div class="tb-bk-h"><b>胜者组</b><i>输一场 → 下方败者组</i></div>' +
+      '<div class="tb-graph">' + bkPanelWB() + '</div>' +
+    '</section>' +
+    '<section class="tb-bk-sec lb">' +
+      '<div class="tb-bk-h"><b>败者组</b><i>再输一场即淘汰</i></div>' +
+      '<div class="tb-graph">' + bkPanelLB() + '</div>' +
+    '</section>' +
+    '<section class="tb-bk-sec gf">' +
+      '<div class="tb-bk-h"><b>总决赛</b><i>BO5</i></div>' +
+      '<div class="tb-graph">' + bkPanelGF() + '</div>' +
+    '</section>' +
+  '</div>';
+}
+
+/* ---------- ③.6 赛程图缩放 / 平移（第 78 条） ----------
+   手机：双指捏合缩放 + 单指拖动平移；缩放作用在 .tb-bk-m 的 transform 上，
+        因此不产生系统滚动条，也不会带动整页滚动。
+   桌面：在 .tb-chart 里按住拖动 = 改 scrollLeft / scrollTop（滚轮仍是原生滚动）；
+        窄窗口（仍走 .mob 布局）时滚轮平移、Ctrl/⌘ + 滚轮缩放。
+   缩放范围：[适配整图的倍率（0.2 ~ 1）] ~ 2.6；初始 1（自然尺寸，不为塞进一屏而缩小）。 */
+var BK_ZOOM_MAX = 2.6;
+var bkView = { s: 1, tx: 0, ty: 0 };
+var bkBox = null, bkContent = null, bkDragged = false;
+
+/* 最小倍率 = 刚好把整张图缩进视口（图比视口小时不放大超过 1；下限 0.1 保证能总览） */
+function bkMinScale() {
+  if (!bkBox || !bkContent) return 1;
+  var cw = bkContent.offsetWidth || 1, ch = bkContent.offsetHeight || 1;
+  var fit = Math.min(bkBox.clientWidth / cw, bkBox.clientHeight / ch);
+  return Math.max(0.1, Math.min(1, fit));
+}
+
+function bkResetView() { bkView.s = 1; bkView.tx = 0; bkView.ty = 0; }
+
+/* 应用 transform，并把内容夹在视口内：比视口窄/矮时居中，超出时可拖到边缘 */
+function bkApply() {
+  if (!bkBox || !bkContent) return;
+  var vw = bkBox.clientWidth, vh = bkBox.clientHeight;
+  var cw = bkContent.offsetWidth || 1, ch = bkContent.offsetHeight || 1;
+  if (vw <= 0 || vh <= 0) return;
+  var sw = cw * bkView.s, sh = ch * bkView.s;
+  bkView.tx = sw <= vw ? (vw - sw) / 2 : Math.min(0, Math.max(vw - sw, bkView.tx));
+  bkView.ty = sh <= vh ? 0 : Math.min(0, Math.max(vh - sh, bkView.ty));
+  bkContent.style.transform =
+    'translate3d(' + bkView.tx + 'px,' + bkView.ty + 'px,0) scale(' + bkView.s + ')';
+}
+
+/* 以视口坐标 (cx,cy) 为锚点缩放到 ns（锚点下的内容保持不动） */
+function bkZoomTo(ns, cx, cy) {
+  ns = Math.max(bkMinScale(), Math.min(BK_ZOOM_MAX, ns));
+  var k = ns / bkView.s;
+  bkView.tx = cx - (cx - bkView.tx) * k;
+  bkView.ty = cy - (cy - bkView.ty) * k;
+  bkView.s = ns;
+  bkApply();
+}
+
+/* 手机 / 窄窗口：双指缩放 + 拖动平移。
+   不使用 setPointerCapture：触摸指针本身有隐式捕获，pointermove 会从子元素冒泡上来；
+   一旦显式捕获，click 会被改派到 chart 上，赛程节点的点击选中就会失效。 */
+function bkBindMobileView(chart) {
+  var pts = [];
+  var baseTx = 0, baseTy = 0, baseS = 1, baseD = 1, baseMx = 0, baseMy = 0;
+  var dragFrom = null;
+
+  function local(e) {
+    var r = chart.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+  function find(id) {
+    for (var i = 0; i < pts.length; i++) if (pts[i].id === id) return i;
+    return -1;
+  }
+  function dist(a, b) { var dx = a.x - b.x, dy = a.y - b.y; return Math.sqrt(dx * dx + dy * dy); }
+  function mid(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
+
+  chart.addEventListener('pointerdown', function (e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    var p = local(e);
+    var i = find(e.pointerId);
+    if (i >= 0) pts.splice(i, 1);          // 同一个指针重复按下：先清掉残留状态
+    pts.push({ id: e.pointerId, x: p.x, y: p.y });
+    if (pts.length === 1) {
+      dragFrom = p; baseTx = bkView.tx; baseTy = bkView.ty; bkDragged = false;
+    } else if (pts.length === 2) {
+      baseD = dist(pts[0], pts[1]) || 1;
+      var m = mid(pts[0], pts[1]);
+      baseMx = m.x; baseMy = m.y;
+      baseS = bkView.s; baseTx = bkView.tx; baseTy = bkView.ty;
+      bkDragged = true;                  // 双指按下即视为拖动，松手不再触发"选中/开打"
+    }
+  });
+
+  chart.addEventListener('pointermove', function (e) {
+    var i = find(e.pointerId);
+    if (i < 0) return;
+    var p = local(e);
+    pts[i].x = p.x; pts[i].y = p.y;
+
+    if (pts.length >= 2) {
+      var ns = Math.max(bkMinScale(), Math.min(BK_ZOOM_MAX, baseS * dist(pts[0], pts[1]) / baseD));
+      var m2 = mid(pts[0], pts[1]);
+      var k = ns / baseS;
+      // 两指中点下的内容跟着中点走：一次手势同时完成缩放 + 平移
+      bkView.s = ns;
+      bkView.tx = m2.x - (baseMx - baseTx) * k;
+      bkView.ty = m2.y - (baseMy - baseTy) * k;
+      bkApply();
+    } else if (dragFrom) {
+      var dx = p.x - dragFrom.x, dy = p.y - dragFrom.y;
+      if (!bkDragged && Math.abs(dx) + Math.abs(dy) > 8) bkDragged = true;
+      if (!bkDragged) return;
+      bkView.tx = baseTx + dx;
+      bkView.ty = baseTy + dy;
+      bkApply();
+    }
+  });
+
+  function up(e) {
+    var i = find(e.pointerId);
+    if (i < 0) return;
+    pts.splice(i, 1);
+    if (pts.length === 1) {
+      // 双指松开一指后，按剩余手指当前位置重新起算，画面不会跳一下
+      dragFrom = { x: pts[0].x, y: pts[0].y };
+      baseTx = bkView.tx; baseTy = bkView.ty;
+    } else if (!pts.length) {
+      dragFrom = null;
+    }
+  }
+  chart.addEventListener('pointerup', up);
+  chart.addEventListener('pointercancel', up);
+
+  // 拖动 / 捏合结束后紧跟的那次 click 要吞掉，否则会误选中赛程节点
+  chart.addEventListener('click', function (e) {
+    if (bkDragged) { e.preventDefault(); e.stopPropagation(); bkDragged = false; }
+  }, true);
+
+  // 窄窗口（.mob 布局）下没有原生滚动，滚轮改为平移；Ctrl/⌘ + 滚轮缩放
+  chart.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) {
+      var p = local(e);
+      bkZoomTo(bkView.s * (e.deltaY < 0 ? 1.12 : 1 / 1.12), p.x, p.y);
+    } else {
+      bkView.tx -= e.deltaX;
+      bkView.ty -= (e.shiftKey ? e.deltaX : e.deltaY);
+      bkApply();
+    }
+  }, { passive: false });
+}
+
+/* 桌面：按住拖动平移（改原生滚动位置，布局与字号完全不动） */
+function bkBindDesktopPan(chart) {
+  var dragging = false, sx = 0, sy = 0, sl = 0, st = 0;
+  chart.style.cursor = 'grab';
+  chart.addEventListener('pointerdown', function (e) {
+    if (e.pointerType === 'touch' || e.button !== 0) return;
+    dragging = true; bkDragged = false;
+    sx = e.clientX; sy = e.clientY;
+    sl = chart.scrollLeft; st = chart.scrollTop;
+  });
+  chart.addEventListener('pointermove', function (e) {
+    if (!dragging) return;
+    if (e.buttons === 0) { stop(); return; }   // 在别处松手：不再继续平移
+    var dx = e.clientX - sx, dy = e.clientY - sy;
+    if (!bkDragged && Math.abs(dx) + Math.abs(dy) > 6) bkDragged = true;
+    if (!bkDragged) return;
+    chart.scrollLeft = sl - dx;
+    chart.scrollTop = st - dy;
+  });
+  function stop() {
+    if (!dragging) return;
+    dragging = false;
+    chart.style.cursor = 'grab';
+  }
+  chart.addEventListener('pointerup', stop);
+  chart.addEventListener('pointercancel', stop);
+  chart.addEventListener('pointerleave', stop);
+  chart.addEventListener('click', function (e) {
+    if (bkDragged) { e.preventDefault(); e.stopPropagation(); bkDragged = false; }
+  }, true);
+}
+
+/* 每次 renderBracket 重建 .tb-chart 后调用：重新绑定并恢复缩放状态 */
+function bkAfterRender() {
+  bkBox = el.tourBoard.querySelector('.tb-chart');
+  bkContent = bkBox ? bkBox.querySelector('.tb-bk-m') : null;
+  bkDragged = false;
+  if (!bkBox) return;
+  if (bkContent) {
+    bkContent.style.transformOrigin = '0 0';
+    bkContent.style.willChange = 'transform';
+    bkBindMobileView(bkBox);
+    bkApply();
+  } else {
+    bkBindDesktopPan(bkBox);
+  }
+}
+
+window.addEventListener('resize', function () {
+  if (bkBox && bkContent) bkApply();
+});
+
 function renderBracket() {
   var b = el.tourBoard;
   var ko = tour.ko;
@@ -831,7 +1267,10 @@ function renderBracket() {
         '</div>';
     }
     html += koActBar();
-    html += '<div class="tb-chart">' + bracketSvg() + '</div>';
+    // 窄屏：拆成「小组赛 / 胜者组 / 败者组 / 总决赛」四段树状图纵向排列（仍是连线图，不是列表）
+    var narrowB = window.innerWidth <= 980;
+    html += '<div class="tb-chart' + (narrowB ? ' mob' : '') + '">' +
+      (narrowB ? mobBracket() : bracketSvg()) + '</div>';
   }
 
   html += '<div class="tb-foot">' +
@@ -845,6 +1284,7 @@ function renderBracket() {
   html += '</main></div>';
   b.innerHTML = html;
   bindBoardClicks();
+  bkAfterRender();          // 重新绑定缩放 / 平移，并恢复上一次的缩放位置
 }
 
 /* ---------- 双败赛程图（SVG，方框 + 连线） ---------- */

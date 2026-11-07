@@ -249,11 +249,11 @@
 }
 
 /* 手机：滚动条一律隐藏（惯性滚动保留） */
-.tb-cards,.tb-lane-body,.tb-rank,.tb-log,.tb-final,.tour-board,.tb-group,#tourBoard{
+.tb-cards,.tb-lane-body,.tb-chart,.tb-graph,.tb-rank,.tb-log,.tb-final,.tour-board,.tb-group,#tourBoard{
   scrollbar-width:none;-ms-overflow-style:none;
 }
-.tb-cards::-webkit-scrollbar,.tb-lane-body::-webkit-scrollbar,
-.tb-rank::-webkit-scrollbar,.tb-log::-webkit-scrollbar,
+.tb-cards::-webkit-scrollbar,.tb-lane-body::-webkit-scrollbar,.tb-chart::-webkit-scrollbar,
+.tb-graph::-webkit-scrollbar,.tb-rank::-webkit-scrollbar,.tb-log::-webkit-scrollbar,
 .tb-final::-webkit-scrollbar,.tour-board::-webkit-scrollbar{width:0;height:0;display:none;}
 
 
@@ -363,16 +363,81 @@
   .tb-cash-line{font-size:10.5px;}
 }
 
-/* 手机：赛程图保持可读字号，横向局部滚动 */
+/* 手机：桌面那套「一张整图 + 横向滚动」在窄屏已改用分段式 .mob 图，
+   这里只给非 .mob 情况留兜底滚动，字号统一走下方 .bk-panel 规则 */
 @media (max-width: 980px){
-  .tb-chart{overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
-  .bk-svg{width:auto;height:100%;min-width:820px;}
-  .bk-svg .bk-n1,.bk-svg .bk-n2{font-size:12px;}
-  .bk-svg .bk-sc{font-size:11px;}
-  .bk-svg .bk-lab{font-size:12px;}
+  .tb-chart:not(.mob){overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
 }
 
 @media (max-width: 980px){
   .tb-actbar{padding:5px 8px;gap:6px;font-size:11px;}
   .tb-actbar .tb-big.sm{padding:4px 12px;font-size:11px;min-height:28px;}
 }
+
+/* ============================================================
+   手机：双败赛程图（分段式树状图，第 75 / 77 / 78 条）
+   ------------------------------------------------------------
+   桌面仍是整张 SVG 大图；<=980px 拆成四段独立的连线图：
+   小组赛 → 胜者组 → 败者组 → 总决赛，纵向排列。
+   第 78 条起：节点 / 字号 / 间距整体放大一档（节点内多一行双方物品），
+   缩放与平移统一由 .tb-chart.mob 的 transform 完成（不再用原生滚动条）。
+   ============================================================ */
+@media (max-width: 980px){
+  .tb-chart.mob{
+    padding:6px;border:0;background:transparent;border-radius:0;
+    overflow:hidden;position:relative;touch-action:none;
+    -webkit-user-select:none;user-select:none;
+  }
+  /* 被缩放 / 平移的内容层：宽度取最长的一张图，不压缩、不折行 */
+  .tb-bk-m{
+    display:flex;flex-direction:column;align-items:flex-start;gap:10px;
+    width:max-content;min-width:100%;transform-origin:0 0;
+  }
+
+  /* 四个分区：小组赛 / 胜者组 / 败者组 / 总决赛 */
+  .tb-bk-sec{
+    width:max-content;max-width:none;
+    border:1px solid #1e2836;border-radius:10px;
+    padding:7px 8px 8px;background:rgba(255,255,255,.02);
+  }
+  .tb-bk-sec.wb{border-color:rgba(120,190,255,.24);background:rgba(90,150,255,.045);}
+  .tb-bk-sec.lb{border-color:rgba(255,140,110,.24);background:rgba(255,110,80,.045);}
+  .tb-bk-sec.gf{border-color:rgba(255,205,120,.32);background:rgba(255,205,120,.055);}
+  .tb-bk-sec.grp{border-color:rgba(170,185,210,.22);background:rgba(255,255,255,.018);}
+  .tb-bk-sec.grp .tb-bk-h b{color:#c6d3e6;}
+  .tb-bk-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 6px;}
+  .tb-bk-h b{font-size:13px;letter-spacing:.08em;}
+  .tb-bk-sec.wb .tb-bk-h b{color:#9fc4ff;}
+  .tb-bk-sec.lb .tb-bk-h b{color:#ffab97;}
+  .tb-bk-sec.gf .tb-bk-h b{color:#ffd9a8;}
+  .tb-bk-h i{font-style:normal;font-size:10.5px;color:#68758b;text-align:right;white-space:nowrap;}
+
+  /* 图块：不再自己滚动，统一交给外层 .tb-chart.mob 的缩放 / 平移 */
+  .tb-graph{
+    overflow:visible;width:max-content;
+  }
+  .tb-graph .bk-panel{
+    display:block;height:auto;min-height:0;margin:0;
+    /* 宽度由 JS 内联写死为自然宽度（1:1） */
+  }
+
+  /* 第 78 条：放大后的节点字号 / 物品行 / 连线（只作用于 .bk-panel，桌面大图不受影响） */
+  .bk-panel{shape-rendering:geometricPrecision;}
+  .bk-panel .bk-n1,.bk-panel .bk-n2{font-size:13.5px;}
+  .bk-panel .bk-it{font-size:10.5px;fill:#7d8ba1;letter-spacing:.01em;}
+  .bk-panel .bk-sc{font-size:13px;}
+  .bk-panel .bk-lab{font-size:13px;}
+  .bk-panel .bk-gt{font-size:13px;}
+  .bk-panel .bk-gs{font-size:11.5px;}
+  .bk-panel .bk-edge{stroke-width:1.6;stroke:rgba(120,190,255,.45);}
+  .bk-panel .bk-edge.dash{stroke:rgba(255,140,110,.55);stroke-dasharray:6 5;}
+
+  /* 总决赛面板里的两个来源标签 */
+  .tb-graph .bk-src rect{fill:rgba(255,255,255,.03);stroke:rgba(255,255,255,.14);stroke-width:1;}
+  .tb-graph .bk-src text{fill:#8b98ad;font-size:12px;}
+
+  /* 操作条在窄屏可换行，避免被押注按钮撑出屏幕 */
+  .tb-actbar{flex-wrap:wrap;}
+  .tb-actbar .ab-vs{flex:1 1 100%;}
+}
+

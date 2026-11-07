@@ -722,7 +722,14 @@ button:active{transform:translateY(1px);border-bottom-width:1px;}
   border:1px solid #1e2836;border-radius:12px;
   background:rgba(255,255,255,.012);
   padding:6px;
+  /* 赛程图可能横向超宽：滚动条收细并改用主题色，避免系统默认的粗灰条 */
+  scrollbar-width:thin;scrollbar-color:#2b3549 transparent;
 }
+.tb-chart::-webkit-scrollbar{width:8px;height:8px;}
+.tb-chart::-webkit-scrollbar-track{background:transparent;}
+.tb-chart::-webkit-scrollbar-thumb{background:#2b3549;border-radius:8px;}
+.tb-chart::-webkit-scrollbar-thumb:hover{background:#3a475c;}
+.tb-chart::-webkit-scrollbar-corner{background:transparent;}
 .bk-svg{width:100%;height:100%;min-height:280px;display:block;}
 .bk-svg text{font-family:inherit;}
 .bk-lab{font-size:10.5px;letter-spacing:.1em;fill:#68758b;}
@@ -756,3 +763,7 @@ button:active{transform:translateY(1px);border-bottom-width:1px;}
 .tb-actbar .ab-pct{color:#7e8ba1;font-variant-numeric:tabular-nums;}
 .tb-big.sm{padding:5px 16px;font-size:12px;border-radius:8px;}
 .bk-mt.sel rect{stroke:#ffd9a8;stroke-width:1.8;fill:rgba(255,205,120,.12);}
+/* 手机赛程图里的「小组」节点（只出现在窄屏分段图上） */
+.bk-grp rect{fill:rgba(255,255,255,.03);stroke:rgba(255,255,255,.13);stroke-width:1;}
+.bk-grp .bk-gt{fill:#b7c4d6;font-size:11px;}
+.bk-grp .bk-gs{fill:#8b98ad;font-size:10px;}
