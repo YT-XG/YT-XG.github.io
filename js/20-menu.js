@@ -316,6 +316,10 @@ function openMenu() {
   el.stage.classList.remove('sudden');
   el.timerLabel.textContent = 'SEC';
 
+  // 离开赛事后恢复「红方 / 蓝方」默认标签
+  teamNames.A = '';
+  teamNames.B = '';
+
   el.menu.classList.remove('show');
   if (el.home) el.home.classList.add('show');
   el.stage.classList.add('menu-open');

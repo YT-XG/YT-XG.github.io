@@ -223,7 +223,9 @@
 
   /* 比分条：收起状态更小、展开也不挡太多 */
   .tour-panel{width:min(300px,86vw);padding:8px 10px;font-size:11px;left:8px;bottom:56px;}
+  .tour-panel .tour-vs{gap:8px;}
   .tour-panel .tour-vs b{font-size:16px;}
+  .tour-panel .ts-tag{font-size:8px;padding:1px 3px;margin-right:3px;}
   .tour-panel .tour-btns button{padding:4px 8px;font-size:10.5px;}
   .tour-panel.folded{width:auto;padding:5px 8px;}
   .tour-panel.folded .tour-vs b{font-size:14px;}

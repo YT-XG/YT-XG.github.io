@@ -1072,7 +1072,7 @@ function updateRelay(dt) {
     if (role) {
       var ac = ARENA;
       floater(team === 'A' ? ac.x + 90 : ac.x + ac.w - 90, ac.y + ac.h / 2,
-        SIDE_LABEL[team] + ' 换上 ' + role.name, team === 'A' ? '#ffb4aa' : '#b9cdff', 16);
+        teamLabel(team) + ' 换上 ' + role.name, team === 'A' ? '#ffb4aa' : '#b9cdff', 16);
     }
   });
 }

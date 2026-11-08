@@ -409,6 +409,15 @@ button.primary:hover{background:linear-gradient(180deg,#457ce0,#284d9c);border-c
 .tour-vs b{font-family:ui-monospace,Consolas,monospace;font-size:18px;color:#fff;}
 .tour-side.a{color:#ff9c93;}
 .tour-side.b{color:#9db8ff;}
+/* 比分条上的小号「红 / 蓝」标注：名字是玩家，颜色仍是本局进场阵营 */
+.ts-tag{
+  display:inline-block;font-style:normal;font-size:9px;line-height:1;
+  padding:2px 4px;margin-right:4px;border-radius:3px;vertical-align:1px;
+  background:rgba(232,72,63,.18);border:1px solid rgba(232,72,63,.38);color:#ffb4aa;
+}
+.ts-tag.b{background:rgba(74,123,240,.18);border-color:rgba(74,123,240,.38);color:#b9cdff;}
+.tr-side.a{color:#ff9c93;}
+.tr-side.b{color:#9db8ff;}
 .tour-sub{text-align:center;color:#7b8798;font-size:11px;margin-top:2px;}
 .tour-roles{text-align:center;color:#68758b;font-size:11px;margin-top:2px;}
 .tour-btns{display:flex;gap:8px;justify-content:center;margin:8px 0;}

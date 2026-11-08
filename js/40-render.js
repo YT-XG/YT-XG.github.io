@@ -149,7 +149,10 @@ function drawDamagePanels() {
     ctx.textAlign = 'center';
     ctx.fillStyle = side.light;
     ctx.font = '600 14px "PingFang SC","Microsoft YaHei",sans-serif';
-    ctx.fillText(SIDE_LABEL[side.team], x + PW / 2, y + 15);
+    var title = teamNames[side.team]
+      ? (side.team === 'A' ? '红 ' : '蓝 ') + teamNames[side.team]
+      : SIDE_LABEL[side.team];
+    ctx.fillText(title, x + PW / 2, y + 15);
 
     ctx.fillStyle = '#68758b';
     ctx.font = '9.5px "PingFang SC","Microsoft YaHei",sans-serif';

@@ -82,6 +82,10 @@ var paused = false, speedMul = 1;
 
 // 内部阵营仍用 A/B，避免动到物理与判定逻辑
 var SIDE_LABEL = { A: '红方', B: '蓝方' };
+/* 赛事模式：把「红方 / 蓝方」替换成参赛玩家名（按本局实际进场颜色填）。
+   空字符串 = 普通对局，继续用 SIDE_LABEL。 */
+var teamNames = { A: '', B: '' };
+function teamLabel(team) { return teamNames[team] || SIDE_LABEL[team]; }
 
 /* 阵容与对战模式
    · pick[team] —— 该方的角色 key 数组，长度 = teamSize
@@ -97,6 +101,8 @@ var activeTeam = 'A';   // 当前正在选择的一方
 var activeSlot = 0;     // 当前正在选择的格子（0..teamSize-1）
 
 function sideName(team) {
+  // 赛事模式只显示「红方 · 玩家名」，具体角色交给伤害条 / 比分条
+  if (teamNames[team]) return SIDE_LABEL[team] + ' · ' + teamNames[team];
   var keys = pick[team] || [];
   var names = [];
   for (var i = 0; i < keys.length; i++) {

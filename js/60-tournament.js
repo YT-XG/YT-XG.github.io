@@ -311,6 +311,9 @@ function tourStartGame() {
   var rb = c.fx.b.roles.slice(0, 2);
   pick.A = c.swap ? rb : ra;
   pick.B = c.swap ? ra : rb;
+  // 本局红/蓝方对应的玩家名：HUD、伤害条、结算横幅都按这个显示
+  teamNames.A = (c.swap ? c.fx.b : c.fx.a).name;
+  teamNames.B = (c.swap ? c.fx.a : c.fx.b).name;
   teamSize = 2;
   modeKind = 'vs';
   startBattle();
@@ -1347,17 +1350,28 @@ function bkPanelGroup() {
   return bkPanelSvg(w, h, out.join(''));
 }
 
+/* 小组赛是否已结束：全部场次打完，或已经进入淘汰阶段（stage = 'ko' / 'done'）。
+   结束后手机赛程图不再渲染「小组赛」那一段（连带标题一起），只留双败合并连线图，
+   让双败图直接顶到原来的顶部位置，内容高度随之收紧（第 87 条）。 */
+function tourGroupPhaseOver() {
+  return tour.stage === 'ko' || tour.stage === 'done' ||
+    (tour.stage === 'group' && tourGroupDone());
+}
+
 function mobBracket() {
-  return '<div class="tb-bk-m">' +
-    '<section class="tb-bk-sec grp">' +
+  var koOnly = tourGroupPhaseOver();
+  var h = '<div class="tb-bk-m' + (koOnly ? ' ko-only' : '') + '">';
+  if (!koOnly) {
+    h += '<section class="tb-bk-sec grp">' +
       '<div class="tb-bk-h"><b>小组赛</b><i>每组前 2 名晋级双败</i></div>' +
       '<div class="tb-graph">' + bkPanelGroup() + '</div>' +
-    '</section>' +
-    '<section class="tb-bk-sec ko">' +
-      '<div class="tb-bk-h"><b>双败淘汰</b><i>胜者组在上 · 败者组在下 · 虚线 = 败者下落 · 可拖动 / 双指缩放</i></div>' +
-      '<div class="tb-graph">' + bkPanelKO() + '</div>' +
-    '</section>' +
-  '</div>';
+      '</section>';
+  }
+  h += '<section class="tb-bk-sec ko">' +
+    '<div class="tb-bk-h"><b>双败淘汰</b><i>胜者组在上 · 败者组在下 · 虚线 = 败者下落 · 可拖动 / 双指缩放</i></div>' +
+    '<div class="tb-graph">' + bkPanelKO() + '</div>' +
+    '</section>';
+  return h + '</div>';
 }
 
 /* ---------- ③.6 赛程图缩放 / 平移（第 78 条） ----------
@@ -1369,6 +1383,7 @@ function mobBracket() {
 var BK_ZOOM_MAX = 2.6;
 var bkView = { s: 1, tx: 0, ty: 0 };
 var bkBox = null, bkContent = null, bkDragged = false;
+var bkKoOnly = false;   // 上次渲染时手机赛程图是否只剩双败一段（用于切换时重置缩放）
 
 /* 最小倍率 = 刚好把整张图缩进视口（图比视口小时不放大超过 1；下限 0.1 保证能总览） */
 function bkMinScale() {
@@ -1537,6 +1552,10 @@ function bkAfterRender() {
   bkDragged = false;
   if (!bkBox) return;
   if (bkContent) {
+    /* 从「小组赛 + 双败」两段切到只剩双败一段时，内容高度骤减：
+       沿用旧倍率会把整张图缩得很小、位置也偏掉，因此这次切换重置视图（之后照常保留缩放） */
+    var koOnly = bkContent.classList.contains('ko-only');
+    if (koOnly !== bkKoOnly) { bkResetView(); bkKoOnly = koOnly; }
     bkContent.style.transformOrigin = '0 0';
     bkContent.style.willChange = 'transform';
     bkBindMobileView(bkBox);
@@ -1595,7 +1614,7 @@ function renderBracket() {
         '</div>';
     }
     html += koActBar();
-    // 窄屏：小组赛单独一段；胜者组 + 败者组 + 总决赛合并为一张双败连线图（第 80 条）
+    // 窄屏：赛程图。小组赛未结束时两段（小组赛 + 双败合并图）；结束后只留双败段（第 80 / 87 条）
     var narrowB = window.innerWidth <= 980;
     html += '<div class="tb-chart' + (narrowB ? ' mob' : '') + '" data-scroll="chart">' +
       (narrowB ? mobBracket() : bracketSvg()) + '</div>';
@@ -1806,17 +1825,24 @@ function renderBattleStrip() {
   // 换边局：本局站红/蓝的角色和玩家归属是反的，这里按实际进场显示
   var redP = c.swap ? fx.b : fx.a;
   var blueP = c.swap ? fx.a : fx.b;
+  // 比分按玩家记（winsA / winsB），但左右位置跟着本局颜色走
+  var redW = c.swap ? c.winsB : c.winsA;
+  var blueW = c.swap ? c.winsA : c.winsB;
+  // 系统预测同样是「玩家 a : 玩家 b」，换边局左右要交换百分比
+  var p = tourFxPct(fx);
+  var redPct = c.swap ? 100 - p : p;
   var html =
     '<button type="button" class="tour-fold" data-act="fold" title="收起/展开">' +
       (el.tourPanel.classList.contains('folded') ? '▸' : '▾') + '</button>' +
     '<div class="tour-head">' + (c.roundName || ('组' + (fx.group + 1))) + ' · BO' + c.format + ' · 第 ' + c.game + ' 局' +
       (c.swap ? ' · 换边' : '') + '</div>' +
     '<div class="tour-cur"><div class="tour-vs">' +
-      '<span class="tour-side a">' + fx.a.name + '</span>' +
-      '<b>' + Math.round(c.winsA) + ' : ' + Math.round(c.winsB) + '</b>' +
-      '<span class="tour-side b">' + fx.b.name + '</span></div>' +
-      '<div class="tour-roles">红 ' + tourRolesHtml(redP) + ' &nbsp;vs&nbsp; 蓝 ' + tourRolesHtml(blueP) + '</div>' +
-      '<div class="tour-prob">系统预测 ' + tourFxPct(fx) + '% : ' + (100 - tourFxPct(fx)) + '%' + tourFxNote(fx) + '</div>' +
+      '<span class="tour-side a"><i class="ts-tag">红</i>' + redP.name + '</span>' +
+      '<b>' + Math.round(redW) + ' : ' + Math.round(blueW) + '</b>' +
+      '<span class="tour-side b"><i class="ts-tag b">蓝</i>' + blueP.name + '</span></div>' +
+      '<div class="tour-roles"><span class="tr-side a">' + redP.name + '</span> ' + tourRolesHtml(redP) +
+      ' &nbsp;vs&nbsp; <span class="tr-side b">' + blueP.name + '</span> ' + tourRolesHtml(blueP) + '</div>' +
+      '<div class="tour-prob">系统预测 ' + Math.round(redPct) + '% : ' + Math.round(100 - redPct) + '%' + tourFxNote(fx) + '</div>' +
       '</div>' +
     '<div class="tour-btns">' +
       '<button type="button" data-act="speed">速度 ×' + tourSpeed + '</button>' +
