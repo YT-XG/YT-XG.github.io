@@ -11,8 +11,27 @@
    ============================================================ */
 'use strict';
 
+/* 赛事选手名单（第 88 条）：18 个名字共享一个池子，每届固定包含「兮眠 / 西瓜」，
+   其余名额从另外 16 个名字里随机补足并整体打乱顺序。
+   · 8 人赛 = 固定 2 + 随机 6；16 人赛 = 固定 2 + 随机 14（两者都一定有这两位）
+   · 名字只决定显示与身份，抽签 / 分组 / A·B 档搭配 / 排名 / 赛程逻辑完全不看名字 */
 var TOUR_NAMES = ['阿石', '小七', '老白', '阿青', '铁蛋', '小满', '阿竹', '大熊',
-                  '阿梨', '小九', '灰灰', '阿灯', '豆子', '阿海', '小鹿', '黑桃'];
+                  '阿梨', '小九', '灰灰', '阿灯', '豆子', '阿海', '小鹿', '黑桃',
+                  '兮眠', '西瓜'];
+var TOUR_NAMES_ALWAYS = ['兮眠', '西瓜'];
+
+/* 按人数挑一届的选手名：保证必到名字在场、不重复，并打乱顺序（避免总是 0/1 号） */
+function tourPickNames(count) {
+  var names = TOUR_NAMES_ALWAYS.slice();
+  var rest = [];
+  for (var i = 0; i < TOUR_NAMES.length; i++) {
+    if (TOUR_NAMES_ALWAYS.indexOf(TOUR_NAMES[i]) < 0) rest.push(TOUR_NAMES[i]);
+  }
+  tourShuffle(rest);
+  var need = Math.max(0, count - names.length);
+  for (var j = 0; j < need && j < rest.length; j++) names.push(rest[j]);
+  return tourShuffle(names);
+}
 
 var TOUR_START_BANK = 1000;
 
@@ -218,9 +237,10 @@ function tourDeal() {
   tourShuffle(combos);
 
   var players = [];
+  var names = tourPickNames(tour.size);
   for (var i = 0; i < tour.size; i++) {
     players.push({
-      id: i, name: TOUR_NAMES[i] || ('玩家' + (i + 1)),
+      id: i, name: names[i] || ('玩家' + (i + 1)),
       roles: combos[i], pts: 0, w: 0, l: 0, dmg: 0, group: -1
     });
   }
