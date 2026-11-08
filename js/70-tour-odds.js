@@ -362,11 +362,11 @@ function oddsDegrade() {
   oddsRepaint();
 }
 
-/* 重渲染并保持滚动位置 */
+/* 重渲染并保持滚动位置：
+   tourRender() 内部已对全部 [data-scroll] 容器拍快照 / 还原（第 84 条），
+   这里不再单独保存 .tour-board.scrollTop（那只覆盖页面最外层，管不到组内名单 / 赛程图）。 */
 function oddsRepaint() {
-  var sc = el.tourBoard ? el.tourBoard.scrollTop : 0;
   tourRender();
-  if (el.tourBoard) el.tourBoard.scrollTop = sc;
 }
 
 /* 由 60-tournament 的 tourRender() 调用：幂等，已经在跑就直接返回 */

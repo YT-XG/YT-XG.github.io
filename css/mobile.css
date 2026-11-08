@@ -49,27 +49,61 @@
   .btns button{padding:5px 10px;font-size:11px;}
   .status{font-size:10px;}
 
-  /* 主菜单：三栏改成「选人区 + 角色池」上下两块，整体可滚动 */
+  /* 主菜单：单列卡片（宽屏两列），时长设置贴底 */
+  .home{align-items:flex-start;padding:calc(10px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom));}
+  .home-inner{max-width:none;gap:12px;}
+  .home-head b{font-size:26px;}
+  .home-head span{font-size:11px;margin-top:4px;}
+  .home-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+  .home-mode{min-height:86px;padding:10px 12px;border-radius:11px;}
+  .home-mode i{font-size:20px;}
+  .home-mode b{font-size:13px;}
+  .home-mode span{font-size:10px;line-height:1.35;}
+  .home-mode em{padding-top:4px;font-size:10.5px;}
+  .home-mode.tour{grid-column:1 / -1;}
+  .hm-tour-row{padding-top:6px;}
+  .home-foot{padding-top:8px;gap:8px;}
+  .home-tip{font-size:10px;}
+
+  /* 选人页：返回条 → 对阵预览 → 上场方式/开始 → 角色池 → 当前方详情 */
   .menu{padding:8px;align-items:flex-start;}
-  .menu-grid{
-    display:flex;flex-direction:column;
-    height:auto;min-height:100%;max-width:none;gap:8px;
-  }
-  .detail{display:none;}          /* 小屏放不下左右详情，先隐藏（角色池槽位本身带名字） */
-  .arena-pick{flex:0 0 auto;padding:6px 10px;overflow:auto;}
+  .menu-shell{height:auto;min-height:100%;max-width:none;gap:8px;}
+  .menu-bar{position:sticky;top:0;z-index:3;padding:2px 0 6px;background:linear-gradient(#080b11 72%,rgba(8,11,17,0));}
+  .menu-back{padding:6px 12px;font-size:11px;min-height:30px;}
+  .menu-mode{font-size:11px;}
+  .menu-grid{display:flex;flex-direction:column;height:auto;min-height:0;max-width:none;gap:8px;}
+  .arena-pick{order:1;flex:0 0 auto;padding:8px 10px;overflow:visible;gap:4px;}
+  .pool-panel{order:2;flex:0 0 auto;padding:7px 9px;}
+  .detail{order:3;display:none;}   /* 窄屏只显示当前编辑方的详情，避免两栏挤成一团 */
+  .detail.active{display:flex;max-height:44vh;}
+
   .pick-kicker b{font-size:15px;}
   .pick-kicker span{font-size:10px;}
-  .pick-sides{gap:10px;flex:0 0 auto;}
-  .pick-card{width:clamp(96px, 20vh, 150px);height:clamp(96px, 20vh, 150px);padding:7px;border-radius:10px;}
-  .pick-card .pc-dot{width:20px;height:20px;}
+  .pick-sides{gap:10px;flex:0 0 auto;padding:2px 0;}
+  .pick-side{gap:4px;}
+  .side-tag{font-size:13px;}
+  .pick-vs{font-size:14px;}
+  .pick-card{width:100%;max-width:none;min-height:0;height:auto;padding:7px;border-radius:10px;}
+  .pick-card.multi{max-width:none;}
+  .pick-card .pc-dot{width:18px;height:18px;}
   .pick-card b{font-size:12px;}
-  .pick-card small{font-size:10px;}
-  .pick-foot{margin-top:4px;gap:6px;}
+  .pick-card small{font-size:9.5px;}
+  .slot-chip{padding:5px 6px;gap:5px;}
+  .pick-card .slot-chip b{font-size:11px;}
+  .pick-card .slot-chip small{font-size:9px;}
+  .dice{padding:3px 8px;font-size:10px;min-height:26px;}
+
+  .pick-foot{flex-direction:column;align-items:stretch;gap:8px;margin-top:6px;padding-top:8px;}
+  .pick-foot-info{gap:4px;}
   .pick-summary{font-size:10px;}
-  .pool-panel{flex:0 0 auto;padding:6px 8px;}
+  .pick-foot-act{width:100%;gap:8px;}
+  .pick-foot-act .ghost{padding:8px 12px;font-size:11px;min-height:38px;}
+  #btnStart{flex:1 1 auto;padding:12px 16px;font-size:14px;min-height:44px;}
+
+  .pool{grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:none;grid-auto-rows:minmax(40px,auto);gap:5px;}
   .pool-title{font-size:12px;}
   .pool-hint{display:none;}
-  .pool-slot{padding:4px 7px;}
+  .pool-slot{padding:5px 7px;}
 
   /* 赛事棋盘：单列、卡片更紧凑 */
   .tour-board{padding:12px 10px;gap:8px;justify-content:flex-start;}
@@ -375,6 +409,54 @@
 }
 
 /* ============================================================
+   手机：新版小组赛（第 84 条）——「下一场对决 + 组内排名」
+   ------------------------------------------------------------
+   · 不再每组内部滚动，整页只滚 .tb-ng 一个容器；
+   · 押注只改文字/按钮（JS 局部更新），滚动位置不会被清零；
+   · 名字、两个角色（含 A / B 档）、胜-负、积分必须都能看到。
+   ============================================================ */
+@media (max-width: 980px){
+  .tb-ng{
+    flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+    padding:0 1px 4px;gap:8px;
+  }
+  /* .narrow / .narrow.four 的固定行高（0,3,0）会压过 .tb-ng .tb-groups（0,2,0），
+     显式覆盖成 natural，保证 16 人 4 组时也只由 .tb-ng 一个容器滚动 */
+  .tb-ng .tb-groups,
+  .tb-ng .tb-groups.narrow,
+  .tb-ng .tb-groups.narrow.four{flex:0 0 auto;min-height:0;overflow:visible;grid-template-rows:none;}
+  .tb-ng .tb-group{overflow:visible;min-height:0;}
+
+  .tb-ng-next{padding:8px 10px;gap:6px;border-radius:10px;}
+  .tb-ng-next-head i{font-size:11px;}
+  .tb-ng-next-head span{font-size:9.5px;}
+  .tb-ng-team .nm{font-size:14px;}
+  .tb-ng-team .ro{font-size:9.5px;}
+  .tb-ng-team .pt{font-size:9.5px;}
+  .tb-ng-vsmid{font-size:15px;}
+  .tb-ng-odds{font-size:10px;}
+
+  .tb-ng-actions{gap:6px;}
+  .tb-ng-actions .tb-odd{flex:1 1 0;padding:6px 8px;font-size:11px;min-height:30px;}
+  .tb-ng-actions .tb-big.sm{min-height:30px;padding:6px 12px;font-size:11px;}
+
+  .tb-ng-list{margin-top:4px;}
+  .tb-ng-row{
+    grid-template-columns:16px minmax(0,1fr) minmax(0,1.25fr) 32px 44px;
+    gap:5px;font-size:11px;
+  }
+  .tb-ng-row .ro{font-size:9.5px;}
+  .tb-ng-row .pt{font-size:11px;}
+}
+
+@media (max-width: 560px){
+  .tb-ng-team .nm{font-size:13px;}
+  .tb-ng-row{grid-template-columns:14px minmax(0,1fr) minmax(0,1.1fr) 28px 40px;gap:4px;}
+  .tb-ng-row .pt{font-size:10.5px;}
+}
+
+/* ============================================================
    手机：双败赛程图（分段式树状图，第 75 / 77 / 78 条）
    ------------------------------------------------------------
    桌面仍是整张 SVG 大图；<=980px 拆成四段独立的连线图：
@@ -394,22 +476,18 @@
     width:max-content;min-width:100%;transform-origin:0 0;
   }
 
-  /* 四个分区：小组赛 / 胜者组 / 败者组 / 总决赛 */
+  /* 两个分区：小组赛 / 双败淘汰（胜者组 + 败者组 + 总决赛 = 同一张图） */
   .tb-bk-sec{
     width:max-content;max-width:none;
     border:1px solid #1e2836;border-radius:10px;
     padding:7px 8px 8px;background:rgba(255,255,255,.02);
   }
-  .tb-bk-sec.wb{border-color:rgba(120,190,255,.24);background:rgba(90,150,255,.045);}
-  .tb-bk-sec.lb{border-color:rgba(255,140,110,.24);background:rgba(255,110,80,.045);}
-  .tb-bk-sec.gf{border-color:rgba(255,205,120,.32);background:rgba(255,205,120,.055);}
+  .tb-bk-sec.ko{border-color:rgba(120,190,255,.24);background:rgba(90,150,255,.035);}
   .tb-bk-sec.grp{border-color:rgba(170,185,210,.22);background:rgba(255,255,255,.018);}
   .tb-bk-sec.grp .tb-bk-h b{color:#c6d3e6;}
   .tb-bk-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 6px;}
   .tb-bk-h b{font-size:13px;letter-spacing:.08em;}
-  .tb-bk-sec.wb .tb-bk-h b{color:#9fc4ff;}
-  .tb-bk-sec.lb .tb-bk-h b{color:#ffab97;}
-  .tb-bk-sec.gf .tb-bk-h b{color:#ffd9a8;}
+  .tb-bk-sec.ko .tb-bk-h b{color:#9fc4ff;}
   .tb-bk-h i{font-style:normal;font-size:10.5px;color:#68758b;text-align:right;white-space:nowrap;}
 
   /* 图块：不再自己滚动，统一交给外层 .tb-chart.mob 的缩放 / 平移 */
@@ -429,12 +507,9 @@
   .bk-panel .bk-lab{font-size:13px;}
   .bk-panel .bk-gt{font-size:13px;}
   .bk-panel .bk-gs{font-size:11.5px;}
+  .bk-panel .bk-sub{font-size:11px;fill:#8b98ad;}
   .bk-panel .bk-edge{stroke-width:1.6;stroke:rgba(120,190,255,.45);}
   .bk-panel .bk-edge.dash{stroke:rgba(255,140,110,.55);stroke-dasharray:6 5;}
-
-  /* 总决赛面板里的两个来源标签 */
-  .tb-graph .bk-src rect{fill:rgba(255,255,255,.03);stroke:rgba(255,255,255,.14);stroke-width:1;}
-  .tb-graph .bk-src text{fill:#8b98ad;font-size:12px;}
 
   /* 操作条在窄屏可换行，避免被押注按钮撑出屏幕 */
   .tb-actbar{flex-wrap:wrap;}

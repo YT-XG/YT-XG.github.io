@@ -4,13 +4,13 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>MC 方块对决 · 组合作战</title>
-<link rel="stylesheet" href="css/style.css?v=20261107ed" />
-<link rel="stylesheet" href="css/mobile.css?v=20261107ed" media="(max-width: 980px), (max-height: 480px), (pointer: coarse)" />
+<link rel="stylesheet" href="css/style.css?v=20261108b" />
+<link rel="stylesheet" href="css/mobile.css?v=20261108b" media="(max-width: 980px), (max-height: 480px), (pointer: coarse)" />
 </head>
 <body>
 <div class="app">
   <header>
-    <h1>MC 方块对决 <em>1v1</em><em>角色池选人 · 红青组合算 1 个整体</em></h1>
+    <h1>MC 方块对决 <em>角色池组合作战 · 红青组合算 1 个整体</em></h1>
     <div class="hint"><kbd>R</kbd> 重开 · <kbd>空格</kbd> 暂停 · <kbd>F</kbd> 加速 · <kbd>Esc</kbd> 主菜单</div>
   </header>
 
@@ -35,58 +35,109 @@
 
   </div>
 
-  <div class="menu" id="menu">
-    <div class="menu-grid">
-      <aside class="detail detail-a" id="detailA">
-        <div class="detail-title">角色技能数值详细介绍</div>
-        <div class="detail-body" id="detailBodyA"></div>
-      </aside>
-
-      <section class="arena-pick">
-        <div class="pick-kicker">
-          <b>MC 方块对决</b>
-          <span>角色池选人 · 支持 1v1 / 2v2 / 3v3 / 3v3 接力 · 红青组合算 1 个整体</span>
-        </div>
-        <div class="pick-sides">
-          <div class="pick-side">
-            <div class="side-head">
-              <span class="side-tag a">红</span>
-              <button class="dice" id="diceA" type="button" title="随机红方阵容">随机</button>
-            </div>
-            <div class="pick-card" id="cardA"></div>
+  <div class="home" id="home">
+    <div class="home-inner">
+      <div class="home-head">
+        <b>MC 方块对决</b>
+        <span>台球式匀速直线运动 · 角色池组合作战</span>
+      </div>
+      <div class="home-grid">
+        <button class="home-mode" type="button" data-size="1">
+          <i>1v1</i>
+          <b>单角色对决</b>
+          <span>1 个角色 · 同时上场 · 最快开打</span>
+          <em>进入 →</em>
+        </button>
+        <button class="home-mode" type="button" data-size="2">
+          <i>2v2</i>
+          <b>双角色战队</b>
+          <span>2 个角色 · 同时上场或接力</span>
+          <em>进入 →</em>
+        </button>
+        <button class="home-mode" type="button" data-size="3">
+          <i>3v3</i>
+          <b>三角色满编</b>
+          <span>3 个角色 · 同时上场或接力</span>
+          <em>进入 →</em>
+        </button>
+        <div class="home-mode tour">
+          <i>赛事</i>
+          <b>锦标赛</b>
+          <span>8 / 16 人 · 抽签 · 押注 · 双败淘汰</span>
+          <div class="hm-tour-row">
+            <select id="tourSize" title="参赛人数"><option value="8">8 人</option><option value="16">16 人</option></select>
+            <button id="btnTour" type="button" class="primary sm" title="8 / 16 人自动赛事：小组赛 BO2 → 淘汰赛 BO3 → 决赛 BO5">进入赛事 →</button>
           </div>
-          <div class="pick-vs">vs</div>
-          <div class="pick-side">
-            <div class="side-head">
-              <span class="side-tag b">蓝</span>
-              <button class="dice" id="diceB" type="button" title="随机蓝方阵容">随机</button>
-            </div>
-            <div class="pick-card" id="cardB"></div>
-          </div>
         </div>
-        <div class="pick-foot">
-          <div class="pick-summary" id="pickSummary"></div>
-          <div class="round-pick" id="modePick"></div>
+      </div>
+      <div class="home-foot">
+        <div class="home-round">
           <div class="round-pick" id="roundPick"></div>
-          <button class="primary" id="btnStart">开始对战</button>
-          <select id="tourSize" title="参赛人数"><option value="8">8 人</option><option value="16">16 人</option></select>
-          <button id="btnTour" type="button" title="8 人自动赛事：小组赛 BO2 → 淘汰赛 BO3 → 决赛 BO5">赛事模式</button>
-          <button id="btnRandom" type="button" title="双方阵容全部随机">随机双方</button>
         </div>
-      </section>
+        <div class="home-tip"><kbd>Esc</kbd> 返回主菜单 · 手机横屏体验更佳</div>
+      </div>
+    </div>
+  </div>
 
-      <aside class="detail detail-b" id="detailB">
-        <div class="detail-title">角色技能数值详细介绍</div>
-        <div class="detail-body" id="detailBodyB"></div>
-      </aside>
+  <div class="menu" id="menu">
+    <div class="menu-shell">
+      <div class="menu-bar">
+        <button id="btnBackHome" class="menu-back" type="button">← 主菜单</button>
+        <div class="menu-mode" id="menuMode">1v1 · 同时上场</div>
+      </div>
+      <div class="menu-grid">
+        <section class="arena-pick">
+          <div class="pick-kicker">
+            <b>阵容准备</b>
+            <span>点角色池补充阵容 · 点卡片切换编辑的一方</span>
+          </div>
+          <div class="pick-sides">
+            <div class="pick-side">
+              <div class="side-head">
+                <span class="side-tag a">红方</span>
+                <button class="dice" id="diceA" type="button" title="随机红方阵容">随机</button>
+              </div>
+              <div class="pick-card" id="cardA"></div>
+            </div>
+            <div class="pick-vs">vs</div>
+            <div class="pick-side">
+              <div class="side-head">
+                <span class="side-tag b">蓝方</span>
+                <button class="dice" id="diceB" type="button" title="随机蓝方阵容">随机</button>
+              </div>
+              <div class="pick-card" id="cardB"></div>
+            </div>
+          </div>
+          <div class="pick-foot">
+            <div class="pick-foot-info">
+              <div class="pick-summary" id="pickSummary"></div>
+              <div class="round-pick mode-pick" id="modePick"></div>
+            </div>
+            <div class="pick-foot-act">
+              <button id="btnRandom" type="button" class="ghost" title="双方阵容全部随机">随机双方</button>
+              <button class="primary" id="btnStart">开始对战</button>
+            </div>
+          </div>
+        </section>
 
-      <section class="pool-panel">
-        <div class="pool-head">
-          <div class="pool-title">角色池</div>
-          <div class="pool-hint">点红/蓝卡片切换选择方，再点角色</div>
-        </div>
-        <div class="pool" id="pool"></div>
-      </section>
+        <section class="pool-panel">
+          <div class="pool-head">
+            <div class="pool-title">角色池</div>
+            <div class="pool-hint">点红/蓝卡片切换选择方，再点角色</div>
+          </div>
+          <div class="pool" id="pool"></div>
+        </section>
+
+        <aside class="detail detail-a" id="detailA">
+          <div class="detail-title">红方 · 角色技能数值</div>
+          <div class="detail-body" id="detailBodyA"></div>
+        </aside>
+
+        <aside class="detail detail-b" id="detailB">
+          <div class="detail-title">蓝方 · 角色技能数值</div>
+          <div class="detail-body" id="detailBodyB"></div>
+        </aside>
+      </div>
     </div>
   </div>
 
@@ -103,23 +154,23 @@
   </div>
 </div>
 
-    <script src="js/00-base.js?v=20261107ed"></script>
-    <script src="js/items/red.js?v=20261107ed"></script>
-    <script src="js/items/lapis.js?v=20261107ed"></script>
-    <script src="js/items/spear.js?v=20261107ed"></script>
-    <script src="js/items/bow.js?v=20261107ed"></script>
-    <script src="js/items/ice.js?v=20261107ed"></script>
-    <script src="js/items/dog.js?v=20261107ed"></script>
-    <script src="js/items/grass.js?v=20261107ed"></script>
-    <script src="js/items/anvil.js?v=20261107ed"></script>
-    <script src="js/items/milk.js?v=20261107ed"></script>
-    <script src="js/items/pool.js?v=20261107ed"></script>
-    <script src="js/10-core.js?v=20261107ed"></script>
-    <script src="js/20-menu.js?v=20261107ee"></script>
-    <script src="js/30-sim.js?v=20261107ee"></script>
-    <script src="js/40-render.js?v=20261107ee"></script>
-    <script src="js/50-ui.js?v=20261107ee"></script>
-    <script src="js/60-tournament.js?v=20261107ee"></script>
-    <script src="js/70-tour-odds.js?v=20261107ee"></script>
+    <script src="js/00-base.js?v=20261108b"></script>
+    <script src="js/items/red.js?v=20261108b"></script>
+    <script src="js/items/lapis.js?v=20261108b"></script>
+    <script src="js/items/spear.js?v=20261108b"></script>
+    <script src="js/items/bow.js?v=20261108b"></script>
+    <script src="js/items/ice.js?v=20261108b"></script>
+    <script src="js/items/dog.js?v=20261108b"></script>
+    <script src="js/items/grass.js?v=20261108b"></script>
+    <script src="js/items/anvil.js?v=20261108b"></script>
+    <script src="js/items/milk.js?v=20261108b"></script>
+    <script src="js/items/pool.js?v=20261108b"></script>
+    <script src="js/10-core.js?v=20261108b"></script>
+    <script src="js/20-menu.js?v=20261108b"></script>
+    <script src="js/30-sim.js?v=20261108b"></script>
+    <script src="js/40-render.js?v=20261108b"></script>
+    <script src="js/50-ui.js?v=20261108b"></script>
+    <script src="js/60-tournament.js?v=20261108b"></script>
+    <script src="js/70-tour-odds.js?v=20261108b"></script>
 </body>
 </html>

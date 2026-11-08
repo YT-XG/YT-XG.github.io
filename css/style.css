@@ -271,6 +271,128 @@ button:active{transform:translateY(1px);border-bottom-width:1px;}
 }
 
 /* ============================================================
+   主菜单（Home）+ 选人页改版（第 85 条）
+   ------------------------------------------------------------
+   · .home 是全屏入口层：1v1 / 2v2 / 3v3 / 赛事模式
+   · 选人页外壳 .menu-shell 上多了一条「返回主菜单 + 当前模式」
+   · 对阵预览 → 上场方式 → 大号开始按钮 → 角色池 → 详情
+   ============================================================ */
+.home{
+  position:fixed;inset:0;z-index:70;display:none;
+  align-items:center;justify-content:center;
+  padding:clamp(16px,3vh,40px) 20px;overflow:auto;
+  background:
+    radial-gradient(900px 520px at 50% -8%, rgba(38,52,78,.6), transparent 70%),
+    radial-gradient(720px 420px at 88% 110%, rgba(60,40,70,.35), transparent 65%),
+    #080b11;
+}
+.home.show{display:flex;}
+.home-inner{
+  width:100%;max-width:1040px;display:flex;flex-direction:column;
+  gap:clamp(14px,2.6vh,28px);
+}
+.home-head{text-align:center;}
+.home-head b{
+  display:block;font-size:clamp(26px,4.4vh,46px);font-weight:800;letter-spacing:.12em;
+  color:#f2f6fd;text-shadow:0 6px 30px rgba(0,0,0,.6);
+}
+.home-head span{
+  display:block;margin-top:8px;font-size:clamp(12px,1.7vh,16px);
+  color:#8fa1bd;letter-spacing:.06em;
+}
+.home-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(10px,1.6vh,16px);}
+.home-mode{
+  position:relative;display:flex;flex-direction:column;align-items:flex-start;
+  gap:2px;min-height:clamp(112px,17vh,160px);
+  padding:clamp(12px,1.8vh,20px) clamp(14px,2vw,22px);
+  border-radius:14px;border:1px solid #2a3446;background:#0e131c;
+  text-align:left;
+}
+.home-mode i{
+  font-style:normal;font-size:clamp(20px,3vh,30px);font-weight:800;
+  letter-spacing:.06em;color:#dfe7f4;line-height:1.1;
+}
+.home-mode b{font-size:clamp(13px,1.9vh,18px);font-weight:700;color:#cfdbea;margin-top:2px;}
+.home-mode span{font-size:clamp(11px,1.5vh,14px);color:#7d8ba1;line-height:1.4;}
+.home-mode em{
+  font-style:normal;font-size:clamp(11px,1.5vh,14px);color:#9fc4ff;
+  letter-spacing:.04em;margin-top:auto;padding-top:8px;
+}
+.home-mode:hover{
+  border-color:rgba(120,190,255,.5);background:#131b27;
+  box-shadow:0 12px 30px -20px rgba(90,150,255,.6);
+}
+.home-mode:hover em{color:#d8ecff;}
+.home-mode.tour{border-color:rgba(255,205,120,.32);background:#131722;}
+.home-mode.tour i{color:#ffd9a8;}
+.home-mode.tour:hover{border-color:rgba(255,205,120,.6);box-shadow:0 12px 30px -20px rgba(255,190,90,.5);}
+.hm-tour-row{margin-top:auto;padding-top:8px;display:flex;align-items:center;gap:8px;width:100%;}
+.hm-tour-row button.primary{flex:1 1 auto;padding:8px 14px;font-size:clamp(11px,1.5vh,14px);}
+.home-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding-top:clamp(8px,1.4vh,14px);border-top:1px solid #1a2230;
+}
+.home-round{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.home-tip{font-size:12px;color:#68758b;}
+.home-tip kbd{
+  display:inline-block;min-width:20px;text-align:center;padding:1px 5px;margin:0 2px;
+  border-radius:4px;background:#1a2130;border:1px solid #2b3549;border-bottom-width:2px;
+  font-family:ui-monospace,Consolas,monospace;font-size:11px;color:#cfd8e6;
+}
+
+/* —— 选人页外壳 —— */
+.menu-shell{
+  width:100%;max-width:1600px;height:100%;
+  display:flex;flex-direction:column;gap:10px;
+}
+.menu-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex:0 0 auto;}
+.menu-back{
+  padding:7px 14px;border-radius:9px;font-size:12.5px;color:#9fb0c8;
+  background:#11161f;border:1px solid #2a3446;
+}
+.menu-back:hover{color:#e8eef8;border-color:#3d4a61;background:#161d29;}
+.menu-mode{font-size:12.5px;color:#ffd9a8;letter-spacing:.06em;}
+.menu-grid{flex:1 1 auto;min-height:0;height:auto;}
+
+/* —— 对阵预览：标题与卡片更明确 —— */
+.pick-kicker{display:flex;flex-direction:column;gap:2px;}
+.pick-kicker b{font-size:clamp(16px,2.3vh,26px);}
+.pick-kicker span{font-size:clamp(10.5px,1.35vh,14px);color:#7d8ba1;letter-spacing:0;}
+.pick-side{gap:8px;flex:1 1 0;min-width:0;}
+.side-head{justify-content:space-between;width:100%;}
+.side-tag{font-size:clamp(13px,1.8vh,20px);}
+.pick-card{
+  width:100%;max-width:clamp(170px,24vh,250px);height:auto;
+  min-height:clamp(150px,22vh,230px);padding:10px;
+}
+.pick-card.multi{max-width:clamp(200px,30vh,300px);padding:8px;gap:6px;}
+.slot-chip{padding:7px 8px;}
+.pick-vs{flex:0 0 auto;}
+
+/* —— 底部操作区：信息在左，开始按钮强权重 —— */
+.pick-foot{
+  display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
+  margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);
+}
+.pick-foot-info{display:flex;flex-direction:column;gap:6px;min-width:0;}
+.mode-pick{flex-wrap:wrap;}
+.pick-foot-act{display:flex;align-items:center;gap:10px;flex:0 0 auto;}
+.pick-foot-act .ghost{
+  padding:9px 14px;border-radius:9px;font-size:12.5px;color:#9fb0c8;
+  background:#141a25;border:1px solid #2a3446;
+}
+.pick-foot-act .ghost:hover{color:#e8eef8;border-color:#3d4a61;background:#1a2130;}
+button.primary{
+  background:linear-gradient(180deg,#3b6fd0,#22418a);
+  border-color:#5b8be0;
+}
+button.primary:hover{background:linear-gradient(180deg,#457ce0,#284d9c);border-color:#7aa2ea;}
+#btnStart{
+  padding:12px 34px;font-size:clamp(14px,1.9vh,18px);font-weight:700;letter-spacing:.04em;
+  border-radius:11px;border-bottom-width:3px;
+  box-shadow:0 10px 26px -14px rgba(60,120,240,.9);
+}
+/* ============================================================
    赛事模式：底部观战面板
    ============================================================ */
 .tour-panel{
@@ -815,4 +937,81 @@ button:active{transform:translateY(1px);border-bottom-width:1px;}
   .tb-group.deal,
   .tb-card.deal,
   .tb-card.deal .tb-band{animation:none;}
+}
+
+/* ============================================================
+   小组赛新版（第 84 条）：下一场对决 + 组内排名
+   ------------------------------------------------------------
+   · .tb-ng 是整页唯一的滚动容器（data-scroll=stage）：
+     手机不再「每组一个内滚动条」，押注/选中时也不会被重建清零；
+   · .tb-ng-next = 全场唯一的「下一场对决」，押注只针对它；
+   · .tb-ng-row  = 组内 4 名玩家的排名行（名字 / 两个角色 + A·B 档 / 胜-负 / 积分）。
+   ============================================================ */
+.tb-ng{
+  flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:10px;
+  overflow-y:auto;overflow-x:hidden;padding-right:2px;
+  scrollbar-width:none;-ms-overflow-style:none;
+}
+.tb-ng::-webkit-scrollbar{width:0;height:0;display:none;}
+
+/* 组框恢复自然高度，由 .tb-ng 统一滚动，不再每组内部滚。
+   .narrow.four 的固定行高（16 人 2×2）优先级更高，这里显式压回 natural，避免组框被拉伸/裁切 */
+.tb-ng .tb-groups,
+.tb-ng .tb-groups.narrow,
+.tb-ng .tb-groups.narrow.four{flex:0 0 auto;min-height:0;overflow:visible;grid-template-rows:none;}
+.tb-ng .tb-group{overflow:visible;}
+
+.tb-ng-next{
+  flex:0 0 auto;border:1px solid rgba(120,190,255,.32);border-radius:12px;
+  background-color:#101824;background-image:linear-gradient(180deg,rgba(90,150,255,.12),rgba(255,255,255,.02));
+  padding:10px 14px;display:flex;flex-direction:column;gap:8px;
+  /* 吸顶：往下看组内排名时也能直接押注，押注只做局部更新，滚动位置不动 */
+  position:sticky;top:0;z-index:3;box-shadow:0 8px 18px rgba(0,0,0,.32);
+}
+.tb-ng-next.empty{
+  border-color:#1e2836;background-color:#101824;background-image:none;
+  color:#6f7d93;font-size:12px;
+}
+.tb-ng-next-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;}
+.tb-ng-next-head i{font-style:normal;font-size:12px;letter-spacing:.14em;color:#9fc4ff;}
+.tb-ng-next-head span{font-size:11px;color:#6f7d93;}
+
+.tb-ng-vs{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px;}
+.tb-ng-team{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.tb-ng-team.a{align-items:flex-end;text-align:right;}
+.tb-ng-team.b{align-items:flex-start;text-align:left;}
+.tb-ng-team .nm{font-size:16px;font-weight:600;line-height:1.2;}
+.tb-ng-team .nm.a{color:#ffb3ab;}
+.tb-ng-team .nm.b{color:#a9c0ff;}
+.tb-ng-team .ro{font-size:10.5px;color:#7d8ba1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+.tb-ng-team .pt{font-size:10.5px;color:#8b98ad;font-variant-numeric:tabular-nums;}
+.tb-ng-vsmid{font-size:18px;font-weight:700;color:#ffd9a8;letter-spacing:.1em;}
+.tb-ng-odds{text-align:center;font-size:11px;color:#7e8ba1;letter-spacing:.03em;font-variant-numeric:tabular-nums;}
+.tb-ng-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+.tb-ng-actions .tb-odd{flex:1 1 0;text-align:center;padding:7px 10px;font-size:12px;}
+.tb-ng-actions .tb-big.sm{flex:0 0 auto;}
+
+.tb-ng-prog{margin-left:8px;font-style:normal;font-size:10px;color:#68758b;letter-spacing:0;}
+.tb-ng-list{display:flex;flex-direction:column;gap:2px;margin-top:6px;}
+.tb-ng-row{
+  display:grid;grid-template-columns:18px minmax(0,1.15fr) minmax(0,1.5fr) 38px 50px;
+  gap:6px;align-items:center;padding:4px 0;font-size:11.5px;color:#c6d3e6;
+  border-bottom:1px solid rgba(255,255,255,.04);
+}
+.tb-ng-row.q{background:rgba(120,190,255,.05);}
+/* 下一场双方的排名行加一道左侧高亮，和上方「下一场对决」卡对应 */
+.tb-ng-row.next{box-shadow:inset 2px 0 0 #9fc4ff;}
+.tb-ng-row .rk{color:#68758b;font-variant-numeric:tabular-nums;}
+.tb-ng-row .nm{color:#e8eef8;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tb-ng-row .ro{color:#6f7d93;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tb-ng-row .wl{color:#8b98ad;text-align:center;font-variant-numeric:tabular-nums;}
+.tb-ng-row .pt{color:#ffd9a8;font-weight:600;text-align:right;font-variant-numeric:tabular-nums;}
+
+/* 抽签揭晓：新版小组赛的组框与排名行沿用同一套动画 */
+.tb-ng-row.deal{
+  animation:tbDealCard .44s cubic-bezier(.2,.9,.3,1.15) backwards;
+  animation-delay:calc(120ms + var(--cseq, 0) * 45ms);
+}
+@media (prefers-reduced-motion: reduce){
+  .tb-ng-row.deal{animation:none;}
 }

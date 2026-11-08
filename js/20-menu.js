@@ -11,7 +11,6 @@
 /* 人数与上场方式分开设置：
    · 人数 1v1 / 2v2 / 3v3
    · 上场 同时上场 / 接力（1v1 只有一个角色，接力不可用） */
-var SIZES = [1, 2, 3];
 var KINDS = [
   { id: 'vs', label: '同时上场' },
   { id: 'relay', label: '接力' }
@@ -131,36 +130,17 @@ function buildMenu() {
   if (el.btnRandom) el.btnRandom.addEventListener('click', function () { randomTeam('A'); randomTeam('B'); });
 }
 
+/* 人数已由主菜单入口决定，这里只保留「上场方式」开关 */
 function buildModePick() {
   el.modePick.innerHTML = '';
 
-  // 第一行：人数
-  var row1 = document.createElement('div');
-  row1.className = 'rp-row';
-  var t1 = document.createElement('span');
-  t1.className = 'rp-title';
-  t1.textContent = '人数';
-  row1.appendChild(t1);
-  SIZES.forEach(function (n) {
-    var b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = n + 'v' + n;
-    if (n === teamSize) b.classList.add('on');
-    b.addEventListener('click', function () {
-      setSize(n);
-      buildModePick();
-      syncPick();
-    });
-    row1.appendChild(b);
-  });
+  var row = document.createElement('div');
+  row.className = 'rp-row';
+  var t = document.createElement('span');
+  t.className = 'rp-title';
+  t.textContent = '上场方式';
+  row.appendChild(t);
 
-  // 第二行：上场方式
-  var row2 = document.createElement('div');
-  row2.className = 'rp-row';
-  var t2 = document.createElement('span');
-  t2.className = 'rp-title';
-  t2.textContent = '上场';
-  row2.appendChild(t2);
   KINDS.forEach(function (k) {
     var b = document.createElement('button');
     b.type = 'button';
@@ -176,11 +156,10 @@ function buildModePick() {
       buildModePick();
       syncPick();
     });
-    row2.appendChild(b);
+    row.appendChild(b);
   });
 
-  el.modePick.appendChild(row1);
-  el.modePick.appendChild(row2);
+  el.modePick.appendChild(row);
 }
 
 // 改人数：1v1 强制回到「同时上场」；不够的格子用角色池里还没用过的角色补齐
@@ -274,6 +253,7 @@ function syncPick() {
   });
 
   var modeText = teamSize + 'v' + teamSize + (modeKind === 'relay' ? ' 接力' : ' 同时上场');
+  if (el.menuMode) el.menuMode.textContent = modeText;
   el.pickSummary.innerHTML =
     '<b>' + modeText + '</b> ｜ ' +
     SIDE_LABEL.A + ' <b>' + (pick.A || []).length + '</b> 人  VS  ' +
@@ -287,8 +267,39 @@ function syncPick() {
 
 
 /* ============================================================
-   主页面 / 战斗切换
+   主菜单 / 选人页 / 战斗切换
+   ------------------------------------------------------------
+   · 启动与「返回」都先到主菜单（home）
+   · 主菜单四个入口：1v1 / 2v2 / 3v3 / 赛事模式，前三者进选人页
    ============================================================ */
+function buildHome() {
+  var modes = document.querySelectorAll('.home-mode[data-size]');
+  for (var i = 0; i < modes.length; i++) {
+    (function (btn) {
+      btn.addEventListener('click', function () {
+        enterPick(parseInt(btn.getAttribute('data-size'), 10) || 1);
+      });
+    })(modes[i]);
+  }
+  if (el.btnBackHome) el.btnBackHome.addEventListener('click', openMenu);
+}
+
+/* 从主菜单进入某个对战人数的选人页 */
+function enterPick(size) {
+  setSize(size);
+  buildModePick();
+  el.home.classList.remove('show');
+  el.menu.classList.add('show');
+  el.stage.classList.add('menu-open');
+  document.body.classList.add('menu-open');
+  el.banner.classList.remove('show');
+  el.status.textContent = '';
+  el.btns.classList.add('hidden');
+  activeTeam = 'A';
+  activeSlot = 0;
+  syncPick();
+}
+
 function openMenu() {
   // 后台赔率模拟占着引擎全局：先停下并还原，再做主菜单的重置
   if (typeof tourOddsStop === 'function') tourOddsStop();
@@ -305,7 +316,8 @@ function openMenu() {
   el.stage.classList.remove('sudden');
   el.timerLabel.textContent = 'SEC';
 
-  el.menu.classList.add('show');
+  el.menu.classList.remove('show');
+  if (el.home) el.home.classList.add('show');
   el.stage.classList.add('menu-open');
   document.body.classList.add('menu-open');
   el.banner.classList.remove('show');
@@ -324,6 +336,7 @@ function startBattle() {
   reset();
   phase = 'fight';
   paused = false;
+  if (el.home) el.home.classList.remove('show');
   el.menu.classList.remove('show');
   el.stage.classList.remove('menu-open');
   document.body.classList.remove('menu-open');

@@ -104,6 +104,7 @@ function buildRoundPick() {
 }
 
 buildMenu();
+buildHome();
 buildRoundPick();
 syncPick();
 openMenu();
