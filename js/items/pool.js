@@ -77,6 +77,15 @@ var POOL = [
     body: '#e6cfa8',
     glow: '#ffe0a0',
     img: 'assets/milk.png'
+  },
+  {
+    key: 'bucket',
+    name: '水桶',
+    short: '水桶',
+    role: '区域控制 / 持续伤害',
+    units: ['bucket'],
+    body: '#3f86a8',
+    glow: '#7fd8ff'
   }
 ];
 var POOL_BY_KEY = {};

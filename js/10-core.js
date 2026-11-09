@@ -61,12 +61,15 @@ function dmgOf(attacker, impact, victim) {
    状态
    ============================================================ */
 var units = [], particles = [], rings = [], floaters = [], bombs = [], arrows = [], icePatches = [];
+// 水桶的水面：{x,y,r:220,age,team,owner,phase}，有独立的引力与浸水计时（见 30-sim 的 updateWaters）
+var waters = [];
 // 铁砧的落点预警圆：生成时锁定坐标，delay 秒后砸落结算
 var anvilMarks = [];
 // 草的种子 / 藤蔓 / 待复活队列（草阵亡后在种子上复活）
 var seeds = [], vines = [], reviveQueue = [];
 // 冰面数量上限：防止长时间对局铺满场地掉帧（存活期 6s × 落点频率，正常远低于此值）
 var ICE_PATCH_MAX = 120;
+var WATER_MAX = 6;             // 水面上限：CD 8s、水面寿命 8s，单角色最多 1 滩，多角色也不会铺满
 var ANVIL_MARK_MAX = 12;       // 落点圆上限：CD 3s、延迟 3s，单角色同时最多 1 个
 var SEED_MAX = 6;              // 全场合计种子上限，超出删最早的
 var REVIVE_DELAY = 1.0;        // 草在种子上复活的吟唱时间（秒）
@@ -194,6 +197,7 @@ function addUnit(key, x, y, team) {
     cd: d.skill.passiveOnly ? 0 : rand(0.8, 1.8), hitCd: 0, wallCd: 0,
     dashT: 0, dashSpeed: 0,
     slowT: 0, slowMul: BALANCE.slowSpeedMul, iceTick: 1.0, dealt: 0, taken: 0,
+    waterT: 0, waterAcc: 1.0,   // 浸水累计时长 / 满 1 秒结算一次的累加器（水桶的水面）
     bindT: 0, poisonT: 0, poisonAcc: 1.0, poisonSrc: null,
     revives: 0,   // 已经靠种子复活过几次（草最多 2 次）
     st: d.createState ? d.createState() : {},
@@ -256,6 +260,7 @@ function faceInward(u) {
 
 function reset() {
   units = []; particles = []; rings = []; floaters = []; bombs = []; arrows = []; icePatches = [];
+  waters = [];
   anvilMarks = [];
   seeds = []; vines = []; reviveQueue = [];
   resetArena();   // 场地恢复到初始宽度

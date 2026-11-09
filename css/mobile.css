@@ -100,7 +100,7 @@
   .pick-foot-act .ghost{padding:8px 12px;font-size:11px;min-height:38px;}
   #btnStart{flex:1 1 auto;padding:12px 16px;font-size:14px;min-height:44px;}
 
-  .pool{grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:none;grid-auto-rows:minmax(40px,auto);gap:5px;}
+  .pool{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:none;grid-auto-rows:minmax(40px,auto);gap:5px;}
   .pool-title{font-size:12px;}
   .pool-hint{display:none;}
   .pool-slot{padding:5px 7px;}

@@ -114,7 +114,9 @@ function makeSlot(c) {
 
 function buildMenu() {
   el.pool.innerHTML = '';
-  for (var i = 0; i < 8; i++) {
+  // 至少保留 8 格视觉占位；角色池超过 8 个时按实际数量铺开（水桶加入后为 9 个）
+  var slots = Math.max(8, POOL.length);
+  for (var i = 0; i < slots; i++) {
     if (i < POOL.length) {
       el.pool.appendChild(makeSlot(POOL[i]));
     } else {
@@ -308,6 +310,7 @@ function openMenu() {
   paused = false;
   speedMul = 1;
   units = []; particles = []; rings = []; floaters = []; bombs = []; arrows = []; icePatches = [];
+  waters = [];
   anvilMarks = [];
   seeds = []; vines = []; reviveQueue = [];
   t = 0; roundTime = roundDuration; shake = 0; hitStop = 0;

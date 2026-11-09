@@ -57,29 +57,33 @@ function tourRoleName(key) {
 
 function tourRolesText(p) { return p.roles.map(tourRoleName).join(' / '); }
 
-/* 8 角色两两对位实测胜率（数值 = 行角色胜率 %）
-   ⚠️ 2026-11-7（第 82 条）用「全角色双向各 100 局、相邻档位 600 局」的最新矩阵整体替换：
-   旧表最迟在草·种子改动之前，冰块 vs 长矛（46.2→29.5）、草 vs 冰块（54.7→69.5）、
-   弓箭 vs 长矛（68.8→80.5）等偏差已超过 10 个百分点，继续沿用会让竞猜赔率明显失真。 */
+/* 9 角色两两对位实测胜率（数值 = 行角色胜率 %）
+   ⚠️ 2026-11-7（第 82 条）用「全角色双向各 100 局、相邻档位 600 局」的最新矩阵整体替换；
+   2026-11-9（第 89 条）补入 water 桶行：bucket 用「双向各 24 局」的 1v1 实测，
+   其余 8 行与 bucket 的对位取补值（100 - bucket 行）。 */
 var TOUR_MATCHUP = {
-  duo:   { spear: 30.0, bow: 53.5, ice: 51.2, grass: 20.0, dog: 31.5, anvil: 0.5,  milk: 1.0 },
-  spear: { duo: 70.0, bow: 80.5, ice: 70.5, grass: 47.0, dog: 76.0, anvil: 71.0, milk: 95.7 },
-  bow:   { duo: 46.5, spear: 19.5, ice: 100.0, grass: 98.5, dog: 97.0, anvil: 64.3, milk: 45.5 },
-  ice:   { duo: 48.8, spear: 29.5, bow: 0.0,  grass: 30.5, dog: 16.5, anvil: 2.5,  milk: 0.0 },
-  grass: { duo: 80.0, spear: 53.0, bow: 1.5,  ice: 69.5,   dog: 28.2, anvil: 7.5,  milk: 0.0 },
-  dog:   { duo: 68.5, spear: 24.0, bow: 3.0,  ice: 83.5,   grass: 71.8, anvil: 34.0, milk: 0.0 },
-  anvil: { duo: 99.5, spear: 29.0, bow: 35.7, ice: 97.5,   grass: 92.5, dog: 66.0, milk: 57.5 },
-  milk:  { duo: 99.0, spear: 4.3, bow: 54.5, ice: 100.0,  grass: 100.0, dog: 100.0, anvil: 42.5 }
+  duo:   { spear: 30.0, bow: 53.5, ice: 51.2, grass: 20.0, dog: 31.5, anvil: 0.5,  milk: 1.0,  bucket: 21.0 },
+  spear: { duo: 70.0, bow: 80.5, ice: 70.5, grass: 47.0, dog: 76.0, anvil: 71.0, milk: 95.7, bucket: 87.0 },
+  bow:   { duo: 46.5, spear: 19.5, ice: 100.0, grass: 98.5, dog: 97.0, anvil: 64.3, milk: 45.5, bucket: 87.0 },
+  ice:   { duo: 48.8, spear: 29.5, bow: 0.0,  grass: 30.5, dog: 16.5, anvil: 2.5,  milk: 0.0,  bucket: 0.0 },
+  grass: { duo: 80.0, spear: 53.0, bow: 1.5,  ice: 69.5,   dog: 28.2, anvil: 7.5,  milk: 0.0,  bucket: 37.0 },
+  dog:   { duo: 68.5, spear: 24.0, bow: 3.0,  ice: 83.5,   grass: 71.8, anvil: 34.0, milk: 0.0,  bucket: 46.0 },
+  anvil: { duo: 99.5, spear: 29.0, bow: 35.7, ice: 97.5,   grass: 92.5, dog: 66.0, milk: 57.5, bucket: 54.0 },
+  milk:  { duo: 99.0, spear: 4.3, bow: 54.5, ice: 100.0,  grass: 100.0, dog: 100.0, anvil: 42.5, bucket: 100.0 },
+  bucket:{ duo: 79.0, spear: 13.0, bow: 13.0, ice: 100.0,  grass: 63.0, dog: 54.0, anvil: 46.0, milk: 0.0 }
 };
 
-/* ---------- 抽签分档（第 82 条） ----------
+/* ---------- 抽签分档（第 82 条；2026-11-9 第 89 条补入 bucket） ----------
    一强一弱：每人必得 1 个 A 档 + 1 个 B 档。
-   分档依据 = 上表总体胜率：A 档 67.6%~73.0%，B 档 18.3%~40.4%；
-   这样 28 种阵容被压缩到 16 种「一强一弱」组合，期望胜率 43.7%~56.0%（SD 3.8）。
-   注意：这是赛事专用档位，版本平衡大改后需要重新排序。 */
+   分档依据 = 上表总体胜率（A 档 67.6%~73.0%，B 档 18.3%~40.4%）；
+   bucket 的 1v1 总胜率约 46%（落在两档之间），2v2 位置模拟：
+     当 A 位（搭档弱 B，对手 A+B）43%、当 B 位（搭档强 A）65%，
+   低于现有 A 位均值 53%，因此划入 B 档（B 档共 5 人）。
+   ⚠️ 9 个角色时，8/16 人赛无法让每个角色被抽次数完全相同，抽签改为
+      「轮转配对 + 尽量均衡」，仍然保证每人 1A+1B、且组合不重复。 */
 var TOUR_BANDS = {
   A: ['spear', 'milk', 'anvil', 'bow'],
-  B: ['dog', 'grass', 'duo', 'ice']
+  B: ['dog', 'grass', 'duo', 'ice', 'bucket']
 };
 
 function tourBandOf(key) {
@@ -104,7 +108,7 @@ function tourBandTag(p) {
   return p.roles.map(tourBandOf).sort().join('+');
 }
 
-/* 阵容期望强度：两个角色对 7 个对手的胜率平均（只用于蛇形分组排序） */
+/* 阵容期望强度：两个角色对 8 个对手的胜率平均（只用于蛇形分组排序） */
 function tourRosterPower(p) {
   var sum = 0, n = 0;
   p.roles.forEach(function (r) {
@@ -220,9 +224,9 @@ function tourDeal() {
 
   /* 一强一弱配额抽签（第 82 条）
      · 每人固定 1 个 A 档 + 1 个 B 档，玩家之间不出现完全相同的阵容（因此不会有镜像对局）
-     · 每个角色被抽次数相同：8 人 = 每人 2 次，16 人 = 每人 4 次
      · 构造方式：把两个档位各自打乱后，用「偏移 k」的两两配对（k = 0…count-1），
-       同一档位内每个角色出现 count 次，且不会产生重复组合 */
+       A 档每个角色出现 count 次；B 档 5 人时无法整除（8 人赛出现 1~2 次、
+       16 人赛出现 3~4 次），但组合不会重复 */
   var count = Math.floor(tour.size / 4);
   if (count < 1) count = 1;
   var bandA = tourShuffle(TOUR_BANDS.A.slice());
@@ -280,7 +284,7 @@ function tourDeal() {
   tour.fixtures = fx;
   tour.stage = 'group';
   tour.dealAnim = true;   // 只在下一次渲染播放抽签/落位动画，之后重渲染不再播
-  tourLog('平衡抽签：A 档 4 + B 档 4，每人 1A+1B · 蛇形分 ' + gCount + ' 组 · ' +
+  tourLog('平衡抽签：A 档 ' + bandA.length + ' + B 档 ' + bandB.length + '，每人 1A+1B · 蛇形分 ' + gCount + ' 组 · ' +
     fx.length + ' 场（BO2）· 资金 ' + tour.bank);
   tourSave();
   tourRender();

@@ -340,6 +340,86 @@ function drawIce(u) {
   ctx.globalAlpha = 1;
 }
 
+/* 水桶外观：方块剪影底座 + 木桶（梯形桶身 / 桶箍 / 桶口水面 / 提手） */
+function drawBucket(u) {
+  var r = u.r, x = u.x, y = u.y;
+
+  var gl = ctx.createRadialGradient(x, y, r * 0.3, x, y, r * 2.4);
+  gl.addColorStop(0, rgba(u.glow, 0.32));
+  gl.addColorStop(1, rgba(u.glow, 0));
+  ctx.fillStyle = gl;
+  ctx.beginPath();
+  ctx.arc(x, y, r * 2.4, 0, TAU);
+  ctx.fill();
+
+  // 方块底座（与其它物品保持一致的方块剪影）
+  var body = ctx.createLinearGradient(x - r, y - r, x + r, y + r);
+  body.addColorStop(0, u.light);
+  body.addColorStop(0.45, u.body);
+  body.addColorStop(1, u.dark);
+  roundRect(x - r, y - r, r * 2, r * 2, r * 0.24);
+  ctx.fillStyle = body;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(0,0,0,.35)';
+  ctx.stroke();
+
+  // 木桶：上宽下窄的梯形桶身
+  var topY = y - r * 0.56, botY = y + r * 0.66;
+  var topW = r * 0.84, botW = r * 0.64;
+  var wood = ctx.createLinearGradient(x - topW, 0, x + topW, 0);
+  wood.addColorStop(0, '#2b657e');
+  wood.addColorStop(0.42, '#4d95b4');
+  wood.addColorStop(1, '#173f53');
+  ctx.beginPath();
+  ctx.moveTo(x - topW, topY);
+  ctx.lineTo(x + topW, topY);
+  ctx.lineTo(x + botW, botY);
+  ctx.lineTo(x - botW, botY);
+  ctx.closePath();
+  ctx.fillStyle = wood;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(8,26,36,.7)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // 桶箍（两道浅钢色横带）
+  ctx.strokeStyle = '#a9c6d6';
+  ctx.lineWidth = 2.2;
+  var by1 = topY + r * 0.34, by2 = topY + r * 0.78;
+  var bw1 = topW - (topW - botW) * (r * 0.34) / (botY - topY);
+  var bw2 = topW - (topW - botW) * (r * 0.78) / (botY - topY);
+  ctx.beginPath();
+  ctx.moveTo(x - bw1, by1); ctx.lineTo(x + bw1, by1);
+  ctx.moveTo(x - bw2, by2); ctx.lineTo(x + bw2, by2);
+  ctx.stroke();
+
+  // 桶口：深色内壁 + 晃动的水面
+  ctx.beginPath();
+  ctx.ellipse(x, topY, topW, r * 0.24, 0, 0, TAU);
+  ctx.fillStyle = '#0f3244';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(190,235,255,.55)';
+  ctx.lineWidth = 1.8;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.ellipse(x, topY + Math.sin(t * 3 + u.seed) * 1.2, topW * 0.84, r * 0.18, 0, 0, TAU);
+  ctx.fillStyle = 'rgba(127,216,255,.85)';
+  ctx.fill();
+  ctx.fillStyle = 'rgba(230,252,255,.5)';
+  ctx.beginPath();
+  ctx.ellipse(x - topW * 0.22, topY - r * 0.03, topW * 0.24, r * 0.06, 0, 0, TAU);
+  ctx.fill();
+
+  // 提手
+  ctx.strokeStyle = 'rgba(196,222,236,.75)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x, topY, topW * 1.02, Math.PI * 1.1, Math.PI * 1.9);
+  ctx.stroke();
+}
+
 function drawSpear(u) {
   var r = u.r;
 
@@ -543,6 +623,78 @@ function drawIcePatches() {
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
+}
+
+/* 水桶的水面：贴地椭圆（水体 + 扩散波纹 + 中心漩涡）
+   ------------------------------------------------------------
+   · grow 秒内从圆心扩散到最大半径；hold 之后用 fade 秒线性淡出
+   · 只做表现，引力与浸水伤害由 js/30-sim.js 的 updateWaters() 结算 */
+function drawWaters() {
+  var C = TYPES.bucket.water;
+  // 裁剪到场地内：水面半径 220，贴墙施放时会超出战斗区，不能盖住两侧的伤害信息条
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(ARENA.x, ARENA.y, ARENA.w, ARENA.h);
+  ctx.clip();
+  for (var i = 0; i < waters.length; i++) {
+    var w = waters[i];
+    var rr = waterRadius(w);
+    if (rr < 2) continue;
+    var fadeK = w.age <= C.hold ? 1 : clamp(1 - (w.age - C.hold) / C.fade, 0, 1);
+
+    // 水体：中心略深、边缘透明
+    var g = ctx.createRadialGradient(w.x, w.y, rr * 0.08, w.x, w.y, rr);
+    g.addColorStop(0, 'rgba(38,120,168,' + (0.30 * fadeK).toFixed(3) + ')');
+    g.addColorStop(0.55, 'rgba(86,178,222,' + (0.17 * fadeK).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(140,222,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(w.x, w.y, rr, rr * 0.82, 0, 0, TAU);
+    ctx.fill();
+
+    // 扩散波纹：3 圈错相位，持续从圆心向外推（"水从中间往四周散开"）
+    for (var k = 0; k < 3; k++) {
+      var ph = (t * 0.42 + k / 3 + w.phase / TAU) % 1;
+      var rad = rr * (0.16 + 0.84 * ph);
+      ctx.globalAlpha = (1 - ph) * 0.5 * fadeK;
+      ctx.strokeStyle = '#d9f5ff';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.ellipse(w.x, w.y, rad, rad * 0.82, 0, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // 外圈边界
+    ctx.strokeStyle = 'rgba(168,234,255,' + (0.5 * fadeK).toFixed(3) + ')';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(w.x, w.y, rr, rr * 0.82, 0, 0, TAU);
+    ctx.stroke();
+
+    // 中心漩涡：三段弧缓慢旋转，提示这里有引力
+    ctx.save();
+    ctx.translate(w.x, w.y);
+    ctx.strokeStyle = 'rgba(226,250,255,' + (0.38 * fadeK).toFixed(3) + ')';
+    ctx.lineWidth = 2;
+    var spin = t * 1.1 + w.phase;
+    for (var s = 0; s < 3; s++) {
+      var a0 = spin + s * TAU / 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, rr * (0.2 + s * 0.12), a0, a0 + 1.0);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 圆心高光
+    ctx.globalAlpha = 0.35 * fadeK;
+    ctx.fillStyle = '#eafcff';
+    ctx.beginPath();
+    ctx.arc(w.x, w.y, Math.max(2, rr * 0.06), 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
 }
 
 /* 铁砧的落点预警圆：贴地层（在单位之下）
@@ -1156,6 +1308,24 @@ function drawUnit(u) {
     ctx.stroke();
   }
 
+  // 水桶浸水：蓝色水环；累计满 4 秒后加一圈琥珀色告警脉动（提示即将/正在掉血）
+  if (u.waterT > 0) {
+    var wk = TYPES.bucket.water;
+    var wetK = clamp(u.waterT / wk.wetThreshold, 0, 1);
+    ctx.strokeStyle = 'rgba(127,216,255,' + (0.3 + 0.4 * wetK).toFixed(3) + ')';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(u.x, u.y, u.r + 7, 0, TAU);
+    ctx.stroke();
+    if (wetK >= 1) {
+      ctx.strokeStyle = 'rgba(255,196,107,' + (0.45 + 0.35 * Math.sin(t * 8)).toFixed(3) + ')';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(u.x, u.y, u.r + 10, 0, TAU);
+      ctx.stroke();
+    }
+  }
+
   // 被捆绑：绿色虚线环
   if (u.bindT > 0) {
     ctx.strokeStyle = 'rgba(140,224,106,.9)';
@@ -1212,6 +1382,27 @@ function drawUnit(u) {
   ctx.fillStyle = u.team === 'A' ? '#ff6a55' : '#7ea6ff';
   roundRect(bx, by, bw * hpRatio, bh, 2.5);
   ctx.fill();
+
+  // 缺氧值（水桶）：血条上方一条细条；充满后变琥珀色并脉动
+  if (u.waterT > 0) {
+    var ox = TYPES.bucket.water;
+    var oxK = clamp(u.waterT / ox.wetThreshold, 0, 1);
+    var oy = by - 10, oh = 4;
+    var oxFull = oxK >= 1;
+
+    ctx.fillStyle = 'rgba(0,0,0,.65)';
+    roundRect(bx - 2, oy - 2, bw + 4, oh + 4, 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(127,216,255,.16)';
+    roundRect(bx, oy, bw, oh, 2);
+    ctx.fill();
+
+    ctx.fillStyle = oxFull
+      ? 'rgba(255,176,80,' + (0.6 + 0.4 * Math.abs(Math.sin(t * 8))).toFixed(3) + ')'
+      : '#6fd8ff';
+    roundRect(bx, oy, bw * oxK, oh, 2);
+    ctx.fill();
+  }
 
   // 护盾条：统一画在血条下方（青金石狂暴护盾 / 冰块周期护盾都走这里）
   var smax = TYPES[u.key].shieldMax;
@@ -1291,13 +1482,14 @@ function drawUnit(u) {
     ctx.stroke();
 
     var label = R.phase === 'shake' ? '无敌抖动' : '狂暴';
+    var labelY = by - 6 - (u.waterT > 0 ? 11 : 0);   // 有缺氧条时上移，避免叠字
     ctx.font = '700 10px "PingFang SC","Microsoft YaHei",sans-serif';
     ctx.textAlign = 'center';
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(0,0,0,.7)';
-    ctx.strokeText(label, u.x, by - 6);
+    ctx.strokeText(label, u.x, labelY);
     ctx.fillStyle = R.phase === 'shake' ? '#ffe08a' : '#ff9c6b';
-    ctx.fillText(label, u.x, by - 6);
+    ctx.fillText(label, u.x, labelY);
     ctx.textAlign = 'left';
   }
 }
@@ -1400,6 +1592,7 @@ function render() {
   drawArena();
   drawDamagePanels();  // 场地左右留白里的「总伤害」信息条（每帧实时读取）
   drawIcePatches();   // 贴地层：在场地之上、单位与尾迹之下
+  drawWaters();       // 水桶的水面（贴地，压在单位之下）
   drawSeeds();        // 草的种子也贴地
   drawAnvilMarks();   // 铁砧落点预警圆（贴地）
 

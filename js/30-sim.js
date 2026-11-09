@@ -488,6 +488,96 @@ function updateIcePatches(dt) {
 }
 
 /* ============================================================
+   水桶：涌泉水面（从圆心扩散 → 6 秒持续 → 2 秒淡出）
+   ------------------------------------------------------------
+   · 水面是**地面力场**：水面向圆心产生引力，越靠圆心拉力越大；
+     每帧只按 g*dt 拖拽敌方**位置**，不修改 u.ang ——
+     离开水面后仍按原方向继续直线滑行，符合"只有技能/撞墙才转向"的红线
+   · **消散途中仍然生效**：引力、缺氧累积与掉血会一直持续到 hold+fade
+     结束（水面被移除）为止，不是 hold 一结束就停
+   · 缺氧值存在每个单位的 waterT / waterAcc 上（见 addUnit）：
+     在水里累积到 wetThreshold 充满后，每满 dotInterval 秒扣 dotPct 最大生命；
+     离开水面按 oxicDecay 缓慢回落
+   · 百分比伤害走 hurt()：会被护盾吸收、计入 dealt / taken、可触发死亡与羁绊
+   · 水只对敌方单位生效；不伤害种子、不推动己方
+   ============================================================ */
+function spawnWater(owner, x, y) {
+  var C = TYPES.bucket.water;
+  waters.push({
+    x: x, y: y, r: C.r, age: 0,
+    team: owner.team, owner: owner, phase: rand(0, TAU)
+  });
+  if (waters.length > WATER_MAX) waters.splice(0, waters.length - WATER_MAX);
+}
+
+// 当前可见半径：grow 秒内从 0 扩散到 r，随后保持（消退只淡透明度，不缩圈）
+function waterRadius(w) {
+  var C = TYPES.bucket.water;
+  var k = clamp(w.age / C.grow, 0, 1);
+  return w.r * (1 - (1 - k) * (1 - k));
+}
+
+function updateWaters(dt) {
+  var C = TYPES.bucket.water;
+  var i, j;
+
+  // 1) 水面寿命：age >= hold+fade 时才移除；在此之前（含淡出中途）一直生效
+  for (i = waters.length - 1; i >= 0; i--) {
+    var w = waters[i];
+    w.age += dt;
+    if (w.age >= C.hold + C.fade) waters.splice(i, 1);
+  }
+
+  // 2) 逐个敌方单位：找脚下的敌方水面（重叠只取最近圆心的一滩） → 引力 + 浸水
+  for (i = 0; i < units.length; i++) {
+    var u = units[i];
+    if (!u.alive) continue;
+
+    var src = null, bestD = 1e9, rr = 0;
+    for (j = 0; j < waters.length; j++) {
+      var p = waters[j];
+      if (p.team === u.team) continue;
+      // 消散（fade）阶段仍然生效：引力、缺氧累积与掉血会一直持续到水面完全消失
+      var rad = waterRadius(p);
+      var d = Math.hypot(u.x - p.x, u.y - p.y);
+      if (d > rad + u.r * 0.35) continue;
+      if (d < bestD) { bestD = d; src = p; rr = rad; }
+    }
+
+    if (!src) {
+      // 离开水面：头顶的「缺氧」值缓慢回落（oxicDecay/s），再次入水会继续累积
+      if (u.waterT > 0) u.waterT = Math.max(0, u.waterT - C.oxicDecay * dt);
+      u.waterAcc = C.dotInterval;
+      continue;
+    }
+
+    // 2a) 引力：边缘接近 0，越靠圆心越大。无敌抖动 / 狗奶引导视为固定桩，不被拖拽
+    if (!isShaking(u) && !isMilkChannel(u) && bestD > 0.5) {
+      var g = C.gravity * Math.max(0, 1 - bestD / Math.max(1, rr));
+      if (g > 0) {
+        u.x += (src.x - u.x) / bestD * g * dt;
+        u.y += (src.y - u.y) / bestD * g * dt;
+      }
+      // 拖拽不能把单位推出墙外（撞墙转向仍由 move() 的 wallBounceAngle 负责）
+      u.x = clamp(u.x, ARENA.x + u.r, ARENA.x + ARENA.w - u.r);
+      u.y = clamp(u.y, ARENA.y + u.r, ARENA.y + ARENA.h - u.r);
+    }
+
+    // 2b) 缺氧值：在水里累积到 wetThreshold 充满；充满期间每满 dotInterval 秒扣一次
+    u.waterT = Math.min(C.wetThreshold, u.waterT + dt);
+    if (u.waterT >= C.wetThreshold) {
+      u.waterAcc -= dt;
+      while (u.waterAcc <= 0 && u.alive) {
+        u.waterAcc += C.dotInterval;
+        hurt(u, u.maxHp * C.dotPct, src.owner);
+      }
+    } else {
+      u.waterAcc = C.dotInterval;
+    }
+  }
+}
+
+/* ============================================================
    草：种子 / 藤蔓 / 在种子上复活
    ------------------------------------------------------------
    · plantSeed   在当前位置种一颗种子（100 HP、不移动、不挡路）
@@ -730,6 +820,11 @@ function statusText() {
     if (u.st.milkT > 0) {
       parts.push(u.name + ' 引导 ' + u.st.milkT.toFixed(1) + 's · 护盾 ' +
         Math.ceil(Math.max(0, u.st.shield)) + '/' + TYPES.milk.shieldMax);
+    }
+    // 水桶：头顶缺氧值（充满后每秒掉血），状态栏显示当前百分比
+    if (u.waterT > 0) {
+      parts.push(u.name + ' 缺氧 ' +
+        Math.round(clamp(u.waterT / TYPES.bucket.water.wetThreshold, 0, 1) * 100) + '%');
     }
     if (!R) continue;
     if (R.phase === 'shake') {
@@ -1150,6 +1245,7 @@ function tick(dt) {
   for (var a = 0; a < units.length; a++) think(units[a], dt);
   for (var b = 0; b < units.length; b++) if (units[b].alive) move(units[b], dt);
 
+  updateWaters(dt);   // 水桶力场：拖拽位置 + 浸水百分比伤害（不改 ang）
   collide();
   updateBombs(dt);
   updateAnvilMarks(dt);

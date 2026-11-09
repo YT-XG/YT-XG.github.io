@@ -195,8 +195,8 @@ body.menu-open{overflow:hidden;}
 .pool-hint{font-size:clamp(10px, 1.4vh, 16px);color:#68758b;}
 .pool{
   flex:1;min-height:0;display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
-  grid-template-rows:repeat(2,minmax(0,1fr));
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  grid-template-rows:repeat(3,minmax(0,1fr));
   gap:5px;
 }
 .pool-slot{

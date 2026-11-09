@@ -17,7 +17,7 @@
 
 /* 规则版本：改碰撞 / 技能结算这类「不改数值也会变结果」的机制时手动 +1，
    让旧缓存整体失效（数值改动则由 oddsFingerprint 里的 TYPES / BALANCE 自动覆盖） */
-var ODDS_RULES = 1;
+var ODDS_RULES = 2;
 
 var ODDS_ENABLED = true;
 var ODDS_DT = 1 / 30;          // 后台模拟步长：实测 1/30 与 1/60 胜率差 ≤ 5 个百分点（40 局样本内）
@@ -106,7 +106,7 @@ function oddsSnapshot() {
   oddsSnap = {
     units: units, particles: particles, rings: rings, floaters: floaters,
     bombs: bombs, arrows: arrows, icePatches: icePatches, anvilMarks: anvilMarks,
-    seeds: seeds, vines: vines, reviveQueue: reviveQueue,
+    seeds: seeds, vines: vines, reviveQueue: reviveQueue, waters: waters,
     pick: pick, teamSize: teamSize, modeKind: modeKind,
     lineupIndex: lineupIndex, relayTimer: relayTimer,
     t: t, roundTime: roundTime, phase: phase, winner: winner,
@@ -121,7 +121,7 @@ function oddsRestore() {
   if (!s) return;
   units = s.units; particles = s.particles; rings = s.rings; floaters = s.floaters;
   bombs = s.bombs; arrows = s.arrows; icePatches = s.icePatches; anvilMarks = s.anvilMarks;
-  seeds = s.seeds; vines = s.vines; reviveQueue = s.reviveQueue;
+  seeds = s.seeds; vines = s.vines; reviveQueue = s.reviveQueue; waters = s.waters;
   pick = s.pick; teamSize = s.teamSize; modeKind = s.modeKind;
   lineupIndex = s.lineupIndex; relayTimer = s.relayTimer;
   t = s.t; roundTime = s.roundTime; phase = s.phase; winner = s.winner;
@@ -146,7 +146,7 @@ function oddsFxRestore() {
 /* ---------- 单局：用引擎真跑，但不碰 DOM ---------- */
 function oddsInitMatch(aRoles, bRoles, swap) {
   units = []; particles = []; rings = []; floaters = []; bombs = []; arrows = []; icePatches = [];
-  anvilMarks = []; seeds = []; vines = []; reviveQueue = [];
+  anvilMarks = []; seeds = []; vines = []; reviveQueue = []; waters = [];
   resetArena();                       // 场地收窄必须复位，否则第二局起点就错了
   t = 0; roundTime = roundDuration; winner = null;
   suddenDeath = false; deathAcc = 0; suddenStart = 0;
