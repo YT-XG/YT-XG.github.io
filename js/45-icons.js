@@ -112,3 +112,17 @@ var ICON_SVG = {
 function iconSvg(key) {
   return ICON_SVG[key] || '';
 }
+
+/* 战斗画布用：把同一份 SVG 变成可以 drawImage 的位图（第一次用时才创建，之后复用）。
+   SVG 没有内建尺寸时 Chrome 会画成 0×0，所以补上 width/height。 */
+var ICON_IMAGES = {};
+function iconImage(key) {
+  if (ICON_IMAGES[key]) return ICON_IMAGES[key];
+  var svg = ICON_SVG[key];
+  if (!svg || typeof Image === 'undefined') return null;
+  var full = svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" ');
+  var img = new Image();
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(full);
+  ICON_IMAGES[key] = img;
+  return img;
+}

@@ -25,8 +25,9 @@ body{
   font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,-apple-system,sans-serif;
   -webkit-font-smoothing:antialiased;
 }
-/* 场地宽度：优先占满可视宽度，其次受高度限制（2.15:1），减少左右空白 */
-.app{width:min(98vw, calc((100dvh - 96px) * 2.15));}
+/* 场地宽度：优先占满可视宽度，其次受高度限制（2.15:1）。
+   预留 136px 给标题、状态行、底部按钮栏与页面内边距，避免底部按钮被裁掉 */
+.app{width:min(98vw, calc((100dvh - 136px) * 2.15));}
 
 header{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:8px;}
 h1{margin:0;font-size:19px;font-weight:700;letter-spacing:.01em;}
@@ -45,6 +46,9 @@ h1 em{font-style:normal;color:var(--muted);font-weight:500;font-size:12.5px;marg
   background:#0b0e15;
   box-shadow:0 24px 60px -24px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.02) inset;
 }
+/* 竖屏提示只在手机样式表（css/mobile.css）加载时出现；
+   桌面不加载 mobile.css，这里兜底隐藏，避免它作为普通文本占高（第 97 条） */
+.rotate-tip{display:none;}
 canvas{display:block;width:100%;height:auto;}
 
 .hud{
@@ -403,6 +407,30 @@ button.primary:hover{background:linear-gradient(180deg,#457ce0,#284d9c);border-c
   backdrop-filter:blur(6px);box-shadow:0 12px 34px -18px rgba(0,0,0,.9);
 }
 .tour-panel.show{display:block;}
+
+/* 第 97 条：战斗中的比分条并进底部按钮栏（与「重开 / 暂停 / 速度 / 主菜单」同一行），
+   不再悬浮在画面上，也就不需要收起按钮了 */
+.tour-panel.battle{
+  position:static;left:auto;right:auto;bottom:auto;transform:none;
+  display:flex;flex-direction:row;align-items:center;justify-content:center;flex-wrap:wrap;
+  gap:4px 18px;flex:1 1 auto;min-width:0;width:auto;
+  padding:5px 14px;border-radius:10px;
+  background:rgba(16,21,31,.85);border:1px solid #24303f;
+  box-shadow:none;backdrop-filter:none;
+}
+.tour-panel.battle.show{display:flex;}
+.tour-panel.battle .tour-head{margin:0;font-size:12px;white-space:nowrap;}
+.tour-panel.battle .tour-vs{display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap;}
+.tour-panel.battle .tour-vs b{font-size:16px;}
+.tour-panel.battle .tour-prob{font-size:11px;color:#7b8798;margin:0;white-space:nowrap;}
+.tour-panel.battle .tour-btns{display:flex;gap:6px;margin:0;}
+.tour-panel.battle .tour-btns button{padding:4px 10px;font-size:12px;}
+.foot.with-strip{flex-wrap:nowrap;align-items:center;}
+.foot.with-strip .hint{display:none;}
+@media (max-width:900px){
+  .foot.with-strip{flex-wrap:wrap;}
+  .tour-panel.battle{flex-basis:100%;justify-content:space-between;}
+}
 .tour-head{font-size:13px;color:#ffd9a8;letter-spacing:.04em;margin-bottom:6px;}
 .tour-cur{margin-bottom:8px;}
 .tour-vs{display:flex;align-items:center;justify-content:center;gap:14px;font-size:14px;}

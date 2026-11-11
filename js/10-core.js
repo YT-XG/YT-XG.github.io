@@ -168,6 +168,7 @@ var el = {
   detailBodyB: document.getElementById('detailBodyB'),
   status: document.getElementById('status'),
   btns: document.getElementById('btns'),
+  foot: document.querySelector('.foot'),
   btnStart: document.getElementById('btnStart'),
   btnRestart: document.getElementById('btnRestart'),
   btnPause: document.getElementById('btnPause'),

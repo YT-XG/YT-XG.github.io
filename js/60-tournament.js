@@ -225,6 +225,7 @@ function tourClose() {
   tourSpeed = 1;
   el.tourBoard.classList.remove('show');
   el.tourPanel.classList.remove('show');
+  if (typeof tourPanelDock === 'function') tourPanelDock(false);
   el.banner.classList.remove('show');
   openMenu();
 }
@@ -851,10 +852,30 @@ function tourScrollRestore(snap) {
   }
 }
 
+/* 第 97 条：战斗中的比分条并进底部按钮栏（不再悬浮遮住画面，也不用再收起） */
+function tourPanelDock(battle) {
+  if (!el.tourPanel) return;
+  if (battle) {
+    if (el.foot && el.tourPanel.parentNode !== el.foot) {
+      el.foot.appendChild(el.tourPanel);   // 放在「重开/暂停/速度/主菜单」右侧，同一行
+      el.foot.classList.add('with-strip');
+    }
+    el.tourPanel.classList.add('battle');
+    el.tourPanel.classList.remove('folded');
+  } else {
+    if (el.stage && el.tourPanel.parentNode !== el.stage) {
+      el.stage.insertBefore(el.tourPanel, el.tourBoard || null);
+    }
+    if (el.foot) el.foot.classList.remove('with-strip');
+    el.tourPanel.classList.remove('battle', 'folded');
+  }
+}
+
 /* ---------- 渲染入口 ---------- */
 function tourRender() {
   if (!tour) return;
   if (tour.cur) { renderBattleStrip(); return; }
+  tourPanelDock(false);
   var snap = tourScrollSnapshot();
   el.tourPanel.classList.remove('show');
   el.tourPanel.innerHTML = '';
@@ -1875,21 +1896,16 @@ function renderBattleStrip() {
   // 系统预测同样是「玩家 a : 玩家 b」，换边局左右要交换百分比
   var p = tourFxPct(fx);
   var redPct = c.swap ? 100 - p : p;
+  tourPanelDock(true);
   var html =
-    '<button type="button" class="tour-fold" data-act="fold" title="收起/展开">' +
-      (el.tourPanel.classList.contains('folded') ? '▸' : '▾') + '</button>' +
     '<div class="tour-head">' + (c.roundName || ('组' + (fx.group + 1))) + ' · BO' + c.format + ' · 第 ' + c.game + ' 局' +
       (c.swap ? ' · 换边' : '') + '</div>' +
-    '<div class="tour-cur"><div class="tour-vs">' +
+    '<div class="tour-vs">' +
       '<span class="tour-side a"><i class="ts-tag">红</i>' + redP.name + '</span>' +
       '<b>' + Math.round(redW) + ' : ' + Math.round(blueW) + '</b>' +
       '<span class="tour-side b"><i class="ts-tag b">蓝</i>' + blueP.name + '</span></div>' +
-      '<div class="tour-roles"><span class="tr-side a">' + redP.name + '</span> ' + tourRolesHtml(redP) +
-      ' &nbsp;vs&nbsp; <span class="tr-side b">' + blueP.name + '</span> ' + tourRolesHtml(blueP) + '</div>' +
-      '<div class="tour-prob">系统预测 ' + Math.round(redPct) + '% : ' + Math.round(100 - redPct) + '%' + tourFxNote(fx) + '</div>' +
-      '</div>' +
+    '<div class="tour-prob">预测 ' + Math.round(redPct) + '% : ' + Math.round(100 - redPct) + '%' + tourFxNote(fx) + '</div>' +
     '<div class="tour-btns">' +
-      '<button type="button" data-act="speed">速度 ×' + tourSpeed + '</button>' +
       '<button type="button" data-act="skip">跳过本局</button>' +
       '<button type="button" data-act="full">全屏</button>' +
       '<button type="button" data-act="exit">退出赛事</button></div>';

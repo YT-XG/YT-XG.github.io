@@ -1271,6 +1271,37 @@ function drawLasers() {
   }
 }
 
+/* 战斗内的单位外观：把 45-icons.js 的图标做成「圆牌」，
+   和菜单 / 手机端保持同一套形象（第 97 条） */
+function drawTokenUnit(u, img) {
+  var r = u.r;
+
+  // 队伍色光晕（替代各角色原来的 glow，红蓝一眼可分）
+  var gl = ctx.createRadialGradient(u.x, u.y, r * 0.35, u.x, u.y, r * 2.1);
+  gl.addColorStop(0, u.team === 'A' ? 'rgba(232,72,63,.30)' : 'rgba(74,123,240,.32)');
+  gl.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gl;
+  ctx.beginPath();
+  ctx.arc(u.x, u.y, r * 2.1, 0, TAU);
+  ctx.fill();
+
+  // 底盘
+  var bg = ctx.createLinearGradient(u.x, u.y - r, u.x, u.y + r);
+  bg.addColorStop(0, '#1d2634');
+  bg.addColorStop(1, '#0d1219');
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.arc(u.x, u.y, r, 0, TAU);
+  ctx.fill();
+  ctx.strokeStyle = u.team === 'A' ? 'rgba(255,120,100,.55)' : 'rgba(120,160,255,.6)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // 图标（SVG 自带留白，画 2r 刚好填满圆牌）
+  var s = r * 2;
+  ctx.drawImage(img, u.x - s / 2, u.y - s / 2, s, s);
+}
+
 function drawUnit(u) {
   if (!u.alive) return;
   var R = u.st.rage;
@@ -1288,8 +1319,10 @@ function drawUnit(u) {
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  // 物品自己的外观
-  TYPES[u.key].draw(u);
+  // 物品自己的外观：优先用与菜单同一套的矢量图标（第 97 条）
+  var ico = (typeof iconImage === 'function') ? iconImage(u.key) : null;
+  if (ico && ico.complete && ico.naturalWidth) drawTokenUnit(u, ico);
+  else TYPES[u.key].draw(u);
 
   if (shaking) ctx.restore();
 
