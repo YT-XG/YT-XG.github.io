@@ -412,24 +412,35 @@ button.primary:hover{background:linear-gradient(180deg,#457ce0,#284d9c);border-c
    不再悬浮在画面上，也就不需要收起按钮了 */
 .tour-panel.battle{
   position:static;left:auto;right:auto;bottom:auto;transform:none;
-  display:flex;flex-direction:row;align-items:center;justify-content:center;flex-wrap:wrap;
-  gap:4px 18px;flex:1 1 auto;min-width:0;width:auto;
+  display:flex;flex-direction:row;align-items:center;justify-content:center;flex-wrap:nowrap;
+  gap:4px 16px;flex:1 1 0;min-width:0;width:auto;
   padding:5px 14px;border-radius:10px;
   background:rgba(16,21,31,.85);border:1px solid #24303f;
-  box-shadow:none;backdrop-filter:none;
+  box-shadow:none;backdrop-filter:none;overflow:hidden;
 }
 .tour-panel.battle.show{display:flex;}
-.tour-panel.battle .tour-head{margin:0;font-size:12px;white-space:nowrap;}
-.tour-panel.battle .tour-vs{display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap;}
+.tour-panel.battle .tour-head{margin:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tour-panel.battle .tour-vs{display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap;flex:0 0 auto;}
 .tour-panel.battle .tour-vs b{font-size:16px;}
-.tour-panel.battle .tour-prob{font-size:11px;color:#7b8798;margin:0;white-space:nowrap;}
-.tour-panel.battle .tour-btns{display:flex;gap:6px;margin:0;}
-.tour-panel.battle .tour-btns button{padding:4px 10px;font-size:12px;}
-.foot.with-strip{flex-wrap:nowrap;align-items:center;}
+.tour-panel.battle .tour-prob{font-size:11px;color:#7b8798;margin:0;white-space:nowrap;flex:0 0 auto;}
+.tour-panel.battle .tour-btns{display:flex;gap:6px;margin:0;flex:0 0 auto;flex-wrap:nowrap;}
+.tour-panel.battle .tour-btns button{padding:4px 10px;font-size:12px;white-space:nowrap;}
+.foot.with-strip{flex-wrap:nowrap;align-items:center;gap:8px;}
 .foot.with-strip .hint{display:none;}
-@media (max-width:900px){
-  .foot.with-strip{flex-wrap:wrap;}
-  .tour-panel.battle{flex-basis:100%;justify-content:space-between;}
+.foot.with-strip .btns{flex:0 0 auto;flex-wrap:nowrap;}
+.foot.with-strip .btns button{white-space:nowrap;flex:none;}
+/* 窄屏 / 矮屏：底部栏保持一行，宁可少显示「预测」也不折行（折行会把舞台压小） */
+@media (max-width: 1200px), (max-height: 520px){
+  .tour-panel.battle .tour-prob{display:none;}
+}
+@media (max-width: 980px){
+  .tour-panel.battle{gap:3px 10px;padding:4px 10px;}
+  .tour-panel.battle .tour-head{font-size:11px;}
+  .tour-panel.battle .tour-vs{font-size:12px;}
+  .tour-panel.battle .tour-btns button{padding:3px 8px;font-size:11px;}
+}
+@media (max-width: 760px){
+  .tour-panel.battle .tour-head{display:none;}
 }
 .tour-head{font-size:13px;color:#ffd9a8;letter-spacing:.04em;margin-bottom:6px;}
 .tour-cur{margin-bottom:8px;}

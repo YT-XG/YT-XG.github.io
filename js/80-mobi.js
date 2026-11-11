@@ -273,7 +273,7 @@ function mobiHomeHtml() {
   return '<div class="m-home">' +
     '<div class="m-home-head">' +
       '<h2>赛博斗蛐蛐</h2>' +
-      '<div class="m-ver">v0.1.0</div>' +
+      '<div class="m-ver">v26.11.11</div>' +
     '</div>' +
     /* 左下半区不再空着：直接把角色池铺成 3×3 预览（第 92 条：充分利用画布） */
     '<div class="m-roster"><div class="m-roster-t">角色池 · ' + POOL.length + ' 个</div>' +
