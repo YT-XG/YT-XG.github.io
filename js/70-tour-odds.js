@@ -248,10 +248,18 @@ function oddsCachePut(job, aw) {
 /* 只重写这一场的胜率文字，不动整块棋盘（避免滚动位置跳动） */
 function oddsPaint(fx) {
   var key = tourBetKey(fx);
-  var txt = tourFxPct(fx) + '%·' + (100 - tourFxPct(fx)) + '%' + tourFxNote(fx);
+  var pct = tourFxPct(fx);
+  var txt = pct + '%·' + (100 - pct) + '%' + tourFxNote(fx);
   if (typeof document === 'undefined' || typeof document.querySelectorAll !== 'function') return;
   var els = document.querySelectorAll('[data-prob="' + key + '"]');
   for (var i = 0; i < els.length; i++) els[i].textContent = txt;
+  /* 手机分组卡的胜率条：条宽跟着实时赔率走（第 92 条） */
+  var bars = document.querySelectorAll('[data-prob-bar="' + key + '"]');
+  for (var j = 0; j < bars.length; j++) {
+    var ks = bars[j].children;
+    if (ks[0]) ks[0].style.width = pct + '%';
+    if (ks[1]) ks[1].style.width = (100 - pct) + '%';
+  }
 }
 
 function oddsEndGame() {

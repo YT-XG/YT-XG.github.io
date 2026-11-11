@@ -1108,6 +1108,8 @@ function finish(by) {
     return;
   }
 
+  // 手机端单机已不提供押注，这里不再做任何金币结算
+
   var title = winner === 'draw' ? '平局' : (sideName(winner) + ' 胜利');
   el.banner.querySelector('strong').textContent = title;
   el.banner.querySelector('em').textContent = sub + ' · 按 R 再来一局 · Esc 返回主菜单';

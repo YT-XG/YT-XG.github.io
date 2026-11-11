@@ -11,26 +11,37 @@
    ============================================================ */
 'use strict';
 
-/* 赛事选手名单（第 88 条）：18 个名字共享一个池子，每届固定包含「兮眠 / 西瓜」，
-   其余名额从另外 16 个名字里随机补足并整体打乱顺序。
-   · 8 人赛 = 固定 2 + 随机 6；16 人赛 = 固定 2 + 随机 14（两者都一定有这两位）
+/* 赛事选手名单（第 94 条）：默认全部用随机名字。
+   · 名字池 18 个，每届随机取 N 个、不重复
+   · 「自定义玩家姓名」里填过的位置优先用自定义名，其余位置继续随机
    · 名字只决定显示与身份，抽签 / 分组 / A·B 档搭配 / 排名 / 赛程逻辑完全不看名字 */
 var TOUR_NAMES = ['阿石', '小七', '老白', '阿青', '铁蛋', '小满', '阿竹', '大熊',
                   '阿梨', '小九', '灰灰', '阿灯', '豆子', '阿海', '小鹿', '黑桃',
                   '兮眠', '西瓜'];
-var TOUR_NAMES_ALWAYS = ['兮眠', '西瓜'];
 
-/* 按人数挑一届的选手名：保证必到名字在场、不重复，并打乱顺序（避免总是 0/1 号） */
+/* 从名字池随机取 count 个（不重复、顺序也随机） */
 function tourPickNames(count) {
-  var names = TOUR_NAMES_ALWAYS.slice();
-  var rest = [];
-  for (var i = 0; i < TOUR_NAMES.length; i++) {
-    if (TOUR_NAMES_ALWAYS.indexOf(TOUR_NAMES[i]) < 0) rest.push(TOUR_NAMES[i]);
+  var pool = TOUR_NAMES.slice();
+  tourShuffle(pool);
+  return pool.slice(0, Math.min(count, pool.length));
+}
+
+/* 生成一届的选手名：custom 里非空的用自定义名，其余随机补足且不与任何人重名 */
+function tourMakeNames(count, custom) {
+  if (!custom) custom = (typeof duelNamesGet === 'function') ? (duelNamesGet() || []) : [];
+  var pool = tourPickNames(TOUR_NAMES.length);
+  var out = [], used = {};
+  for (var i = 0; i < count; i++) {
+    var name = String(custom[i] || '').trim();
+    if (name) { out.push(name); used[name] = 1; continue; }
+    var pick = '';
+    for (var j = 0; j < pool.length; j++) {
+      if (!used[pool[j]]) { pick = pool[j]; break; }
+    }
+    if (pick) used[pick] = 1;
+    out.push(pick || ('玩家' + (i + 1)));
   }
-  tourShuffle(rest);
-  var need = Math.max(0, count - names.length);
-  for (var j = 0; j < need && j < rest.length; j++) names.push(rest[j]);
-  return tourShuffle(names);
+  return out;
 }
 
 var TOUR_START_BANK = 1000;
@@ -186,10 +197,13 @@ function tourOpen(size) {
   if (typeof tourOddsStop === 'function') tourOddsStop();
   tour = {
     size: size, players: [], groups: [], fixtures: [],
+    names: tourMakeNames(size),   // 本届选手名（自定义 + 随机补足），抽签时直接沿用
     ko: null, cur: null,
     stage: 'setup',
     champion: null, runnerUp: null, third: null,
-    bank: TOUR_START_BANK, bets: [], settled: 0, winBets: 0,
+    bank: (typeof coinsGet === 'function' ? coinsGet() : TOUR_START_BANK),
+    bets: [], settled: 0, winBets: 0,
+    recorded: false,           // 本届最终成绩是否已写入浏览器存档
     mg: 0,                     // 手机端当前查看的组
     sel: null,                 // 赛程图里选中的场次 {zone, ri, mi}
     log: []
@@ -241,7 +255,8 @@ function tourDeal() {
   tourShuffle(combos);
 
   var players = [];
-  var names = tourPickNames(tour.size);
+  // 选手名在 tourOpen() 就定好了（自定义优先、其余随机）；恢复旧存档时兜底重算
+  var names = (tour.names && tour.names.length === tour.size) ? tour.names : tourMakeNames(tour.size);
   for (var i = 0; i < tour.size; i++) {
     players.push({
       id: i, name: names[i] || ('玩家' + (i + 1)),
@@ -401,6 +416,9 @@ function tourSettleMatch(c) {
     tourLog('组' + (fx.group + 1) + ' ' + fx.a.name + ' ' + fx.score + ' ' + fx.b.name +
       ' → ' + (fx.winner ? fx.winner.name + ' 胜' : '平局'));
   } else {
+    // 淘汰赛也累计伤害，结算页的「累计伤害」才是整届总和
+    fx.a.dmg += c.dmgA;
+    fx.b.dmg += c.dmgB;
     tourLog(fx.roundName + ' ' + fx.a.name + ' ' + fx.score + ' ' + fx.b.name +
       ' → ' + fx.winner.name + (fx.kind === 'lb' && fx.roundName === '季军赛' ? ' 进总决赛' : ''));
   }
@@ -848,6 +866,8 @@ function tourRender() {
   /* 棋盘渲染完再启动后台赔率模拟（第 83 条）：
      先给「计算中」占位，算完一场就只改那一场的胜率文字，不整块重绘 */
   if (typeof tourOddsKick === 'function') tourOddsKick();
+  /* 手机端：按阶段切到独立页面（或回落到旧棋盘） */
+  if (typeof mobiTourSync === 'function') mobiTourSync();
 }
 
 /* ---------- 手机顶部资金条 ---------- */
@@ -2066,10 +2086,12 @@ function tourSave() {
   try {
     var data = {
       v: 3, size: tour.size, stage: tour.stage,
+      names: (tour.names || []).slice(),
       champion: tourPlayerRef(tour.champion),
       runnerUp: tourPlayerRef(tour.runnerUp),
       third: tourPlayerRef(tour.third),
       bank: tour.bank, settled: tour.settled, winBets: tour.winBets,
+      recorded: !!tour.recorded,
       log: tour.log.slice(0, 30),
       players: tour.players.map(function (p) {
         return { id: p.id, name: p.name, roles: p.roles, pts: p.pts, w: p.w, l: p.l, dmg: p.dmg, group: p.group };
@@ -2087,6 +2109,8 @@ function tourSave() {
       } : null
     };
     localStorage.setItem(TOUR_KEY, JSON.stringify(data));
+    // 赛事资金就是全局金币：每次存档同步回钱包（手机端每日赠送 / 单机押注共用）
+    if (typeof coinsSet === 'function') coinsSet(tour.bank);
   } catch (e) {}
 }
 
@@ -2108,6 +2132,7 @@ function tourLoad() {
 
   var out = {
     size: d.size, players: players,
+    names: (d.names && d.names.length) ? d.names.slice() : players.map(function (p) { return p.name; }),
     groups: (d.groups || []).map(function (g) { return g.map(function (id) { return byId[id]; }); }),
     fixtures: (d.fixtures || []).map(function (f) {
       return { kind: 'group', group: f.group, idx: f.idx, a: byId[f.a], b: byId[f.b], format: f.format,
@@ -2116,8 +2141,9 @@ function tourLoad() {
     }),
     ko: null, cur: null, stage: d.stage,
     champion: P(d.champion), runnerUp: P(d.runnerUp), third: P(d.third),
-    bank: d.bank == null ? TOUR_START_BANK : d.bank,
+    bank: (typeof coinsGet === 'function' ? coinsGet() : (d.bank == null ? TOUR_START_BANK : d.bank)),
     bets: [], settled: d.settled || 0, winBets: d.winBets || 0,
+    recorded: !!d.recorded,
     log: d.log || []
   };
 

@@ -166,6 +166,7 @@ function buildModePick() {
 
 // 改人数：1v1 强制回到「同时上场」；不够的格子用角色池里还没用过的角色补齐
 function setSize(size) {
+  size = Math.max(1, Math.min(6, size | 0));   // 手机端最多 6v6
   teamSize = size;
   if (size === 1) modeKind = 'vs';
 
@@ -288,6 +289,10 @@ function buildHome() {
 
 /* 从主菜单进入某个对战人数的选人页 */
 function enterPick(size) {
+  // 手机端走独立的 1024×512 单机页（复用同一套 pick / teamSize 状态）
+  if (typeof mobiIsMobile === 'function' && mobiIsMobile()) {
+    if (typeof mobiEnterSolo === 'function') { mobiEnterSolo(); return; }
+  }
   setSize(size);
   buildModePick();
   el.home.classList.remove('show');
@@ -335,11 +340,16 @@ function openMenu() {
   activeTeam = 'A';
   activeSlot = 0;
   syncPick();
+
+  // 手机端：回到独立的手机主菜单
+  if (typeof mobiOnHome === 'function') mobiOnHome();
 }
 
 function startBattle() {
   // R 键 / 重开按钮在赛事棋盘上也会触发：后台模拟期间先停下再重置，避免两边抢全局
   if (typeof tourOddsStop === 'function') tourOddsStop();
+  // 手机端：进战斗先把独立界面收起，让 canvas 占满
+  if (typeof mobiOnBattleStart === 'function') mobiOnBattleStart();
   reset();
   phase = 'fight';
   paused = false;

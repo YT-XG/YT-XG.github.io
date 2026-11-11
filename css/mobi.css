@@ -1,0 +1,666 @@
+/* ============================================================
+   mobi.css —— 手机端独立界面（1024×512 固定画布）
+   ------------------------------------------------------------
+   与 style.css / mobile.css 完全独立：
+   · #mobi 默认 display:none，只有 js/80-mobi.js 判定为移动端时加 .on
+   · 画布内所有坐标/字号都是「设计像素」，整块由 JS 写入 --ms 等比缩放
+   · 因此不同手机尺寸下按钮位置完全一致，不会再把按钮挤出屏幕
+   ============================================================ */
+
+.mobi{
+  position:fixed;inset:0;z-index:150;display:none;overflow:hidden;
+  background:
+    radial-gradient(900px 520px at 50% -10%, #1b2434 0%, transparent 62%),
+    radial-gradient(700px 420px at 90% 116%, #211a2b 0%, transparent 62%),
+    #070a10;
+}
+.mobi.on{display:block;}
+.mobi-board{
+  position:absolute;left:50%;top:50%;width:1024px;height:512px;
+  transform:translate(-50%,-50%) scale(var(--ms,1));
+  transform-origin:50% 50%;
+  overflow:hidden;
+  color:#e9eef7;
+  font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,-apple-system,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+}
+/* :where() 为 0 特异性，避免把 .m-start / .m-deal / .m-primary 的背景盖掉 */
+.mobi :where(button){
+  font-family:inherit;color:inherit;cursor:pointer;
+  border:0;background:transparent;padding:0;
+}
+.mobi :where(button:disabled){opacity:.35;cursor:not-allowed;}
+
+/* 手机模式：把旧的移动端页面整块收起来（桌面不受影响） */
+body.mobi-mode header,
+body.mobi-mode .home,
+body.mobi-mode .menu,
+body.mobi-mode .tour-board,
+body.mobi-mode .tour-panel,
+body.mobi-mode .foot,
+body.mobi-mode .status{display:none !important;}
+body.mobi-mode{overflow:hidden;}
+
+.ms{position:absolute;inset:0;display:none;}
+.ms.on{display:block;}
+.m-screen{position:absolute;inset:0;}
+.m-empty{
+  position:absolute;left:0;right:0;top:44%;text-align:center;
+  color:#7e8ba1;font-size:16px;
+}
+
+/* 通用小件 */
+.m-mini{height:38px;padding:0 14px;border:1px solid #2a3446;border-radius:6px;
+  background:#111823;color:#c6d3e6;font-size:13px;}
+.m-mini:hover{border-color:#3d4c63;color:#fff;}
+.m-ghost{border:1px solid #2a3446;background:#111823;color:#9aa7bc;border-radius:6px;font-size:13px;height:40px;}
+.m-primary{background:linear-gradient(180deg,#ff6a52,#d93a2f);color:#fff;border-radius:6px;font-size:13px;height:40px;}
+.m-wide{width:100%;}
+
+/* ============================================================
+   ① 主菜单
+   ============================================================ */
+.m-home{position:absolute;inset:0;}
+.m-home-head h2{
+  position:absolute;left:62px;top:96px;margin:0;
+  font-size:42px;font-weight:800;letter-spacing:.08em;
+  color:#ff5a44;text-shadow:0 0 26px rgba(232,72,63,.45);
+}
+.m-ver{
+  position:absolute;left:150px;top:162px;
+  font-size:22px;letter-spacing:.12em;color:#cfd8e6;
+}
+.m-home-menu{
+  position:absolute;left:598px;top:78px;width:348px;
+  display:flex;flex-direction:column;gap:16px;
+}
+.m-home-menu button{
+  height:66px;border:2px solid #e8483f;border-radius:6px;
+  background:rgba(232,72,63,.07);color:#ff6a52;
+  font-size:22px;font-weight:700;letter-spacing:.06em;
+  transition:.15s;
+}
+.m-home-menu button:active{background:rgba(232,72,63,.18);}
+.m-home-menu button.dim{
+  border-color:#3a475c;background:rgba(255,255,255,.03);color:#7e8ba1;
+}
+.m-credit{position:absolute;left:26px;bottom:34px;font-size:20px;color:#8792a6;letter-spacing:.04em;}
+.m-home-coin{position:absolute;right:30px;bottom:34px;font-size:13px;color:#8792a6;}
+.m-home-coin b{color:#ffd9a8;font-size:18px;font-variant-numeric:tabular-nums;}
+/* 左下角色池预览：把标题下方的大片空区利用起来（第 92 条） */
+.m-roster{position:absolute;left:62px;top:210px;width:452px;}
+.m-roster-t{font-size:11px;letter-spacing:.22em;color:#6f7d93;margin-bottom:9px;}
+.m-roster-g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 10px;}
+.m-roster-i{
+  display:flex;align-items:center;gap:9px;height:62px;padding:0 10px;min-width:0;
+  border:1px solid #1b2534;border-radius:8px;background:rgba(255,255,255,.018);
+}
+.m-roster-i .tx{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.m-roster-i b{font-size:12px;font-weight:600;color:#dbe4f2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.m-roster-i small{font-size:9.5px;color:#6f7d93;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* 右列按钮下方补三条玩法说明，和左侧角色池配平 */
+.m-home-note{
+  position:absolute;right:30px;top:330px;width:348px;
+  display:flex;flex-direction:column;gap:9px;
+  font-size:11.5px;line-height:1.45;color:#8792a6;
+}
+.m-home-note b{
+  display:inline-block;margin-right:9px;padding:1px 7px;border-radius:4px;
+  background:rgba(232,72,63,.12);color:#ff8a76;font-size:10px;letter-spacing:.08em;
+}
+
+/* ============================================================
+   ② 单机模式
+   ============================================================ */
+.m-home-btn{position:absolute;left:22px;top:16px;width:96px;}
+
+.m-sizebar{position:absolute;left:34px;top:66px;width:196px;display:flex;flex-direction:column;gap:4px;}
+.m-sizebar .m-size b{font-size:30px;}
+.m-sizebar .m-sq{width:40px;height:40px;font-size:22px;}
+.m-cap{font-size:11px;color:#6f7d93;letter-spacing:.06em;}
+.m-size{display:flex;align-items:center;justify-content:space-between;gap:6px;}
+.m-size b{font-size:24px;font-weight:800;letter-spacing:.04em;font-variant-numeric:tabular-nums;color:#e9eef7;}
+.m-sq{
+  width:34px;height:34px;border:1px solid #2a3446;border-radius:6px;
+  background:#111823;color:#c6d3e6;font-size:19px;line-height:1;
+}
+.m-sq:active{background:#1b2534;}
+.m-size.sm b{font-size:16px;}
+
+.m-seg{display:flex;gap:6px;}
+.m-seg button{
+  flex:1 1 0;height:34px;border:1px solid #2a3446;border-radius:6px;
+  background:#0f151f;color:#8896ab;font-size:12.5px;white-space:nowrap;
+}
+.m-seg button.on{background:rgba(232,72,63,.16);border-color:#e8483f;color:#ff8a76;}
+.m-seg button:disabled{opacity:.3;}
+.m-min button{font-size:12px;}
+.m-wide{margin-top:4px;}
+
+/* 双方阵容：去掉左侧重复选项后铺满整块屏幕 */
+.m-arena{position:absolute;left:30px;top:142px;width:964px;height:252px;}
+.m-team{position:absolute;top:0;width:430px;}
+.m-team.a{left:0;}
+.m-team.b{right:0;}
+.m-team-head{display:flex;align-items:center;justify-content:space-between;height:32px;margin-bottom:8px;}
+.m-team.b .m-team-head{flex-direction:row-reverse;}
+.m-team-head span{font-size:17px;font-weight:700;letter-spacing:.1em;}
+.m-team.a .m-team-head span{color:#ff6a52;}
+.m-team.b .m-team-head span{color:#7fa3ff;}
+.m-team-head button{
+  height:28px;padding:0 14px;border:1px solid #2a3446;border-radius:5px;
+  background:#111823;color:#9aa7bc;font-size:11.5px;
+}
+.m-slots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+.m-slot{
+  position:relative;height:100%;padding:0 14px;
+  display:flex;align-items:center;gap:10px;
+  border:1px solid #232b3c;border-radius:8px;background:#0e131c;
+  overflow:hidden;
+}
+.m-slot b{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.m-slot-tx{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.m-slot-tx em{font-style:normal;font-size:11px;color:#6f7d93;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.m-slot.big{padding:0 16px;gap:13px;}
+.m-slot.big b{font-size:16px;}
+.m-slot small{
+  position:absolute;right:5px;top:3px;font-size:10px;color:#5d6a80;
+}
+.m-slot .ph{font-size:12px;color:#4d5970;}
+.m-slot.sel{border-color:#e8483f;box-shadow:0 0 0 1px rgba(232,72,63,.35) inset;}
+.m-team.b .m-slot.sel{border-color:#4a7bf0;box-shadow:0 0 0 1px rgba(74,123,240,.35) inset;}
+.m-vs{
+  position:absolute;left:50%;top:92px;transform:translateX(-50%);
+  font-size:24px;font-weight:800;letter-spacing:.08em;color:#5d6a80;
+}
+
+/* 预测胜率 / 开始（单机不押注、不显示金币） */
+.m-odds{
+  position:absolute;left:0;top:404px;width:1024px;height:44px;
+  display:flex;align-items:center;justify-content:center;gap:12px;
+}
+.m-odds > span{font-size:11px;color:#6f7d93;letter-spacing:.14em;}
+.m-odds div{display:flex;align-items:baseline;gap:12px;}
+.m-odds b{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;}
+.m-odds b.ra{color:#ff8a76;}
+.m-odds b.rb{color:#9cbbff;}
+.m-odds i{font-style:normal;font-size:16px;color:#5d6a80;}
+/* 押注按钮：只剩赛事页在用（.m-vs-card / .m-ko-card 会覆盖定位与宽度） */
+.m-bet{
+  width:210px;height:48px;border:1px solid #2a3446;border-radius:8px;
+  background:#0f151f;color:#8896ab;font-size:14px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.m-bet b{font-size:17px;font-variant-numeric:tabular-nums;}
+.m-bet.a.on{border-color:#e8483f;color:#ff8a76;background:rgba(232,72,63,.14);}
+.m-bet.b.on{border-color:#4a7bf0;color:#9cbbff;background:rgba(74,123,240,.14);}
+.m-start{
+  position:absolute;left:390px;top:458px;width:244px;height:48px;
+  border-radius:8px;background:linear-gradient(180deg,#ff6a52,#d93a2f);
+  color:#fff;font-size:21px;font-weight:800;letter-spacing:.14em;
+  box-shadow:0 12px 30px -14px rgba(232,72,63,.9);
+}
+.m-start.sm{
+  position:static;width:150px;height:40px;font-size:14px;letter-spacing:.08em;
+  box-shadow:0 8px 20px -12px rgba(232,72,63,.9);
+}
+
+/* 两侧滑出条 */
+.m-tab{
+  position:absolute;top:150px;width:28px;height:140px;
+  border:1px solid #2a3446;background:#0f151f;color:#8896ab;
+  font-size:11px;letter-spacing:.24em;writing-mode:vertical-rl;
+  border-radius:6px;
+}
+.m-tab.l{left:-1px;}
+.m-tab.r{right:-1px;}
+
+/* 抽屉 */
+.m-drawer{
+  position:absolute;top:0;height:512px;z-index:30;
+  background:#0a0f18;border:1px solid #2a3446;
+  box-shadow:0 0 40px rgba(0,0,0,.6);
+  transition:transform .22s ease;
+  display:flex;flex-direction:column;
+}
+.m-drawer.l{left:0;width:320px;transform:translateX(-101%);border-left:0;}
+.m-drawer.r{right:0;width:340px;transform:translateX(101%);border-right:0;}
+.m-drawer.open{transform:translateX(0);}
+.m-drawer-h{display:flex;align-items:center;gap:10px;padding:14px 14px 10px;border-bottom:1px solid #1b2230;}
+.m-drawer-h b{font-size:15px;}
+.m-drawer-h span{flex:1;font-size:11px;color:#7e8ba1;text-align:right;}
+.m-drawer-h button{width:28px;height:28px;font-size:20px;color:#8896ab;border:1px solid #2a3446;border-radius:5px;}
+.m-drawer-b{padding:12px 14px;display:flex;flex-direction:column;gap:10px;}
+.m-set-row{display:flex;flex-direction:column;gap:5px;}
+.m-set-row > span{font-size:11px;color:#6f7d93;}
+.m-pool{flex:1;overflow-y:auto;padding:10px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.m-pool-item{
+  height:92px;border:1px solid #232b3c;border-radius:7px;background:#0e131c;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+}
+.m-pool-item b{font-size:11.5px;}
+.m-pool-item small{font-size:9px;color:#6f7d93;text-align:center;}
+.m-drawer-f{padding:10px;display:flex;flex-direction:column;gap:8px;border-top:1px solid #1b2230;}
+
+/* 图标 */
+.mi-ico{
+  display:inline-block;border-radius:5px;background:#1a2231;flex:0 0 auto;overflow:hidden;
+}
+.mi-ico img{width:100%;height:100%;object-fit:cover;display:block;}
+
+/* ============================================================
+   ③ 赛事准备
+   ============================================================ */
+.m-panel{
+  position:absolute;top:18px;height:476px;border:1px solid #2a3446;border-radius:10px;
+  background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.012));
+  padding:12px 14px;
+}
+.m-panel h3{margin:0 0 10px;font-size:19px;text-align:center;letter-spacing:.08em;color:#e9eef7;}
+.m-players{left:14px;width:360px;}
+.m-items{left:574px;width:436px;}
+.m-pnames{
+  display:grid;grid-template-columns:1fr 1fr;gap:7px 10px;
+  height:410px;align-content:start;
+}
+.m-pcell{
+  height:100%;display:flex;align-items:center;
+  padding:0 10px;border-radius:6px;background:#0d121b;
+  border:1px solid #1c2534;font-size:13.5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.m-pcell i{font-style:normal;color:#6f7d93;margin-right:4px;font-size:11px;}
+.m-pcell.empty{background:transparent;border-style:dashed;border-color:#1a2230;}
+
+.m-tmid{position:absolute;left:384px;top:18px;width:176px;height:476px;}
+.m-bank{
+  font-size:12px;color:#8792a6;display:flex;align-items:baseline;gap:5px;
+}
+.m-bank b{font-size:22px;color:#ffd9a8;font-variant-numeric:tabular-nums;}
+.m-bank small{font-size:10px;color:#6f7d93;}
+.m-tmid .m-bank{justify-content:center;margin-top:8px;}
+.m-tsize{margin-top:14px;}
+.m-deal{
+  margin-top:110px;width:100%;height:56px;border-radius:8px;
+  background:linear-gradient(180deg,#ff6a52,#d93a2f);color:#fff;
+  font-size:15px;font-weight:700;letter-spacing:.06em;
+  box-shadow:0 12px 30px -16px rgba(232,72,63,.9);
+}
+.m-link{
+  margin-top:26px;width:100%;font-size:12px;color:#9fb0c7;line-height:1.45;
+}
+.m-link em{display:block;font-style:normal;font-size:10px;color:#6f7d93;margin-top:3px;}
+.m-home2{
+  margin-top:auto;width:100%;height:40px;border:1px solid #2a3446;border-radius:6px;
+  background:#111823;color:#c6d3e6;font-size:13px;
+}
+.m-tmid .m-home2{position:absolute;left:0;bottom:52px;}
+.m-tmid .m-mini2{position:absolute;left:0;bottom:0;width:100%;}
+
+.m-items-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;height:414px;align-content:start;}
+.m-item{
+  height:124px;border:1px solid #1f2836;border-radius:8px;background:#0d121b;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+}
+.m-item-ico{position:relative;}
+.m-item b{font-size:12px;margin-top:2px;}
+.m-item small{font-size:9.5px;color:#6f7d93;text-align:center;line-height:1.2;}
+.m-band{
+  position:absolute;right:-7px;top:-6px;font-style:normal;font-size:9px;
+  width:16px;height:16px;line-height:16px;text-align:center;border-radius:50%;
+  background:#2a3446;color:#aab7ca;
+}
+.m-band.a{background:rgba(232,72,63,.85);color:#fff;}
+.m-band.b{background:rgba(74,123,240,.85);color:#fff;}
+
+/* ============================================================
+   ④ 分组页
+   ============================================================ */
+.m-vs-card{
+  position:absolute;left:10px;top:8px;width:1004px;height:270px;
+  border:1px solid #2f3a4d;border-radius:10px;
+  background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.015));
+}
+.m-card-tag{position:absolute;left:18px;top:12px;font-size:11px;color:#7e8ba1;letter-spacing:.06em;}
+.m-card-score{
+  position:absolute;left:50%;top:6px;transform:translateX(-50%);
+  font-size:20px;font-weight:800;letter-spacing:.14em;color:#dfe7f4;
+  font-variant-numeric:tabular-nums;
+}
+.m-win-note{position:absolute;right:18px;top:14px;font-size:11px;color:#6fc07a;}
+.m-cside{position:absolute;top:34px;width:320px;}
+.m-cside.a{left:34px;}
+.m-cside.b{right:34px;text-align:right;}
+.m-cname{font-size:18px;font-weight:800;letter-spacing:.04em;}
+.m-cname.a{color:#ff6a52;}
+.m-cname.b{color:#7fa3ff;}
+/* 物品 + 右侧（镜像时为左侧）的竖排数据块，把名字下方到记录之间的空带用满 */
+.m-cbody{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-top:8px;}
+.m-cside.b .m-cbody{flex-direction:row-reverse;}
+.m-croles{display:flex;gap:14px;}
+.m-cside.b .m-croles{justify-content:flex-end;}
+.m-crole{display:flex;flex-direction:column;align-items:center;gap:5px;width:96px;}
+.m-crole span{font-size:11px;color:#9aa7bc;line-height:1.25;text-align:center;}
+.m-cstats{display:flex;flex-direction:column;gap:5px;padding-top:2px;}
+.m-cstats span{
+  display:flex;align-items:baseline;justify-content:space-between;gap:6px;
+  width:96px;height:24px;padding:0 8px;border:1px solid #1f2836;border-radius:6px;
+  background:rgba(255,255,255,.022);
+}
+.m-cstats i{font-style:normal;font-size:9.5px;color:#6f7d93;}
+.m-cstats b{font-size:12px;color:#dfe7f4;font-variant-numeric:tabular-nums;}
+.m-h2h{margin-top:6px;padding-top:4px;border-top:1px solid #1f2836;text-align:left;}
+.m-h2h .t{font-size:9px;color:#6f7d93;letter-spacing:.12em;}
+.m-h2h .r{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:1px;font-size:10px;line-height:1.2;color:#9aa7bc;}
+.m-h2h .r b{color:#ffd9a8;font-variant-numeric:tabular-nums;font-weight:600;}
+.m-h2h .r.win b{color:#7fe08f;}
+.m-h2h .r.lose b{color:#ff8a76;}
+.m-h2h .r.draw b{color:#e8c46a;}
+.m-h2h .r.now{margin:1px -4px 0;padding:0 4px;border-radius:4px;background:rgba(255,255,255,.05);}
+.m-h2h .r.now b{color:#ffd9a8;}
+.m-h2h .empty{font-size:10px;color:#5d6a80;margin-top:2px;}
+/* 右侧「小组进度」贴右，不横跨整块 320 宽 */
+.m-cside.b .m-h2h{width:212px;margin-left:auto;}
+.m-cmid{
+  position:absolute;left:50%;top:44px;transform:translateX(-50%);
+  width:272px;display:flex;flex-direction:column;align-items:center;gap:9px;
+}
+.m-vs-big{font-size:28px;font-weight:800;letter-spacing:.1em;color:#5d6a80;line-height:1.1;}
+.m-prob{
+  width:272px;height:12px;border-radius:99px;overflow:hidden;
+  display:flex;background:#0d131d;border:1px solid #2a3446;
+}
+.m-prob i{display:block;height:100%;transition:width .25s ease;}
+.m-prob .ra{background:linear-gradient(180deg,#ff7a63,#d93a2f);}
+.m-prob .rb{background:linear-gradient(180deg,#6f9bff,#3f68d8);}
+.m-pred{font-size:11.5px;color:#8792a6;text-align:center;font-variant-numeric:tabular-nums;}
+.m-vs-card .m-start.sm{position:static;width:200px;height:46px;font-size:15px;margin-top:2px;letter-spacing:.1em;}
+.m-vs-card .m-bet{position:absolute;top:228px;width:170px;height:40px;font-size:12.5px;}
+.m-vs-card .m-bet.a{left:66px;}
+.m-vs-card .m-bet.b{left:768px;}
+
+.m-gcarousel{
+  position:absolute;left:10px;top:286px;width:1004px;height:212px;
+  display:grid;grid-template-columns:380px 214px 380px;gap:10px;
+}
+.m-gbox{
+  height:212px;border:1px solid #2a3446;border-radius:9px;
+  background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.012));
+  padding:8px 10px;overflow:hidden;
+}
+.m-ghead{display:flex;align-items:baseline;justify-content:space-between;font-size:16px;font-weight:700;margin-bottom:6px;}
+.m-ghead em{font-style:normal;font-size:10.5px;color:#6f7d93;font-weight:400;}
+.m-glist{display:flex;flex-direction:column;gap:2px;}
+.m-grow{
+  display:grid;grid-template-columns:18px minmax(0,1fr) minmax(0,1.15fr) 34px 44px;
+  align-items:center;gap:6px;height:38px;padding:0 4px;border-radius:5px;
+  font-size:11.5px;
+}
+.m-grow.next{background:rgba(232,72,63,.08);}
+.m-grow .rk{color:#6f7d93;font-size:10px;}
+.m-grow .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.m-grow .ro{color:#7e8ba1;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.m-grow .wl{color:#8896ab;font-size:10px;text-align:center;font-variant-numeric:tabular-nums;}
+.m-grow .pt{color:#ffd9a8;text-align:right;font-variant-numeric:tabular-nums;}
+.m-gmid{display:flex;flex-direction:column;align-items:center;gap:10px;padding-top:10px;}
+.m-gmid .m-bank{flex-direction:column;align-items:center;gap:0;}
+.m-gmid .m-home2{width:150px;height:42px;margin-top:10px;}
+.m-gmid .m-mini2{width:150px;}
+.m-dots{display:flex;gap:8px;margin-top:8px;}
+.m-dots i{width:8px;height:8px;border-radius:50%;background:#2a3446;display:block;cursor:pointer;}
+.m-dots i.on{background:#ff6a52;}
+
+/* ============================================================
+   ④.1 小组赛结束（图 1）
+   ============================================================ */
+.m-standings-head{
+  position:absolute;left:0;right:0;top:10px;text-align:center;
+  font-size:20px;font-weight:700;letter-spacing:.14em;color:#e9eef7;
+}
+.m-endbox{
+  position:absolute;border:1px solid #2f3a4d;border-radius:9px;
+  background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.012));
+  padding:7px 10px;
+}
+.m-endbox.pos-a{left:14px;top:46px;width:386px;height:214px;}
+.m-endbox.pos-c{left:14px;top:272px;width:386px;height:214px;}
+.m-endbox.pos-b{right:14px;top:46px;width:386px;height:214px;}
+.m-endbox.pos-d{right:14px;top:272px;width:386px;height:214px;}
+.m-endbox.tall{height:440px;}
+.m-endbox-t{
+  text-align:center;font-size:16px;font-weight:700;letter-spacing:.1em;
+  color:#dfe7f4;margin-bottom:4px;
+}
+/* 列表在框内垂直居中：8 人赛 4 行、16 人赛同样 4 行，靠行高把高度吃满（第 92 条） */
+.m-endbox-list{height:calc(100% - 26px);display:flex;flex-direction:column;justify-content:center;}
+.m-end-row{
+  display:grid;grid-template-columns:16px minmax(0,1fr) minmax(0,1.2fr) 46px;
+  align-items:center;gap:6px;height:42px;padding:0 4px;border-radius:5px;
+  font-size:11.5px;
+}
+.m-endbox.tall .m-end-row{height:92px;font-size:13.5px;}
+.m-end-row:nth-child(odd){background:rgba(255,255,255,.02);}
+.m-end-row .rk{color:#6f7d93;font-size:10px;}
+.m-end-row .nm{display:flex;flex-direction:column;justify-content:center;gap:3px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.m-end-row .sub{display:none;font-style:normal;font-size:10px;font-weight:400;color:#6f7d93;}
+.m-endbox.tall .m-end-row .sub{display:block;}
+.m-end-row .ro{color:#7e8ba1;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.m-end-row .pt{color:#ffd9a8;text-align:right;font-variant-numeric:tabular-nums;}
+
+.m-endmid{
+  position:absolute;left:408px;top:46px;width:208px;height:440px;
+  display:flex;flex-direction:column;align-items:center;
+}
+.m-endmid .m-bank{margin-top:46px;}
+.m-endmid .m-bigbtn{margin-top:110px;}
+.m-endmid .m-ghost{margin-top:14px;width:184px;height:42px;}
+.m-endmid .m-home2{margin-top:34px;width:184px;height:42px;position:static;}
+.m-bigbtn{
+  width:184px;height:50px;border-radius:8px;
+  background:linear-gradient(180deg,#ff6a52,#d93a2f);color:#fff;
+  font-size:16px;font-weight:700;letter-spacing:.06em;
+  box-shadow:0 12px 30px -16px rgba(232,72,63,.9);
+}
+
+/* ============================================================
+   ④.2 淘汰赛（图 2）
+   ============================================================ */
+.m-ko-bracket{
+  position:absolute;left:14px;top:14px;width:398px;height:484px;
+  border:1px solid #2f3a4d;border-radius:10px;
+  background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01));
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.m-ko-bhead{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+  padding:7px 10px;border-bottom:1px solid #1f2836;
+}
+.m-ko-bhead b{font-size:12px;font-weight:600;color:#c6d3e6;letter-spacing:.06em;}
+.m-ko-bhead button{
+  height:24px;padding:0 10px;border:1px solid #2a3446;border-radius:5px;
+  background:#111823;color:#9aa7bc;font-size:10px;
+}
+.m-ko-graph{
+  flex:1 1 auto;min-height:0;display:block;overflow:auto;padding:6px;
+  -webkit-overflow-scrolling:touch;
+}
+.m-ko-bracket .bk-svg{display:block;margin:0 auto;max-width:none;}
+/* 1:1：按原始尺寸渲染（默认），可拖动查看，文字正常大小 */
+.m-ko-graph.one .bk-svg{width:auto;height:auto;}
+/* 适应全图：缩到面板宽度，看整体结构 */
+.m-ko-graph.fit .bk-svg{width:100%;height:auto;}
+.m-ko-graph.one .bk-n1,
+.m-ko-graph.one .bk-n2{font-size:16px;}
+.m-ko-graph.one .bk-sc{font-size:11px;}
+.m-ko-graph.one .bk-lab{font-size:12px;}
+.m-ko-graph.fit .bk-n1,
+.m-ko-graph.fit .bk-n2{font-size:21px;}
+.m-ko-graph.fit .bk-sc{font-size:14px;}
+.m-ko-graph.fit .bk-lab{font-size:17px;}
+.m-ko-bracket .bk-svg .bk-edge{stroke-width:2;}
+.m-ko-legend{
+  flex:0 0 auto;display:flex;align-items:center;gap:5px;
+  padding:6px 10px 0;font-size:9.5px;color:#7e8ba1;
+}
+.m-ko-legend i{width:8px;height:8px;border-radius:2px;display:block;margin-left:7px;}
+.m-ko-legend i:first-child{margin-left:0;}
+.m-ko-legend i.pl{background:rgba(90,150,255,.25);border:1px solid rgba(120,190,255,.8);}
+.m-ko-legend i.dn{background:rgba(255,180,120,.2);border:1px solid rgba(255,180,120,.55);}
+.m-ko-legend i.ds{background:transparent;border:1px dashed rgba(255,140,110,.6);}
+.m-ko-hint{
+  flex:0 0 auto;text-align:center;font-size:10px;color:#6fc07a;
+  padding:3px 0 6px;
+}
+.m-ko-mid{
+  position:absolute;left:418px;top:14px;width:150px;height:484px;
+  display:flex;flex-direction:column;align-items:center;
+}
+.m-ko-mid .m-bank{margin-top:54px;}
+.m-ko-stat{width:132px;margin-top:34px;padding-top:10px;border-top:1px solid #1f2836;}
+.m-ko-stat span{display:block;text-align:center;font-size:9px;letter-spacing:.16em;color:#6f7d93;margin-bottom:6px;}
+.m-ko-stat .r{display:flex;align-items:baseline;justify-content:space-between;gap:6px;font-size:10px;color:#7e8ba1;line-height:1.6;}
+.m-ko-stat .r b{font-size:12px;color:#dfe7f4;font-variant-numeric:tabular-nums;}
+.m-ko-mid .m-home2{margin-top:auto;margin-bottom:56px;width:132px;height:42px;position:static;}
+.m-ko-card{
+  position:absolute;left:574px;top:14px;width:436px;height:484px;
+  border:1px solid #2f3a4d;border-radius:10px;
+  background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.012));
+}
+.m-ko-title{position:absolute;left:0;right:0;top:14px;text-align:center;font-size:18px;font-weight:700;letter-spacing:.1em;}
+.m-ko-round{position:absolute;left:0;right:0;top:42px;text-align:center;font-size:10px;color:#7e8ba1;}
+.m-ko-team{position:absolute;top:66px;width:186px;}
+.m-ko-team.a{left:20px;}
+.m-ko-team.b{right:20px;text-align:right;}
+.m-ko-team b{
+  display:inline-block;max-width:186px;padding:3px 11px;border-radius:6px;
+  font-size:16px;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  vertical-align:top;
+}
+.m-ko-team.a b{color:#ff8a76;background:rgba(232,72,63,.12);border:1px solid rgba(232,72,63,.38);}
+.m-ko-team.b b{color:#9cbbff;background:rgba(74,123,240,.12);border:1px solid rgba(74,123,240,.38);}
+.m-ko-roles{display:flex;flex-direction:row;gap:10px;margin-top:9px;}
+.m-ko-team.b .m-ko-roles{justify-content:flex-end;}
+.m-ko-role{display:flex;flex-direction:column;align-items:center;gap:3px;width:78px;}
+.m-ko-role span{font-size:10.5px;color:#9aa7bc;line-height:1.2;text-align:center;}
+.m-ko-vs{
+  position:absolute;left:50%;top:112px;transform:translateX(-50%);
+  width:46px;height:46px;border-radius:50%;
+  background:#0f151f;border:1px solid #2a3446;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:800;letter-spacing:.04em;color:#8896ab;
+}
+.m-ko-pred{
+  position:absolute;left:0;right:0;top:170px;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+}
+.m-ko-pred span{font-size:9px;color:#6f7d93;letter-spacing:.14em;}
+.m-ko-pred b{font-size:17px;color:#dfe7f4;font-variant-numeric:tabular-nums;}
+.m-ko-card .m-bet{position:absolute;top:214px;width:170px;height:44px;font-size:12.5px;padding:0 10px;white-space:nowrap;overflow:hidden;}
+.m-ko-card .m-bet.a{left:20px;}
+.m-ko-card .m-bet.b{left:246px;}
+.m-ko-card .m-bet i{
+  flex:0 0 auto;font-style:normal;margin-left:6px;padding:1px 6px;border-radius:99px;
+  background:#e8483f;color:#fff;font-size:10.5px;
+}
+.m-ko-card .m-bet.b i{background:#4a7bf0;}
+.ko-start{
+  position:absolute;left:113px;top:320px;width:210px;height:52px;
+  font-size:16px;letter-spacing:.08em;
+}
+.m-ko-note{
+  position:absolute;left:0;right:0;top:410px;text-align:center;
+  font-size:9.5px;color:#6f7d93;
+}
+
+/* ============================================================
+   ④.3 结算（图 3）
+   ============================================================ */
+.m-done-panel{
+  position:absolute;top:34px;width:386px;height:464px;
+  border:1px solid rgba(111,192,122,.42);border-radius:9px;
+  background:linear-gradient(180deg,rgba(111,192,122,.05),rgba(255,255,255,.012));
+  padding:10px 12px;display:flex;flex-direction:column;
+}
+.m-done-panel.l{left:14px;}
+.m-done-panel.r{right:14px;}
+.m-done-t{text-align:center;font-size:15px;margin-bottom:6px;color:#8fd0a0;letter-spacing:.08em;}
+.m-done-list{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:center;}
+.m-done-head{
+  flex:0 0 20px;
+  display:grid;grid-template-columns:22px minmax(0,1fr) minmax(0,.95fr) 40px 50px 42px;
+  align-items:center;gap:5px;height:20px;padding:0 4px;
+  font-size:9px;color:#5d6a80;letter-spacing:.06em;
+  border-bottom:1px solid #1f2836;
+}
+.m-done-head span:nth-child(n+4){text-align:right;}
+/* 行高弹性：4 行（8 人赛）时自动长高，8 行（16 人赛）时回到 44 左右，不留大片空白 */
+.m-done-row{
+  flex:1 1 0;min-height:44px;max-height:96px;
+  display:grid;grid-template-columns:22px minmax(0,1fr) minmax(0,.95fr) 40px 50px 42px;
+  align-items:center;gap:5px;padding:0 4px;
+  border-bottom:1px solid #1a2230;font-size:12.5px;
+}
+.m-done-row .rk{color:#6f7d93;font-size:10px;}
+.m-done-row .nm{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.m-done-row .ro{color:#7e8ba1;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.m-done-row .wl{text-align:right;font-size:11px;color:#9aa7bc;font-variant-numeric:tabular-nums;}
+.m-done-row .dmg{text-align:right;font-size:11px;color:#ffb38a;font-variant-numeric:tabular-nums;}
+.m-done-row .pt{font-size:13px;color:#ffd9a8;text-align:right;font-variant-numeric:tabular-nums;}
+
+.m-done-mid{
+  position:absolute;left:408px;top:34px;width:208px;height:464px;
+  display:flex;flex-direction:column;align-items:center;
+}
+.m-podium{
+  width:208px;height:74px;margin-top:34px;border-radius:8px;
+  border:1px solid rgba(111,192,122,.5);background:rgba(111,192,122,.06);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+}
+.m-podium span{font-size:10px;color:#8fd0a0;letter-spacing:.18em;}
+.m-podium b{font-size:18px;letter-spacing:.04em;}
+.m-podium.mini{width:100px;height:54px;margin-top:0;gap:2px;}
+.m-podium.mini b{font-size:13px;}
+.m-podium-row{display:flex;justify-content:space-between;gap:8px;width:208px;margin-top:14px;}
+.m-done-mid .m-bank{margin-top:30px;}
+.m-done-mid .m-bigbtn{margin-top:28px;width:152px;height:46px;font-size:15px;}
+.m-done-mid .m-home2{margin-top:14px;width:152px;height:40px;position:static;}
+.m-done-hint{
+  margin-top:14px;width:196px;text-align:center;font-size:8.5px;line-height:1.5;color:#6f7d93;
+}
+
+/* ============================================================
+   姓名编辑弹层
+   ============================================================ */
+.m-modal{position:absolute;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:rgba(4,7,12,.82);}
+.m-modal.on{display:flex;}
+.m-modal-box{
+  width:660px;border:1px solid #2f3a4d;border-radius:12px;background:#0b1018;
+  padding:18px 20px;box-shadow:0 30px 80px -30px #000;
+}
+.m-modal-box h3{margin:0 0 4px;font-size:18px;}
+.m-modal-box p{margin:0 0 14px;font-size:11px;color:#6f7d93;}
+.m-name-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
+.m-name-grid label{display:flex;align-items:center;gap:5px;background:#0e141e;border:1px solid #1f2836;border-radius:6px;padding:0 6px;height:38px;min-width:0;overflow:hidden;}
+.m-name-grid i{font-style:normal;font-size:10px;color:#6f7d93;width:14px;}
+.m-name-grid input{
+  flex:1;min-width:0;background:transparent;border:0;outline:0;color:#e9eef7;
+  font-size:12px;font-family:inherit;
+}
+.m-modal-act{display:flex;justify-content:flex-end;gap:10px;margin-top:16px;}
+.m-modal-act button{width:110px;height:40px;border:1px solid #2a3446;border-radius:6px;background:#111823;color:#c6d3e6;font-size:13px;}
+.m-modal-act .m-primary{border:0;color:#fff;}
+
+/* 提示条 */
+.m-toast{
+  position:fixed;left:50%;bottom:9%;transform:translate(-50%,12px);
+  z-index:320;padding:9px 18px;border-radius:99px;
+  background:rgba(10,15,24,.94);border:1px solid #2f3a4d;color:#dfe7f4;
+  font-size:13px;opacity:0;pointer-events:none;transition:.18s;
+  font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+}
+.m-toast.on{opacity:1;transform:translate(-50%,0);}
+
+/* 竖屏提示层级高于手机画布；?mobi=1 桌面预览时隐藏提示 */
+.rotate-tip{z-index:200;}
+body.mobi-forced .rotate-tip{display:none !important;}
