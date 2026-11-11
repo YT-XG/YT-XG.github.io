@@ -63,12 +63,14 @@ function mobiRoleShort(key) {
   return c ? c.short : '—';
 }
 
-/* 角色/物品小图标：有贴图用贴图，否则用角色主色块 */
+/* 角色/物品小图标：狗奶用贴图，其余用内联 SVG（第 95 条） */
 function mobiIco(key, size) {
   var c = POOL_BY_KEY[key];
   var st = 'width:' + size + 'px;height:' + size + 'px;';
   if (!c) return '<span class="mi-ico" style="' + st + '"></span>';
   if (c.img) return '<span class="mi-ico" style="' + st + '"><img src="' + c.img + '" alt=""></span>';
+  var svg = (typeof iconSvg === 'function') ? iconSvg(key) : '';
+  if (svg) return '<span class="mi-ico" style="' + st + '">' + svg + '</span>';
   return '<span class="mi-ico" style="' + st + 'background:' + c.body + ';box-shadow:0 0 12px ' + c.glow + '"></span>';
 }
 
@@ -501,36 +503,23 @@ function mobiGroupBox(g) {
   return h + '</div></section>';
 }
 
-/* 对战记录：把该玩家在本组的每一场都列出来（对手 + 比分）；
-   没打的显示「— : —」，正在打的这场高亮（第 93 条） */
+/* 对战记录：只列该玩家已经打完的场次（对手 + 几比几）；
+   左右两侧都展示同一口径的记录（第 96 条） */
 function mobiH2hHtml(p, fx) {
   var group = fx.group;
-  var list = tour.fixtures.filter(function (f) { return f.group === group; });
-  var h = '<div class="m-h2h"><span class="t">对战记录</span>';
-  var n = 0;
-  list.forEach(function (f) {
-    var opp = null, mine = 0, theirs = 0;
-    if (f.a === p) { opp = f.b; mine = f.winsA; theirs = f.winsB; }
-    else if (f.b === p) { opp = f.a; mine = f.winsB; theirs = f.winsA; }
-    else return;
-    if (!opp) return;
-    var now = (f === fx);
-    var txt, cls = '';
-    if (f.done) {
-      mine = Math.round(mine || 0);
-      theirs = Math.round(theirs || 0);
-      txt = mine + ' : ' + theirs;
-      cls = mine > theirs ? ' win' : (mine < theirs ? ' lose' : ' draw');
-    } else if (now) {
-      txt = f.score || '0 : 0';
-      cls = ' now';
-    } else {
-      txt = '— : —';
-    }
-    h += '<div class="r' + cls + '"><span>vs ' + mobiEsc(opp.name) + '</span><b>' + txt + '</b></div>';
-    n++;
+  var rows = tour.fixtures.filter(function (f) {
+    return f.group === group && f.done && (f.a === p || f.b === p);
   });
-  if (!n) h += '<div class="empty">暂无对局</div>';
+  var h = '<div class="m-h2h"><span class="t">对战记录</span>';
+  if (!rows.length) return h + '<div class="empty">暂无已完成对局</div></div>';
+  rows.slice(0, 3).forEach(function (f) {
+    var opp = f.a === p ? f.b : f.a;
+    var mine = Math.round((f.a === p ? f.winsA : f.winsB) || 0);
+    var theirs = Math.round((f.a === p ? f.winsB : f.winsA) || 0);
+    var cls = mine > theirs ? ' win' : (mine < theirs ? ' lose' : ' draw');
+    h += '<div class="r' + cls + '"><span>vs ' + mobiEsc(opp ? opp.name : '—') + '</span><b>' +
+      mine + ' : ' + theirs + '</b></div>';
+  });
   return h + '</div>';
 }
 
@@ -547,21 +536,10 @@ function mobiCardSide(p, side, fx) {
       '<span><i>战绩</i><b>' + p.w + '-' + p.l + '</b></span>' +
       '<span><i>伤害</i><b>' + Math.round(p.dmg || 0) + '</b></span>' +
     '</div></div>';
-  /* 左：逐场对战记录；右：小组进度（名次 / 已赛 / 晋级线） */
-  h += (side === 'a') ? mobiH2hHtml(p, fx) : mobiGroupPosHtml(p, fx.group);
+  /* 两边都展示该玩家自己的已完成对局，不再一边记录一边进度 */
+  h += mobiH2hHtml(p, fx);
   h += '</div>';
   return h;
-}
-
-function mobiGroupPosHtml(p, g) {
-  var st = tourStandings(g);
-  var idx = st.indexOf(p);
-  var list = tour.fixtures.filter(function (f) { return f.group === g; });
-  var done = list.filter(function (f) { return f.done; }).length;
-  return '<div class="m-h2h"><span class="t">小组进度</span>' +
-    '<div class="r"><span>' + mobiGroupLetter(g) + '组排名</span><b>' + (idx + 1) + ' / ' + st.length + '</b></div>' +
-    '<div class="r"><span>已赛场次</span><b>' + done + ' / ' + list.length + '</b></div>' +
-    '<div class="r"><span>晋级</span><b>前 2 名</b></div></div>';
 }
 
 function mobiTourGroupsHtml() {
