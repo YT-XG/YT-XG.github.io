@@ -178,7 +178,16 @@ var el = {
   tourBoard: document.getElementById('tourBoard'),
   tourFxEl: document.getElementById('tourFx'),
   tourSize: document.getElementById('tourSize'),
-  btnMenu: document.getElementById('btnMenu')
+  btnMenu: document.getElementById('btnMenu'),
+  homeCoins: document.getElementById('homeCoins'),
+  homeSeason: document.getElementById('homeSeason'),
+  homeSeasonBtn: document.getElementById('homeSeasonBtn'),
+  homeVer: document.getElementById('homeVer'),
+  sizePick: document.getElementById('sizePick'),
+  oddsA: document.getElementById('oddsA'),
+  oddsB: document.getElementById('oddsB'),
+  deskToast: document.getElementById('deskToast'),
+  deskNames: document.getElementById('deskNames')
 };
 
 

@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>MC 方块对决 · 组合作战</title>
-<link rel="stylesheet" href="css/style.css?v=20261111g" />
+<link rel="stylesheet" href="css/style.css?v=20261115b" />
 <link rel="stylesheet" href="css/mobile.css?v=20261109a" media="(max-width: 980px), (max-height: 480px), (pointer: coarse)" />
 <link rel="stylesheet" href="css/mobi.css?v=20261111e" />
 </head>
@@ -37,46 +37,48 @@
   </div>
 
   <div class="home" id="home">
-    <div class="home-inner">
-      <div class="home-head">
-        <b>MC 方块对决</b>
-        <span>台球式匀速直线运动 · 角色池组合作战</span>
-      </div>
-      <div class="home-grid">
-        <button class="home-mode" type="button" data-size="1">
-          <i>1v1</i>
-          <b>单角色对决</b>
-          <span>1 个角色 · 同时上场 · 最快开打</span>
-          <em>进入 →</em>
-        </button>
-        <button class="home-mode" type="button" data-size="2">
-          <i>2v2</i>
-          <b>双角色战队</b>
-          <span>2 个角色 · 同时上场或接力</span>
-          <em>进入 →</em>
-        </button>
-        <button class="home-mode" type="button" data-size="3">
-          <i>3v3</i>
-          <b>三角色满编</b>
-          <span>3 个角色 · 同时上场或接力</span>
-          <em>进入 →</em>
-        </button>
-        <div class="home-mode tour">
-          <i>赛事</i>
-          <b>锦标赛</b>
-          <span>8 / 16 人 · 抽签 · 押注 · 双败淘汰</span>
-          <div class="hm-tour-row">
-            <select id="tourSize" title="参赛人数"><option value="8">8 人</option><option value="16">16 人</option></select>
-            <button id="btnTour" type="button" class="primary sm" title="8 / 16 人自动赛事：小组赛 BO2 → 淘汰赛 BO3 → 决赛 BO5">进入赛事 →</button>
-          </div>
+    <div class="home-shell">
+      <section class="home-hero">
+        <div class="home-brand">
+          <span class="home-kicker">MC · 方块对决</span>
+          <h2>赛博斗蛐蛐</h2>
+          <div class="home-ver" id="homeVer">v26.11.11</div>
+          <p class="home-desc">台球式匀速直线运动 · 角色池组合作战</p>
         </div>
-      </div>
-      <div class="home-foot">
+        <div class="home-stats">
+          <div class="hs"><i>金币</i><b id="homeCoins">1000</b></div>
+          <div class="hs"><i>赛季</i><b id="homeSeason">S1</b></div>
+        </div>
+        <div class="home-roster" id="homeRoster"></div>
+        <div class="home-by">by YT_XG</div>
+      </section>
+
+      <section class="home-actions">
+        <button class="home-big" type="button" data-go="solo">
+          <b>单机模式</b>
+          <span>1–6 人 · 同时上场 / 接力 · 预测胜率</span>
+          <em>进入 →</em>
+        </button>
+        <button class="home-big dim" type="button" data-go="online">
+          <b>联机模式</b>
+          <span>探索中，先用单机 / 赛事模式</span>
+          <em>敬请期待</em>
+        </button>
+        <button class="home-big tour" type="button" data-go="tour">
+          <b><i id="homeSeasonBtn">S1</i> 赛事模式</b>
+          <span>8 / 16 人 · 平衡抽签 · 双败淘汰</span>
+          <em>进入 →</em>
+        </button>
+
         <div class="home-round">
           <div class="round-pick" id="roundPick"></div>
         </div>
-        <div class="home-tip"><kbd>Esc</kbd> 返回主菜单 · 手机横屏体验更佳</div>
-      </div>
+        <div class="home-note">
+          <div><b>玩法</b>匀速直线 · 只有技能 / 撞墙才转向</div>
+          <div><b>模式</b>1v1 / 2v2 / 3v3 · 最多 6v6 · 同时 / 接力</div>
+          <div><b>赛事</b>8 / 16 人 · 小组赛 BO2 → 双败 → BO5</div>
+        </div>
+      </section>
     </div>
   </div>
 
@@ -91,6 +93,7 @@
           <div class="pick-kicker">
             <b>阵容准备</b>
             <span>点角色池补充阵容 · 点卡片切换编辑的一方</span>
+            <div class="size-pick" id="sizePick"></div>
           </div>
           <div class="pick-sides">
             <div class="pick-side">
@@ -115,6 +118,10 @@
               <div class="round-pick mode-pick" id="modePick"></div>
             </div>
             <div class="pick-foot-act">
+              <div class="pick-odds">
+                <span>预测胜率</span>
+                <b class="ra" id="oddsA">50%</b><i>:</i><b class="rb" id="oddsB">50%</b>
+              </div>
               <button id="btnRandom" type="button" class="ghost" title="双方阵容全部随机">随机双方</button>
               <button class="primary" id="btnStart">开始对战</button>
             </div>
@@ -143,6 +150,8 @@
   </div>
 
   <div id="mobi"></div>
+  <div id="deskToast"></div>
+  <div id="deskNames" class="desk-names"></div>
 
   <div class="status" id="status"></div>
 
@@ -157,7 +166,7 @@
   </div>
 </div>
 
-    <script src="js/00-base.js?v=20261109a"></script>
+    <script src="js/00-base.js?v=20261115b"></script>
     <script src="js/05-wallet.js?v=20261111a"></script>
     <script src="js/items/red.js?v=20261109a"></script>
     <script src="js/items/lapis.js?v=20261109a"></script>
@@ -170,14 +179,14 @@
     <script src="js/items/milk.js?v=20261109a"></script>
     <script src="js/items/bucket.js?v=20261109a"></script>
     <script src="js/items/pool.js?v=20261109a"></script>
-    <script src="js/10-core.js?v=20261111f"></script>
-    <script src="js/20-menu.js?v=20261109a"></script>
+    <script src="js/10-core.js?v=20261115b"></script>
+    <script src="js/20-menu.js?v=20261115b"></script>
     <script src="js/30-sim.js?v=20261111b"></script>
     <script src="js/40-render.js?v=20261111f"></script>
     <script src="js/45-icons.js?v=20261111f"></script>
     <script src="js/50-ui.js?v=20261109a"></script>
-    <script src="js/60-tournament.js?v=20261111f"></script>
+    <script src="js/60-tournament.js?v=20261115a"></script>
     <script src="js/70-tour-odds.js?v=20261111c"></script>
-    <script src="js/80-mobi.js?v=20261111g"></script>
+    <script src="js/80-mobi.js?v=20261115b"></script>
 </body>
 </html>

@@ -68,6 +68,14 @@ function tourRoleName(key) {
 
 function tourRolesText(p) { return p.roles.map(tourRoleName).join(' / '); }
 
+/* 桌面赛事页：名字来自浏览器存档，拼 HTML 前必须转义 */
+function tourEsc(s) {
+  if (typeof mobiEsc === 'function') return mobiEsc(s);
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 /* 9 角色两两对位实测胜率（数值 = 行角色胜率 %）
    ⚠️ 2026-11-7（第 82 条）用「全角色双向各 100 局、相邻档位 600 局」的最新矩阵整体替换；
    2026-11-9（第 89 条）补入 water 桶行：bucket 用「双向各 24 局」的 1v1 实测，
@@ -1043,24 +1051,46 @@ function renderGroups() {
   var html = '<div class="tb-head">赛事模式 · ' + tour.size + ' 名玩家 · 以 ' + gCount + ' 组为例' +
     (tour.restored ? ' <i class="tb-tag">已恢复上次进度</i>' : '') + '</div>';
 
-  html += '<div class="tb-wrap"><aside class="tb-left">' + tourSideHtml() + '</aside><main class="tb-main">' +
-    tourMobileBar();
-
+  /* 赛事准备：桌面端三栏（参赛选手 / 操作 / 物品），不再铺空组框 */
   if (tour.stage === 'setup') {
-    html += '<div class="tb-sub">点下面的按钮：每人抽 1 个 A 档 + 1 个 B 档，再按阵容强度蛇形分组</div>';
-    html += '<div class="tb-groups">';
-    for (var i = 0; i < gCount; i++) {
-      html += '<div class="tb-group empty"><div class="tb-gtitle">组' + (i + 1) + '</div></div>';
+    var names = tour.names || [];
+    html += '<div class="tb-sub">每人抽 1 个 A 档 + 1 个 B 档，再按阵容强度蛇形分组；' +
+      '组内 BO2 → 双败淘汰 → 总决赛 BO5</div>';
+    html += '<div class="tb-setup">';
+    html += '<section class="ts-panel"><h3>参赛选手</h3><div class="ts-pgrid">';
+    for (var pi = 0; pi < tour.size; pi++) {
+      html += '<div class="ts-pcell"><i>' + (pi + 1) + '、</i>' +
+        tourEsc(names[pi] || ('玩家' + (pi + 1))) + '</div>';
     }
-    html += '</div>';
-    html += '<div class="tb-foot"><button type="button" class="tb-big" data-act="deal">开始分配玩家和物品</button>' +
-      '<button type="button" class="tb-ghost" data-act="restart">重开赛事</button>' +
-      '<button type="button" class="tb-ghost" data-act="exit">退出赛事</button></div>';
-    html += '</main></div>';
+    html += '</div></section>';
+
+    html += '<div class="ts-mid">' +
+      '<div class="ts-bank">资金<b>' + tour.bank + '</b></div>' +
+      '<div class="ts-size">' +
+        '<button type="button" data-act="tsize" data-size="8" class="' + (tour.size === 8 ? 'on' : '') + '">8 人</button>' +
+        '<button type="button" data-act="tsize" data-size="16" class="' + (tour.size === 16 ? 'on' : '') + '">16 人</button>' +
+      '</div>' +
+      '<button type="button" class="ts-big" data-act="deal">开始分配小组</button>' +
+      '<button type="button" class="ts-link" data-act="namesD">自定义玩家姓名' +
+        '<em>浏览器保存；留空的名额随机</em></button>' +
+      '<button type="button" class="ts-ghost" data-act="exit">退出赛事</button>' +
+      '</div>';
+
+    html += '<section class="ts-panel"><h3>物品</h3><div class="ts-igrid">';
+    for (var ci = 0; ci < POOL.length; ci++) {
+      var pc = POOL[ci], pband = tourBandOf(pc.key);
+      html += '<div class="ts-item">' + deskRoleIco(pc.key, 46) +
+        '<b>' + tourEsc(pc.short) + '<i class="ts-band ' + (pband === 'A' ? 'a' : (pband === 'B' ? 'b' : '')) + '">' + pband + '</i></b>' +
+        '<small>' + tourEsc(pc.role) + '</small></div>';
+    }
+    html += '</div></section></div>';
     b.innerHTML = html;
     bindBoardClicks();
     return;
   }
+
+  html += '<div class="tb-wrap"><aside class="tb-left">' + tourSideHtml() + '</aside><main class="tb-main">' +
+    tourMobileBar();
 
   var narrow = window.innerWidth <= 980;
   /* 抽签揭晓动画：只在 tourDeal() 之后第一次渲染时播放（tour.dealAnim 不落存档）。
@@ -1966,6 +1996,11 @@ function bindBoardClicks() {
     if (!btn || btn.disabled) return;
     var act = btn.getAttribute('data-act');
     if (act === 'deal') tourDeal();
+    else if (act === 'namesD') { if (typeof deskNameEditor === 'function') deskNameEditor(); }
+    else if (act === 'tsize') {
+      var ns = parseInt(btn.getAttribute('data-size'), 10);
+      if (tour && tour.stage === 'setup' && ns && ns !== tour.size) { tourWipe(); tourOpen(ns); }
+    }
     else if (act === 'play') tourPlay(parseInt(btn.getAttribute('data-idx'), 10));
     else if (act === 'playKo') tourPlayKo(btn.getAttribute('data-zone'),
       parseInt(btn.getAttribute('data-ri'), 10), parseInt(btn.getAttribute('data-mi'), 10));

@@ -127,9 +127,128 @@ function buildMenu() {
     }
   }
   buildModePick();
+  buildSizePick();
   el.diceA.addEventListener('click', function () { randomTeam('A'); });
   el.diceB.addEventListener('click', function () { randomTeam('B'); });
   if (el.btnRandom) el.btnRandom.addEventListener('click', function () { randomTeam('A'); randomTeam('B'); });
+}
+
+/* 桌面端：人数 1–6 快捷选择（与手机端共用 setSize / pick） */
+function buildSizePick() {
+  if (!el.sizePick) return;
+  el.sizePick.innerHTML = '';
+  var label = document.createElement('span');
+  label.className = 'size-pick-t';
+  label.textContent = '人数';
+  el.sizePick.appendChild(label);
+  for (var n = 1; n <= 6; n++) {
+    (function (num) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = num + 'v' + num;
+      if (teamSize === num) b.classList.add('on');
+      b.addEventListener('click', function () {
+        setSize(num);
+        buildSizePick();
+        buildModePick();
+        syncPick();
+      });
+      el.sizePick.appendChild(b);
+    })(n);
+  }
+}
+
+/* ---------- 桌面端：金币 / 赛季 / 单机押注 ---------- */
+function deskToast(text) {
+  var t = el.deskToast;
+  if (!t) return;
+  t.textContent = text;
+  t.classList.add('on');
+  clearTimeout(deskToast.timer);
+  deskToast.timer = setTimeout(function () { t.classList.remove('on'); }, 1800);
+}
+
+function deskSyncChrome() {
+  var c = coinsGet();
+  var s = 'S' + seasonGet();
+  if (el.homeCoins) el.homeCoins.textContent = c;
+  if (el.homeSeason) el.homeSeason.textContent = s;
+  if (el.homeSeasonBtn) el.homeSeasonBtn.textContent = s;
+  deskSyncOdds();
+}
+
+/* 单机不押注，只显示预测胜率（与手机端一致） */
+function deskSyncOdds() {
+  if (!el.oddsA) return;
+  var pct = (typeof mobiSoloPct === 'function') ? mobiSoloPct() : 50;
+  el.oddsA.textContent = pct + '%';
+  el.oddsB.textContent = (100 - pct) + '%';
+}
+
+/* 桌面赛事页的角色/物品图标（不依赖手机端 CSS） */
+function deskRoleIco(key, size) {
+  var c = POOL_BY_KEY[key];
+  var st = 'width:' + size + 'px;height:' + size + 'px;';
+  if (!c) return '<span class="ico" style="' + st + '"></span>';
+  if (c.img) return '<span class="ico" style="' + st + '"><img src="' + c.img + '" alt=""></span>';
+  var svg = (typeof iconSvg === 'function') ? iconSvg(key) : '';
+  if (svg) return '<span class="ico" style="' + st + '">' + svg + '</span>';
+  return '<span class="ico" style="' + st + 'background:' + c.body + ';box-shadow:0 0 12px ' + c.glow + '"></span>';
+}
+
+/* 桌面赛事：自定义玩家姓名弹层（与手机端共用 localStorage） */
+function deskNameEditor() {
+  var box = el.deskNames;
+  if (!box) return;
+  var n = (typeof tour !== 'undefined' && tour) ? tour.size : 16;
+  var arr = duelNamesGet() || [];
+  var cur = (typeof tour !== 'undefined' && tour && tour.names) ? tour.names : [];
+  var h = '<div class="desk-names-box"><h3>自定义玩家姓名</h3>' +
+    '<p>留空的名额会用随机名字，填了的存在浏览器里</p><div class="desk-name-grid">';
+  for (var i = 0; i < n; i++) {
+    h += '<label><i>' + (i + 1) + '</i><input type="text" maxlength="8" data-dname="' + i + '"' +
+      ' value="' + deskEsc(arr[i] || '') + '" placeholder="' + deskEsc(cur[i] || ('玩家' + (i + 1))) + '"></label>';
+  }
+  h += '</div><div class="desk-names-act">' +
+    '<button type="button" data-dact="cancel">取消</button>' +
+    '<button type="button" class="primary" data-dact="save">保存</button>' +
+    '</div></div>';
+  box.innerHTML = h;
+  box.classList.add('on');
+  box.onclick = function (e) {
+    var b = e.target.closest('[data-dact]');
+    if (!b) {
+      if (e.target === box) box.classList.remove('on');
+      return;
+    }
+    if (b.getAttribute('data-dact') === 'cancel') { box.classList.remove('on'); return; }
+
+    var inputs = box.querySelectorAll('[data-dname]');
+    var arr2 = [];
+    for (var k = 0; k < inputs.length; k++) arr2.push((inputs[k].value || '').trim());
+    var prev = duelNamesGet() || [];
+    duelNamesSet(arr2);
+    if (typeof tour !== 'undefined' && tour) {
+      var keep = [];
+      for (var j = 0; j < tour.size; j++) {
+        keep[j] = arr2[j] || (prev[j] ? '' : ((tour.names && tour.names[j]) || ''));
+      }
+      tour.names = tourMakeNames(tour.size, keep);
+      for (var m = 0; m < tour.players.length; m++) {
+        if (tour.names[m]) tour.players[m].name = tour.names[m];
+      }
+      tourSave();
+    }
+    box.classList.remove('on');
+    if (typeof tourRender === 'function') tourRender();
+    deskToast('玩家姓名已保存到浏览器');
+  };
+}
+
+function deskEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 /* 人数已由主菜单入口决定，这里只保留「上场方式」开关 */
@@ -219,7 +338,8 @@ function syncPick() {
     var card = team === 'A' ? el.cardA : el.cardB;
     var active = activeTeam === team;
 
-    card.className = 'pick-card' + (active ? ' active' : '') + (teamSize > 1 ? ' multi' : '');
+    card.className = 'pick-card' + (active ? ' active' : '') +
+      (teamSize > 1 ? ' multi' : '') + ' slots-' + teamSize;
     card.style.color = team === 'A' ? '#e8483f' : '#4a7bf0';
     card.style.background = 'linear-gradient(160deg,' +
       rgba(team === 'A' ? '#e8483f' : '#4a7bf0', 0.14) + ',#11161f 72%)';
@@ -266,6 +386,8 @@ function syncPick() {
 
   el.nameA.textContent = sideName('A');
   el.nameB.textContent = sideName('B');
+
+  if (typeof deskSyncChrome === 'function') deskSyncChrome();
 }
 
 
@@ -273,18 +395,41 @@ function syncPick() {
    主菜单 / 选人页 / 战斗切换
    ------------------------------------------------------------
    · 启动与「返回」都先到主菜单（home）
-   · 主菜单四个入口：1v1 / 2v2 / 3v3 / 赛事模式，前三者进选人页
+   · 主菜单三个入口：单机模式 / 联机模式 / S{n} 赛事模式
    ============================================================ */
 function buildHome() {
-  var modes = document.querySelectorAll('.home-mode[data-size]');
-  for (var i = 0; i < modes.length; i++) {
+  // 版本号与手机首页共用 APP_VERSION
+  if (el.homeVer) el.homeVer.textContent = APP_VERSION;
+
+  // 角色池预览：与手机首页的 3×3 名单保持一致
+  var roster = document.getElementById('homeRoster');
+  if (roster) {
+    var rh = '<div class="home-roster-t">角色池 · ' + POOL.length + ' 个</div><div class="home-roster-g">';
+    POOL.forEach(function (c) {
+      rh += '<div class="home-roster-i">' + deskRoleIco(c.key, 30) +
+        '<div class="tx"><b>' + deskEsc(c.short) + '</b><small>' + deskEsc(c.role) + '</small></div></div>';
+    });
+    roster.innerHTML = rh + '</div>';
+  }
+
+  var btns = document.querySelectorAll('.home-big[data-go]');
+  for (var i = 0; i < btns.length; i++) {
     (function (btn) {
       btn.addEventListener('click', function () {
-        enterPick(parseInt(btn.getAttribute('data-size'), 10) || 1);
+        var go = btn.getAttribute('data-go');
+        if (go === 'solo') {
+          enterPick(teamSize || 1);
+        } else if (go === 'tour') {
+          if (typeof mobiOpenTour === 'function') mobiOpenTour();
+          else tourOpen(8);
+        } else {
+          deskToast('联机模式正在探索中，先用单机 / 赛事模式');
+        }
       });
-    })(modes[i]);
+    })(btns[i]);
   }
   if (el.btnBackHome) el.btnBackHome.addEventListener('click', openMenu);
+  deskSyncChrome();
 }
 
 /* 从主菜单进入某个对战人数的选人页 */
@@ -295,6 +440,7 @@ function enterPick(size) {
   }
   setSize(size);
   buildModePick();
+  buildSizePick();
   el.home.classList.remove('show');
   el.menu.classList.add('show');
   el.stage.classList.add('menu-open');
@@ -339,7 +485,11 @@ function openMenu() {
   el.btnSpeed.textContent = '速度 ×1';
   activeTeam = 'A';
   activeSlot = 0;
+
+  // 回主菜单时刷新金币 / 赛季
   syncPick();
+  buildSizePick();
+  if (typeof deskSyncChrome === 'function') deskSyncChrome();
 
   // 手机端：回到独立的手机主菜单
   if (typeof mobiOnHome === 'function') mobiOnHome();

@@ -273,7 +273,7 @@ function mobiHomeHtml() {
   return '<div class="m-home">' +
     '<div class="m-home-head">' +
       '<h2>赛博斗蛐蛐</h2>' +
-      '<div class="m-ver">v26.11.11</div>' +
+      '<div class="m-ver">' + APP_VERSION + '</div>' +
     '</div>' +
     /* 左下半区不再空着：直接把角色池铺成 3×3 预览（第 92 条：充分利用画布） */
     '<div class="m-roster"><div class="m-roster-t">角色池 · ' + POOL.length + ' 个</div>' +
@@ -1154,6 +1154,8 @@ function mobiInit() {
   } else {
     var root = mobiRoot();
     if (root) root.classList.remove('on');
+    // 桌面端：把 80 加载后的金币/赛季状态刷到首页与选人页
+    if (typeof deskSyncChrome === 'function') deskSyncChrome();
   }
 }
 
