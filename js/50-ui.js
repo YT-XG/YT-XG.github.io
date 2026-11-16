@@ -22,16 +22,18 @@ function frame(now) {
 
   if (!paused && !oddsBusy) {
     var sdt = dt * speedMul;
-    if (hitStop > 0) {
-      hitStop -= dt;
-      sdt *= 0.12;
-    }
+    // 命中顿帧只做视觉冲击（render 里的轻微放大），不改变模拟时间，
+    // 这样普通局分享出去的幽灵链接也能逐 tick 复现
+    if (hitStop > 0) hitStop -= dt;
     if (phase === 'fight') {
-      // 赛事观战可以加速：把一帧拆成多次 tick，避免单次 dt 过大导致穿透
-      var steps = (typeof tourSpeed === 'number' && tourSpeed > 0) ? tourSpeed : 1;
-      for (var si = 0; si < steps; si++) {
+      // 固定步长：帧率 / 倍速只改变“每帧跑几步”，不改变 tick 的 dt
+      var tourMul = (typeof tourSpeed === 'number' && tourSpeed > 0) ? tourSpeed : 1;
+      simAcc += sdt * tourMul;
+      var guard = 0;
+      while (simAcc >= SIM_DT && guard++ < 240) {
         if (phase !== 'fight') break;
-        tick(sdt);
+        tick(SIM_DT);
+        simAcc -= SIM_DT;
       }
     }
     // 击杀演出期间粒子走慢动作（时间流速 0.28×）
@@ -148,11 +150,14 @@ function showResult(winner, sub, by) {
   var title = winner === 'draw' ? '平局'
     : (isSeries && final ? sideName(winner) + ' 赢下系列赛' : sideName(winner) + ' 胜利');
 
-  el.resKicker.textContent = (isSeries ? '第 ' + seriesGame + ' 局 · ' : '') +
+  var srcLabel = matchSource === 'daily' ? '每日挑战 · '
+    : (matchSource === 'ghost' ? '幽灵挑战 · ' : '');
+  el.resKicker.textContent = srcLabel + (isSeries ? '第 ' + seriesGame + ' 局 · ' : '') +
     (final ? '对局结束' : '本局结束');
   el.resTitle.textContent = title;
   el.resSub.textContent = sub + ' · 本局 ' + Math.floor(t) + ' 秒' +
-    (isSeries ? ' · 系列赛 ' + seriesWins.A + ' : ' + seriesWins.B : '');
+    (isSeries ? ' · 系列赛 ' + seriesWins.A + ' : ' + seriesWins.B : '') +
+    ' · 种子 #' + matchSeed;
 
   var tiles = '';
   tiles += resultTile('MVP · 伤害', mvp ? (mvp.name + ' ' + Math.round(mvp.dealt || 0)) : '—', true);
@@ -161,8 +166,14 @@ function showResult(winner, sub, by) {
   if (isSeries) tiles += resultTile('系列赛', seriesWins.A + ' : ' + seriesWins.B);
   el.resStats.innerHTML = tiles;
 
+  if (matchSource === 'daily') dailyRecordSave(winner);
+
   if (el.resNext) el.resNext.classList.toggle('is-hidden', !(isSeries && !final));
-  if (el.resAgain) el.resAgain.classList.toggle('is-hidden', isSeries && !final);
+  if (el.resAgain) {
+    el.resAgain.classList.toggle('is-hidden', isSeries && !final);
+    el.resAgain.textContent = (matchSource === 'daily' || matchSource === 'ghost')
+      ? '重看本局' : (isSeries && final ? '再打一轮' : '再来一局');
+  }
 
   el.result.classList.add('show');
 }
@@ -275,13 +286,26 @@ el.btnPause.addEventListener('click', togglePause);
 el.btnSpeed.addEventListener('click', toggleSpeed);
 if (el.btnSound) el.btnSound.addEventListener('click', sfxToggle);
 
-if (el.resAgain) el.resAgain.addEventListener('click', startBattle);
+if (el.resAgain) el.resAgain.addEventListener('click', replayAgain);
 if (el.resNext) el.resNext.addEventListener('click', continueSeries);
 if (el.resChange) el.resChange.addEventListener('click', function () {
   openMenu();
   enterPick(teamSize);
 });
+if (el.resGhost) el.resGhost.addEventListener('click', function () {
+  copyText(ghostUrl());
+});
 if (el.resHome) el.resHome.addEventListener('click', openMenu);
+
+if (el.ghostStart) el.ghostStart.addEventListener('click', function () {
+  var cfg = ghostPending;
+  hideGhostInvite();
+  if (cfg) applyGhost(cfg);
+});
+if (el.ghostClose) el.ghostClose.addEventListener('click', function () {
+  hideGhostInvite();
+  clearGhostQuery();
+});
 
 if (el.pauseResume) el.pauseResume.addEventListener('click', togglePause);
 if (el.pauseRestart) el.pauseRestart.addEventListener('click', restartBattle);
@@ -329,4 +353,5 @@ buildRoundPick();
 syncPick();
 sfxSync();
 openMenu();
+initGhostInvite();
 requestAnimationFrame(frame);

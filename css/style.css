@@ -1141,6 +1141,17 @@ button.primary:hover{background:linear-gradient(180deg,#457ce0,#284d9c);border-c
 .home-big.tour b{color:#ffd9a8;}
 .home-big.tour b i{color:#ffd9a8;}
 .home-big.tour:hover{border-color:rgba(255,205,120,.7);box-shadow:0 22px 46px -26px rgba(255,190,90,.65);}
+.home-daily{
+  display:flex;align-items:center;gap:10px;width:100%;
+  padding:9px 16px;border-radius:12px;text-align:left;
+  border:1px dashed rgba(255,209,102,.38);background:rgba(255,209,102,.045);
+  color:#ffd9a8;
+}
+.home-daily b{font-size:13.5px;letter-spacing:.04em;}
+.home-daily span{flex:1;font-size:11.5px;color:#8b98ad;}
+.home-daily em{font-style:normal;font-size:12px;color:#ffd166;}
+.home-daily:hover{border-color:rgba(255,209,102,.75);background:rgba(255,209,102,.08);}
+.home-daily.done{opacity:.68;}
 .home-round{
   margin-top:4px;padding-top:14px;border-top:1px solid #1a2230;
   display:flex;align-items:center;gap:12px;flex-wrap:wrap;
@@ -1270,6 +1281,10 @@ button.primary:hover{background:linear-gradient(180deg,#457ce0,#284d9c);border-c
   background:radial-gradient(ellipse 55% 50% at 50% 50%, rgba(5,8,13,.9), rgba(5,8,13,.62) 65%, rgba(5,8,13,.28));
 }
 .result.show{display:flex;}
+/* 幽灵挑战邀请层：覆盖整个页面，而不是只在舞台里 */
+.ghost{position:fixed;inset:0;z-index:430;}
+.ghost .result-card{width:min(540px,92vw);}
+.ghost .result-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
 .result-card{
   width:min(560px,94%);padding:20px 22px;border-radius:16px;
   background:linear-gradient(180deg,#131a26,#0d121b 70%);

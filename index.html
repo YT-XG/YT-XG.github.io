@@ -4,9 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>MC 方块对决 · 组合作战</title>
-<link rel="stylesheet" href="css/style.css?v=20261116c" />
+<link rel="stylesheet" href="css/style.css?v=20261116e" />
 <link rel="stylesheet" href="css/mobile.css?v=20261109a" media="(max-width: 980px), (max-height: 480px), (pointer: coarse)" />
-<link rel="stylesheet" href="css/mobi.css?v=20261116b" />
+<link rel="stylesheet" href="css/mobi.css?v=20261116e" />
 </head>
 <body>
 <div class="app">
@@ -41,6 +41,7 @@
           <button class="primary" id="resAgain" type="button">再来一局</button>
           <button id="resNext" type="button">下一局</button>
           <button id="resChange" type="button">换阵容</button>
+          <button id="resGhost" type="button">复制幽灵链接</button>
           <button id="resHome" type="button">主菜单</button>
         </div>
       </div>
@@ -96,6 +97,11 @@
           <b><i id="homeSeasonBtn">S1</i> 赛事模式</b>
           <span>8 / 16 人 · 平衡抽签 · 双败淘汰</span>
           <em>进入 →</em>
+        </button>
+        <button class="home-daily" type="button" data-go="daily">
+          <b>每日挑战</b>
+          <span id="dailyHint">固定种子 · 2v2 · 2 分钟</span>
+          <em>开战 →</em>
         </button>
 
         <div class="home-round">
@@ -185,6 +191,19 @@
   <div id="deskToast"></div>
   <div id="deskNames" class="desk-names"></div>
 
+  <div class="result ghost" id="ghost">
+    <div class="result-card">
+      <div class="result-kicker">幽灵挑战</div>
+      <h2 id="ghostTitle">收到一局复现对局</h2>
+      <p id="ghostSub"></p>
+      <div class="result-grid" id="ghostStats"></div>
+      <div class="result-acts">
+        <button class="primary" id="ghostStart" type="button">开始观看</button>
+        <button id="ghostClose" type="button">返回主菜单</button>
+      </div>
+    </div>
+  </div>
+
   <div class="status" id="status"></div>
 
   <div class="foot">
@@ -199,7 +218,7 @@
   </div>
 </div>
 
-    <script src="js/00-base.js?v=20261116a"></script>
+    <script src="js/00-base.js?v=20261116d"></script>
     <script src="js/05-wallet.js?v=20261111a"></script>
     <script src="js/items/red.js?v=20261109a"></script>
     <script src="js/items/lapis.js?v=20261109a"></script>
@@ -212,14 +231,15 @@
     <script src="js/items/milk.js?v=20261109a"></script>
     <script src="js/items/bucket.js?v=20261109a"></script>
     <script src="js/items/pool.js?v=20261109a"></script>
-    <script src="js/10-core.js?v=20261116b"></script>
-    <script src="js/20-menu.js?v=20261116c"></script>
-    <script src="js/30-sim.js?v=20261116a"></script>
+    <script src="js/10-core.js?v=20261116d"></script>
+    <script src="js/20-menu.js?v=20261116d"></script>
+    <script src="js/30-sim.js?v=20261116d"></script>
     <script src="js/40-render.js?v=20261116a"></script>
     <script src="js/45-icons.js?v=20261111f"></script>
-    <script src="js/50-ui.js?v=20261116b"></script>
+    <script src="js/50-ui.js?v=20261116d"></script>
     <script src="js/60-tournament.js?v=20261115a"></script>
-    <script src="js/70-tour-odds.js?v=20261116a"></script>
-    <script src="js/80-mobi.js?v=20261116b"></script>
+    <script src="js/70-tour-odds.js?v=20261116d"></script>
+    <script src="js/80-mobi.js?v=20261116d"></script>
 </body>
 </html>
+

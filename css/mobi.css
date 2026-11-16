@@ -669,3 +669,13 @@ body.mobi-forced .rotate-tip{display:none !important;}
 .m-draft-tip{margin:-2px 0 4px;font-size:10px;color:#ffd166;letter-spacing:.04em;}
 .m-pool-item.taken{opacity:.35;filter:grayscale(1);pointer-events:none;}
 
+
+/* 2026-11-16：每日挑战 / 幽灵挑战 */
+.m-home-menu button.daily{height:52px;font-size:18px;border-color:rgba(255,209,102,.65);color:#ffd166;background:rgba(255,209,102,.06);}
+
+
+/* 主菜单四个入口：压一点高度，给下方玩法说明留出空间 */
+.m-home-menu{gap:10px;}
+.m-home-menu button{height:54px;font-size:20px;}
+.m-home-menu button.daily{height:50px;font-size:17px;}
+

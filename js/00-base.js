@@ -59,6 +59,47 @@ var SHRINK = { rate: 12, minW: 420 };
 
 function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
 function rand(a, b) { return a + Math.random() * (b - a); }
+
+/* ============================================================
+   可复现随机 + 固定步长
+   ------------------------------------------------------------
+   · 只有「影响胜负」的逻辑用 srand()；粒子/震屏等纯视觉仍用 rand()
+   · seedSim(seed) 后，同一串调用顺序会得到同一串随机数
+   · SIM_DT 固定为 1/60，帧率与倍速不再改变模拟步长
+   ============================================================ */
+var SIM_DT = 1 / 60;
+var matchSeed = 0;
+var simRng = null;
+
+function mulberry32(a) {
+  return function () {
+    a |= 0;
+    a = (a + 0x6D2B79F5) | 0;
+    var t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function seedSim(seed) {
+  matchSeed = ((seed >>> 0) || 1) >>> 0;
+  simRng = mulberry32(matchSeed);
+  return matchSeed;
+}
+
+function srand(a, b) {
+  return a + (simRng ? simRng() : Math.random()) * (b - a);
+}
+
+/* 字符串 → 32 位种子（每日挑战 / 幽灵码用） */
+function hashSeed(str) {
+  var h = 2166136261;
+  for (var i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
 function rgba(hex, a) {
   var n = parseInt(hex.slice(1), 16);
   return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';

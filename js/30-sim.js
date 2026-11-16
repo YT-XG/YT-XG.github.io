@@ -967,7 +967,7 @@ function wallBounceAngle(u, hx, hy) {
   var a = u.ang;
   if (hx) a = Math.PI - a;
   if (hy) a = -a;
-  return a + rand(-0.26, 0.26);
+  return a + srand(-0.26, 0.26);
 }
 
 function move(u, dt) {

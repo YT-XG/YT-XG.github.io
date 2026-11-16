@@ -74,6 +74,18 @@ var ANVIL_MARK_MAX = 12;       // 落点圆上限：CD 3s、延迟 3s，单角�
 var SEED_MAX = 6;              // 全场合计种子上限，超出删最早的
 var REVIVE_DELAY = 1.0;        // 草在种子上复活的吟唱时间（秒）
 var t = 0, roundTime = 180, phase = 'menu', winner = null;
+/* 固定步长累加器：由 50-ui 的 frame() 消费；reset() 时清零 */
+var simAcc = 0;
+/* 可复现对局：pendingSeed 由每日挑战 / 幽灵码写入；source 只用于赛后文案 */
+var pendingSeed = 0, hasPendingSeed = false;
+var matchSource = '';       // '' | 'daily' | 'ghost'
+var pendingSource = '';
+
+function setNextSeed(seed, source) {
+  pendingSeed = (seed >>> 0) || 1;
+  hasPendingSeed = true;
+  pendingSource = source || '';
+}
 // 对局时长档位（秒）；默认 3 分钟。切换后由下一次 reset() 生效
 var ROUND_OPTIONS = [60, 120, 180, 300];
 var roundDuration = 180;
@@ -214,7 +226,15 @@ var el = {
   resAgain: document.getElementById('resAgain'),
   resNext: document.getElementById('resNext'),
   resChange: document.getElementById('resChange'),
+  resGhost: document.getElementById('resGhost'),
   resHome: document.getElementById('resHome'),
+  ghost: document.getElementById('ghost'),
+  ghostTitle: document.getElementById('ghostTitle'),
+  ghostSub: document.getElementById('ghostSub'),
+  ghostStats: document.getElementById('ghostStats'),
+  ghostStart: document.getElementById('ghostStart'),
+  ghostClose: document.getElementById('ghostClose'),
+  dailyHint: document.getElementById('dailyHint'),
   pause: document.getElementById('pause'),
   pauseResume: document.getElementById('pauseResume'),
   pauseRestart: document.getElementById('pauseRestart'),
@@ -239,7 +259,7 @@ function addUnit(key, x, y, team) {
     skillName: d.skill.name,
     x: x, y: y, ang: 0, vx: 0, vy: 0,
     alive: true, flash: 0,
-    cd: d.skill.passiveOnly ? 0 : rand(0.8, 1.8), hitCd: 0, wallCd: 0,
+    cd: d.skill.passiveOnly ? 0 : srand(0.8, 1.8), hitCd: 0, wallCd: 0,
     dashT: 0, dashSpeed: 0,
     castT: 0, castMax: 0, castAim: null,
     slowT: 0, slowMul: BALANCE.slowSpeedMul, iceTick: 1.0, dealt: 0, taken: 0,
@@ -263,7 +283,7 @@ function spawnSide(team, r) {
   var x1 = team === 'A' ? A.x + A.w * 0.42 : A.x + A.w - m;
   var y0 = A.y + m, y1 = A.y + A.h - m;
   for (var k = 0; k < SPAWN.tries; k++) {
-    var x = rand(x0, x1), y = rand(y0, y1), ok = true;
+    var x = srand(x0, x1), y = srand(y0, y1), ok = true;
     for (var i = 0; i < units.length; i++) {
       var o = units[i];
       if (o.team !== team) continue;   // 对手在另一半场，天然不重叠
@@ -275,7 +295,7 @@ function spawnSide(team, r) {
   var mates = 0;
   for (var m2 = 0; m2 < units.length; m2++) if (units[m2].team === team) mates++;
   var cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-  var ang = mates * 2.399 + rand(-0.25, 0.25);
+  var ang = mates * 2.399 + srand(-0.25, 0.25);
   var rad = Math.min(130, 30 * (mates + 1));
   return {
     x: clamp(cx + Math.cos(ang) * rad, x0, x1),
@@ -301,10 +321,23 @@ function deployRole(team, idx) {
 function faceInward(u) {
   var A = ARENA;
   var toCenter = Math.atan2(A.y + A.h / 2 - u.y, A.x + A.w / 2 - u.x);
-  u.ang = toCenter + rand(-SPAWN.faceSpread, SPAWN.faceSpread);
+  u.ang = toCenter + srand(-SPAWN.faceSpread, SPAWN.faceSpread);
 }
 
 function reset() {
+  // 先决定本局种子，再生成任何单位：出生点 / 初始 CD / 撞墙噪声都吃这串随机数
+  if (hasPendingSeed) {
+    seedSim(pendingSeed);
+    matchSource = pendingSource;
+    hasPendingSeed = false;
+    pendingSource = '';
+    pendingSeed = 0;
+  } else {
+    seedSim(((Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0));
+    matchSource = '';
+  }
+  simAcc = 0;
+
   units = []; particles = []; rings = []; floaters = []; bombs = []; arrows = []; icePatches = [];
   waters = [];
   anvilMarks = [];

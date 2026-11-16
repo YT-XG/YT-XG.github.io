@@ -1636,6 +1636,13 @@ function render() {
   if (shake > 0.1) {
     ctx.translate(rand(-shake, shake) * 0.6, rand(-shake, shake) * 0.6);
   }
+  // 命中顿帧的视觉表现：极短的中心放大，不影响模拟时间
+  if (hitStop > 0.001) {
+    var iz = 1 + hitStop * 1.2;
+    ctx.translate(W / 2, H / 2);
+    ctx.scale(iz, iz);
+    ctx.translate(-W / 2, -H / 2);
+  }
   // 赛事击杀演出：朝击杀点放大
   if (typeof tourFx !== 'undefined' && tourFx && tourFx.zoom > 1.001) {
     var tf = tourFx.focus;

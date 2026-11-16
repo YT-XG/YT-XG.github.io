@@ -475,6 +475,7 @@ function deskSyncChrome() {
   if (el.homeSeason) el.homeSeason.textContent = s;
   if (el.homeSeasonBtn) el.homeSeasonBtn.textContent = s;
   deskSyncOdds();
+  if (typeof syncDailyHint === 'function') syncDailyHint();
 }
 
 /* 单机不押注，只显示预测胜率（与手机端一致） */
@@ -781,6 +782,197 @@ function syncPick() {
 
 
 /* ============================================================
+   每日挑战 / 幽灵挑战
+   ------------------------------------------------------------
+   · 每日挑战：按本地日期生成固定种子 + 固定 2v2 阵容，2 分钟
+   · 幽灵挑战：URL 携带 seed / 人数 / 模式 / 时长 / 双方阵容
+   · 两者都走 setNextSeed(seed, source)，由固定步长引擎复现同一局
+   ============================================================ */
+var DAILY_KEY = 'mcduel.daily.v1';
+var ghostPending = null;
+
+function dailyKey() {
+  var d = new Date();
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+
+function dailyConfig() {
+  var key = dailyKey();
+  var seed = hashSeed('mcduel-daily-v1:' + key);
+  var rng = mulberry32(seed);
+  var keys = POOL.map(function (c) { return c.key; });
+  for (var i = keys.length - 1; i > 0; i--) {
+    var j = Math.floor(rng() * (i + 1));
+    var tmp = keys[i]; keys[i] = keys[j]; keys[j] = tmp;
+  }
+  return {
+    seed: seed, dateKey: key, size: 2, mode: 'vs', dur: 120,
+    a: keys.slice(0, 2), b: keys.slice(2, 4)
+  };
+}
+
+function dailyRecordGet() {
+  try {
+    var raw = localStorage.getItem(DAILY_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+function dailyRecordSave(winner) {
+  try {
+    localStorage.setItem(DAILY_KEY, JSON.stringify({
+      date: dailyKey(), seed: matchSeed, winner: winner, t: Math.floor(t)
+    }));
+  } catch (e) {}
+}
+
+function dailyDoneToday() {
+  var r = dailyRecordGet();
+  return !!(r && r.date === dailyKey());
+}
+
+function syncDailyHint() {
+  var done = dailyDoneToday();
+  if (el.dailyHint) {
+    el.dailyHint.textContent = done ? '今日已完成 · 点击重看' : '固定种子 · 2v2 · 2 分钟';
+  }
+  var btn = document.querySelector('.home-daily');
+  if (btn) btn.classList.toggle('done', done);
+}
+
+function roleNames(keys) {
+  var out = [];
+  for (var i = 0; i < (keys || []).length; i++) {
+    var c = POOL_BY_KEY[keys[i]];
+    out.push(c ? c.short : keys[i]);
+  }
+  return out.join(' + ');
+}
+
+function ghostUrl() {
+  var base = location.href.split('#')[0].split('?')[0];
+  return base + '?ghost=1&seed=' + matchSeed +
+    '&size=' + teamSize + '&mode=' + modeKind + '&dur=' + roundDuration +
+    '&a=' + (pick.A || []).join(',') + '&b=' + (pick.B || []).join(',');
+}
+
+function readGhostLink() {
+  try {
+    var q = new URLSearchParams(location.search);
+    if (q.get('ghost') !== '1') return null;
+    var seed = parseInt(q.get('seed'), 10) >>> 0;
+    var size = clamp(parseInt(q.get('size'), 10) || 1, 1, 6);
+    var mode = q.get('mode') === 'relay' ? 'relay' : 'vs';
+    var dur = parseInt(q.get('dur'), 10);
+    if (ROUND_OPTIONS.indexOf(dur) < 0) dur = 180;
+    var a = (q.get('a') || '').split(',').filter(function (k) { return !!POOL_BY_KEY[k]; });
+    var b = (q.get('b') || '').split(',').filter(function (k) { return !!POOL_BY_KEY[k]; });
+    if (!seed || a.length !== size || b.length !== size) return null;
+    return { seed: seed, size: size, mode: mode, dur: dur, a: a, b: b };
+  } catch (e) {
+    return null;
+  }
+}
+
+function clearGhostQuery() {
+  try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+}
+
+function hideGhostInvite() {
+  if (el.ghost) el.ghost.classList.remove('show');
+}
+
+function showGhostInvite(cfg) {
+  ghostPending = cfg;
+  if (!el.ghost) return;
+  el.ghostTitle.textContent = '幽灵挑战 · ' + cfg.size + 'v' + cfg.size;
+  el.ghostSub.textContent = '同一套种子与阵容，双方会打出完全相同的一局';
+  el.ghostStats.innerHTML =
+    '<div class="result-stat"><i>种子</i><b>#' + cfg.seed + '</b></div>' +
+    '<div class="result-stat"><i>赛制</i><b>' + cfg.size + 'v' + cfg.size + ' · ' +
+      (cfg.mode === 'relay' ? '接力' : '同时') + ' · ' + (cfg.dur / 60) + ' 分钟</b></div>' +
+    '<div class="result-stat b"><i>红方</i><b>' + deskEsc(roleNames(cfg.a)) + '</b></div>' +
+    '<div class="result-stat b"><i>蓝方</i><b>' + deskEsc(roleNames(cfg.b)) + '</b></div>';
+  el.ghost.classList.add('show');
+}
+
+function initGhostInvite() {
+  var cfg = readGhostLink();
+  if (cfg) showGhostInvite(cfg);
+}
+
+/* 复现对局：幽灵与每日挑战共用 */
+function startReplay(cfg, source) {
+  hideGhostInvite();
+  clearGhostQuery();
+  openMenu();
+  draftMode = false;
+  teamSize = cfg.size;
+  modeKind = cfg.mode;
+  roundDuration = cfg.dur;
+  pick.A = cfg.a.slice(0, cfg.size);
+  pick.B = cfg.b.slice(0, cfg.size);
+  seriesBest = 1;
+  seriesWins = { A: 0, B: 0 };
+  seriesGame = 1;
+  setNextSeed(cfg.seed, source);
+  buildDraftPick();
+  buildModePick();
+  buildSizePick();
+  buildSeriesPick();
+  if (typeof buildRoundPick === 'function') buildRoundPick();
+  syncPick();
+  startBattle();
+}
+
+function startDaily() {
+  startReplay(dailyConfig(), 'daily');
+}
+
+function applyGhost(cfg) {
+  if (!cfg) return;
+  startReplay(cfg, 'ghost');
+}
+
+/* 赛后面板「重看本局」：每日 / 幽灵用原种子重放；普通局开新局 */
+function replayAgain() {
+  if ((matchSource === 'daily' || matchSource === 'ghost') && matchSeed) {
+    startReplay({
+      seed: matchSeed, size: teamSize, mode: modeKind, dur: roundDuration,
+      a: (pick.A || []).slice(0, teamSize), b: (pick.B || []).slice(0, teamSize)
+    }, matchSource);
+    return;
+  }
+  startBattle();
+}
+
+function copyText(text) {
+  function fallback() {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      uiToast('幽灵链接已复制');
+    } catch (e) {
+      uiToast('复制失败，请手动复制地址栏');
+    }
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () {
+      uiToast('幽灵链接已复制');
+    }, fallback);
+  } else {
+    fallback();
+  }
+}
+
+
+/* ============================================================
    主菜单 / 选人页 / 战斗切换
    ------------------------------------------------------------
    · 启动与「返回」都先到主菜单（home）
@@ -801,13 +993,15 @@ function buildHome() {
     roster.innerHTML = rh + '</div>';
   }
 
-  var btns = document.querySelectorAll('.home-big[data-go]');
+  var btns = document.querySelectorAll('.home-big[data-go], .home-daily[data-go]');
   for (var i = 0; i < btns.length; i++) {
     (function (btn) {
       btn.addEventListener('click', function () {
         var go = btn.getAttribute('data-go');
         if (go === 'solo') {
           enterPick(teamSize || 1);
+        } else if (go === 'daily') {
+          startDaily();
         } else if (go === 'tour') {
           if (typeof mobiOpenTour === 'function') mobiOpenTour();
           else tourOpen(8);
@@ -818,6 +1012,7 @@ function buildHome() {
     })(btns[i]);
   }
   if (el.btnBackHome) el.btnBackHome.addEventListener('click', openMenu);
+  if (typeof syncDailyHint === 'function') syncDailyHint();
   deskSyncChrome();
 }
 
@@ -854,6 +1049,7 @@ function openMenu() {
   anvilMarks = [];
   seeds = []; vines = []; reviveQueue = [];
   t = 0; roundTime = roundDuration; shake = 0; hitStop = 0;
+  simAcc = 0;
   suddenDeath = false; deathAcc = 0; suddenStart = 0;
   seriesWins = { A: 0, B: 0 };
   seriesGame = 1;

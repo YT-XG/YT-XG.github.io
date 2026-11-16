@@ -112,7 +112,8 @@ function oddsSnapshot() {
     t: t, roundTime: roundTime, phase: phase, winner: winner,
     suddenDeath: suddenDeath, suddenStart: suddenStart, deathAcc: deathAcc,
     shake: shake, hitStop: hitStop, paused: paused,
-    ax: ARENA.x, aw: ARENA.w
+    ax: ARENA.x, aw: ARENA.w,
+    seed: matchSeed, rng: simRng
   };
 }
 
@@ -128,6 +129,8 @@ function oddsRestore() {
   suddenDeath = s.suddenDeath; suddenStart = s.suddenStart; deathAcc = s.deathAcc;
   shake = s.shake; hitStop = s.hitStop; paused = s.paused;
   ARENA.x = s.ax; ARENA.w = s.aw;
+  matchSeed = s.seed;
+  simRng = s.rng;
   oddsSnap = null;
 }
 
@@ -156,6 +159,8 @@ function oddsInitMatch(aRoles, bRoles, swap) {
   pick = { A: (swap ? bRoles : aRoles).slice(0, 2), B: (swap ? aRoles : bRoles).slice(0, 2) };
   teamSize = 2;
   modeKind = 'vs';
+  // 每局用不同种子：赔率样本需要多样本，不能用同一个复现种子
+  seedSim(((Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0));
   for (var i = 0; i < 2; i++) { deployRole('A', i); deployRole('B', i); }
   phase = 'fight';
 }
