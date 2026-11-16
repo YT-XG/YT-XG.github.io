@@ -103,6 +103,12 @@ var RELAY_DELAY = 1.0;                   // 接力换人间隔（秒）
 var activeTeam = 'A';   // 当前正在选择的一方
 var activeSlot = 0;     // 当前正在选择的格子（0..teamSize-1）
 
+/* 单机赛制：1 = 单局，3 = 三局两胜。
+   赛事模式不读这个字段，仍按赛程自己的 BO2/BO3/BO5 走。 */
+var seriesBest = 1;
+var seriesWins = { A: 0, B: 0 };
+var seriesGame = 1;
+
 function sideName(team) {
   // 赛事模式只显示「红方 · 玩家名」，具体角色交给伤害条 / 比分条
   if (teamNames[team]) return SIDE_LABEL[team] + ' · ' + teamNames[team];
@@ -186,6 +192,27 @@ var el = {
   sizePick: document.getElementById('sizePick'),
   oddsA: document.getElementById('oddsA'),
   oddsB: document.getElementById('oddsB'),
+  oddsBarA: document.getElementById('oddsBarA'),
+  oddsBarB: document.getElementById('oddsBarB'),
+  comboPick: document.getElementById('comboPick'),
+  seriesPick: document.getElementById('seriesPick'),
+  rosterA: document.getElementById('rosterA'),
+  rosterB: document.getElementById('rosterB'),
+  result: document.getElementById('result'),
+  resKicker: document.getElementById('resKicker'),
+  resTitle: document.getElementById('resTitle'),
+  resSub: document.getElementById('resSub'),
+  resStats: document.getElementById('resStats'),
+  resAgain: document.getElementById('resAgain'),
+  resNext: document.getElementById('resNext'),
+  resChange: document.getElementById('resChange'),
+  resHome: document.getElementById('resHome'),
+  pause: document.getElementById('pause'),
+  pauseResume: document.getElementById('pauseResume'),
+  pauseRestart: document.getElementById('pauseRestart'),
+  pauseSound: document.getElementById('pauseSound'),
+  pauseHome: document.getElementById('pauseHome'),
+  btnSound: document.getElementById('btnSound'),
   deskToast: document.getElementById('deskToast'),
   deskNames: document.getElementById('deskNames')
 };
@@ -206,6 +233,7 @@ function addUnit(key, x, y, team) {
     alive: true, flash: 0,
     cd: d.skill.passiveOnly ? 0 : rand(0.8, 1.8), hitCd: 0, wallCd: 0,
     dashT: 0, dashSpeed: 0,
+    castT: 0, castMax: 0, castAim: null,
     slowT: 0, slowMul: BALANCE.slowSpeedMul, iceTick: 1.0, dealt: 0, taken: 0,
     waterT: 0, waterAcc: 1.0,   // 浸水累计时长 / 满 1 秒结算一次的累加器（水桶的水面）
     bindT: 0, poisonT: 0, poisonAcc: 1.0, poisonSrc: null,
@@ -290,6 +318,8 @@ function reset() {
   el.timerLabel.textContent = 'SEC';
   syncPick();
   el.banner.classList.remove('show');
+  if (typeof hideResult === 'function') hideResult();
+  if (typeof rebuildRoster === 'function') rebuildRoster();
 }
 
 

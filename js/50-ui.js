@@ -1,5 +1,5 @@
 /* ============================================================
-   50-ui.js —— 帧循环、键盘与按钮交互、启动入口（最后加载）
+   50-ui.js —— 帧循环、键盘与按钮交互、阵容条、结算/暂停、音效、启动入口
    ============================================================ */
 'use strict';
 
@@ -44,21 +44,227 @@ function frame(now) {
 }
 
 /* ============================================================
-   交互
+   阵容条：每个单位一张小卡（名字 / 血条 / 状态字）
    ============================================================ */
+var rosterRefs = { A: [], B: [] };
+var rosterFrame = 0;
+
+function rosterStatus(u) {
+  if (u.castT > 0) return '蓄';
+  if (u.st && u.st.rage) return u.st.rage.phase === 'shake' ? '抖' : '狂';
+  if (u.st && u.st.milkT > 0) return '导';
+  if (u.bindT > 0) return '定';
+  if (u.poisonT > 0) return '毒';
+  if (u.waterT > 0) return '水';
+  if (u.st && u.st.shield > 0) return '盾';
+  return '';
+}
+
+function rebuildRoster() {
+  // 后台赔率模拟不碰 DOM / 不发声
+  if (typeof simHeadless !== 'undefined' && simHeadless) return;
+  if (!el.rosterA || !el.rosterB) return;
+  rosterRefs = { A: [], B: [] };
+
+  ['A', 'B'].forEach(function (team) {
+    var box = team === 'A' ? el.rosterA : el.rosterB;
+    box.innerHTML = '';
+    var color = team === 'A' ? '#e8483f' : '#4a7bf0';
+    for (var i = 0; i < units.length; i++) {
+      var u = units[i];
+      if (u.team !== team) continue;
+      var chip = document.createElement('div');
+      chip.className = 'roster-chip';
+      chip.innerHTML =
+        '<span class="rc-dot" style="background:' + u.body + ';box-shadow:0 0 5px ' + u.glow + '"></span>' +
+        '<span class="rc-name">' + u.name + '</span>' +
+        '<span class="rc-hp"><i style="background:' + color + '"></i></span>' +
+        '<span class="rc-st"></span>';
+      box.appendChild(chip);
+      rosterRefs[team].push({
+        u: u,
+        el: chip,
+        hp: chip.querySelector('.rc-hp i'),
+        st: chip.querySelector('.rc-st')
+      });
+    }
+  });
+
+  updateRoster(true);
+}
+
+function updateRoster(force) {
+  if (typeof simHeadless !== 'undefined' && simHeadless) return;
+  if (!force && (rosterFrame++ % 5) !== 0) return;
+  ['A', 'B'].forEach(function (team) {
+    var refs = rosterRefs[team];
+    for (var i = 0; i < refs.length; i++) {
+      var r = refs[i], u = r.u;
+      var pct = u.maxHp > 0 ? Math.max(0, Math.min(1, u.hp / u.maxHp)) : 0;
+      r.hp.style.width = (pct * 100).toFixed(1) + '%';
+      r.el.classList.toggle('dead', !u.alive);
+      r.el.classList.toggle('acting', !!(u.alive && u.castT > 0));
+      var mark = u.alive ? rosterStatus(u) : '';
+      if (r.st.textContent !== mark) r.st.textContent = mark;
+      r.el.title = u.name + ' · ' + (u.alive ? Math.ceil(u.hp) + '/' + u.maxHp + ' HP' : '已阵亡');
+    }
+  });
+}
+
+/* ============================================================
+   结算卡片
+   ============================================================ */
+function hideResult() {
+  if (el.result) el.result.classList.remove('show');
+}
+
+function topDealer() {
+  var best = null;
+  for (var i = 0; i < units.length; i++) {
+    var u = units[i];
+    if (!best || (u.dealt || 0) > (best.dealt || 0)) best = u;
+  }
+  return best;
+}
+
+function resultTile(label, value, small) {
+  return '<div class="result-stat' + (small ? ' b' : '') + '"><i>' + label + '</i><b>' +
+    deskEsc(String(value)) + '</b></div>';
+}
+
+function showResult(winner, sub, by) {
+  if (!el.result) return;
+
+  var isSeries = seriesBest === 3;
+  var final = true;
+  if (isSeries) {
+    if (winner === 'A' || winner === 'B') seriesWins[winner]++;
+    final = seriesWins.A >= 2 || seriesWins.B >= 2;
+  }
+
+  var dA = Math.round(dealtOf('A'));
+  var dB = Math.round(dealtOf('B'));
+  var mvp = topDealer();
+  var title = winner === 'draw' ? '平局'
+    : (isSeries && final ? sideName(winner) + ' 赢下系列赛' : sideName(winner) + ' 胜利');
+
+  el.resKicker.textContent = (isSeries ? '第 ' + seriesGame + ' 局 · ' : '') +
+    (final ? '对局结束' : '本局结束');
+  el.resTitle.textContent = title;
+  el.resSub.textContent = sub + ' · 本局 ' + Math.floor(t) + ' 秒' +
+    (isSeries ? ' · 系列赛 ' + seriesWins.A + ' : ' + seriesWins.B : '');
+
+  var tiles = '';
+  tiles += resultTile('MVP · 伤害', mvp ? (mvp.name + ' ' + Math.round(mvp.dealt || 0)) : '—', true);
+  tiles += resultTile('总伤害', dA + ' : ' + dB);
+  tiles += resultTile('结束方式', by === 'time' ? '时间到' : (by === 'death' ? '决杀' : '击杀'), true);
+  if (isSeries) tiles += resultTile('系列赛', seriesWins.A + ' : ' + seriesWins.B);
+  el.resStats.innerHTML = tiles;
+
+  if (el.resNext) el.resNext.classList.toggle('is-hidden', !(isSeries && !final));
+  if (el.resAgain) el.resAgain.classList.toggle('is-hidden', isSeries && !final);
+
+  el.result.classList.add('show');
+}
+
+/* ============================================================
+   暂停层
+   ============================================================ */
+function hidePause() {
+  if (el.pause) el.pause.classList.remove('show');
+}
+
 function togglePause() {
-  if (phase === 'menu') return;
+  if (phase !== 'fight') return;
   // 后台赔率模拟期间不响应暂停：它自己已经把 paused 置为 true
   if (typeof oddsRunning !== 'undefined' && oddsRunning) return;
   paused = !paused;
   el.btnPause.textContent = paused ? '继续' : '暂停';
+  if (el.pause) el.pause.classList.toggle('show', paused);
 }
+
 function toggleSpeed() {
   speedMul = speedMul === 1 ? 2 : (speedMul === 2 ? 0.5 : 1);
   el.btnSpeed.textContent = '速度 ×' + speedMul;
 }
 
-el.btnRestart.addEventListener('click', startBattle);
+/* ============================================================
+   音效：WebAudio 合成，零依赖；只做少量关键提示音
+   ============================================================ */
+var SFX_KEY = 'mcduel.sfx.v1';
+var sfx = { muted: false, ctx: null, last: {} };
+try {
+  if (localStorage.getItem(SFX_KEY) === '1') sfx.muted = true;
+} catch (e) {}
+
+function sfxInit() {
+  var AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  if (!sfx.ctx) sfx.ctx = new AC();
+  if (sfx.ctx.state === 'suspended') {
+    try { sfx.ctx.resume(); } catch (e) {}
+  }
+  return sfx.ctx;
+}
+
+function sfxTone(ac, f1, f2, dur, type, vol, delay) {
+  var o = ac.createOscillator();
+  var g = ac.createGain();
+  var t0 = ac.currentTime + (delay || 0);
+  o.type = type || 'sine';
+  o.frequency.setValueAtTime(Math.max(20, f1), t0);
+  if (f2 && f2 !== f1) o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t0 + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g);
+  g.connect(ac.destination);
+  o.start(t0);
+  o.stop(t0 + dur + 0.03);
+}
+
+function sfxPlay(name) {
+  if (sfx.muted) return;
+  // 后台赔率模拟 / 无渲染批量跑局时绝对不要出声
+  if (typeof simHeadless !== 'undefined' && simHeadless) return;
+  if (typeof oddsRunning !== 'undefined' && oddsRunning) return;
+  var ac = sfxInit();
+  if (!ac) return;
+  // 用 performance.now 做节流：AudioContext 被挂起时 currentTime 不前进，会误吞后续音效
+  var now = performance.now() / 1000;
+  var gaps = { hit: 0.045, cast: 0.06, death: 0.12, bomb: 0.08, rage: 0.2, win: 0.5, lose: 0.5 };
+  var gap = gaps[name] || 0.05;
+  if (sfx.last[name] && now - sfx.last[name] < gap) return;
+  sfx.last[name] = now;
+
+  if (name === 'hit') sfxTone(ac, 190, 90, 0.07, 'square', 0.035, 0);
+  else if (name === 'cast') sfxTone(ac, 520, 780, 0.09, 'sine', 0.05, 0);
+  else if (name === 'death') sfxTone(ac, 240, 70, 0.34, 'sawtooth', 0.05, 0);
+  else if (name === 'bomb') sfxTone(ac, 95, 40, 0.28, 'square', 0.08, 0);
+  else if (name === 'rage') sfxTone(ac, 330, 660, 0.22, 'triangle', 0.06, 0);
+  else if (name === 'win') {
+    sfxTone(ac, 523, 523, 0.12, 'sine', 0.055, 0);
+    sfxTone(ac, 784, 784, 0.18, 'sine', 0.055, 0.11);
+  } else if (name === 'lose') sfxTone(ac, 300, 170, 0.3, 'sine', 0.05, 0);
+}
+
+function sfxSync() {
+  var text = '音效 ' + (sfx.muted ? '关' : '开');
+  if (el.btnSound) el.btnSound.textContent = text;
+  if (el.pauseSound) el.pauseSound.textContent = '音效：' + (sfx.muted ? '关' : '开');
+}
+
+function sfxToggle() {
+  sfx.muted = !sfx.muted;
+  try { localStorage.setItem(SFX_KEY, sfx.muted ? '1' : '0'); } catch (e) {}
+  sfxSync();
+  if (!sfx.muted) sfxPlay('cast');
+}
+
+/* ============================================================
+   交互
+   ============================================================ */
+el.btnRestart.addEventListener('click', restartBattle);
 el.btnStart.addEventListener('click', startBattle);
 el.btnMenu.addEventListener('click', openMenu);
 el.cardA.addEventListener('click', function () { activeTeam = 'A'; syncPick(); });
@@ -67,10 +273,24 @@ el.detailA.addEventListener('click', function () { activeTeam = 'A'; syncPick();
 el.detailB.addEventListener('click', function () { activeTeam = 'B'; syncPick(); });
 el.btnPause.addEventListener('click', togglePause);
 el.btnSpeed.addEventListener('click', toggleSpeed);
+if (el.btnSound) el.btnSound.addEventListener('click', sfxToggle);
+
+if (el.resAgain) el.resAgain.addEventListener('click', startBattle);
+if (el.resNext) el.resNext.addEventListener('click', continueSeries);
+if (el.resChange) el.resChange.addEventListener('click', function () {
+  openMenu();
+  enterPick(teamSize);
+});
+if (el.resHome) el.resHome.addEventListener('click', openMenu);
+
+if (el.pauseResume) el.pauseResume.addEventListener('click', togglePause);
+if (el.pauseRestart) el.pauseRestart.addEventListener('click', restartBattle);
+if (el.pauseSound) el.pauseSound.addEventListener('click', sfxToggle);
+if (el.pauseHome) el.pauseHome.addEventListener('click', openMenu);
 
 window.addEventListener('keydown', function (e) {
   if (e.code === 'KeyR') {
-    if (phase !== 'menu') startBattle();
+    if (phase !== 'menu') restartBattle();
   } else if (e.code === 'Space') {
     if (phase === 'menu') return;
     e.preventDefault();
@@ -107,5 +327,6 @@ buildMenu();
 buildHome();
 buildRoundPick();
 syncPick();
+sfxSync();
 openMenu();
 requestAnimationFrame(frame);

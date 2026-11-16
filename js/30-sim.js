@@ -31,6 +31,7 @@ function floater(x, y, text, color, size) {
    ============================================================ */
 function hurt(u, amount, src) {
   if (!u.alive || amount <= 0) return;
+  if (typeof sfxPlay === 'function') sfxPlay('hit');
 
   // 野生狗奶：引导期间受击先扣「打断护盾」（80 点）；护盾存在时不掉血，打空立即打断
   if (u.st && u.st.milkT > 0) {
@@ -115,6 +116,7 @@ function canPassThrough(u, other) {
 
 function startRage(u) {
   if (!u.alive || u.st.rage) return;
+  if (typeof sfxPlay === 'function') sfxPlay('rage');
   u.st.rage = { phase: 'shake', t: BALANCE.bondShake, since: 0 };
   u.dashT = 0; u.dmgMult = 1; u.vx = 0; u.vy = 0; u.trail = [];
   ring(u.x, u.y, u.r, 170, 0.6, '#ffd166');
@@ -124,6 +126,7 @@ function startRage(u) {
 }
 
 function onUnitDeath(u) {
+  if (typeof sfxPlay === 'function') sfxPlay('death');
   // 大狗：死亡立刻收回激光，否则 onTick 不再跑、laserT 永远 > 0，光束会一直挂在场上
   if (u.st && u.st.laserT > 0) {
     u.st.laserT = 0;   // 死亡立刻收回
@@ -173,6 +176,7 @@ function updateBombs(dt) {
     b.fuse -= dt;
     if (b.fuse > 0) continue;
     bombs.splice(i, 1);
+    if (typeof sfxPlay === 'function') sfxPlay('bomb');
 
     ring(b.x, b.y, 6, b.radius, 0.42, '#ffb14d');
     ring(b.x, b.y, 3, b.radius * 0.55, 0.3, '#fff1c9');
@@ -745,6 +749,7 @@ function updateRevive(dt) {
     ring(q.x, q.y, 12, 160, 0.6, '#9be36f');
     floater(q.x, q.y - 34, '复活 ' + Math.round(nu.hp) + ' HP', '#c8f5b0', 15);
     shake = Math.max(shake, 5);
+    if (typeof rebuildRoster === 'function') rebuildRoster();
   }
 }
 
@@ -754,11 +759,39 @@ function updateRevive(dt) {
    只改 ARENA.x / ARENA.w；move() 每帧读 ARENA 做边界钳制，
    所以落在新墙外的单位会在下一帧被推回场内并触发撞墙反弹。
    ============================================================ */
+/* 开局场地大小随人数自适应：1v1 用更小的场地，避免大半个屏幕空着 */
+function pickUnitCount() {
+  var n = 0;
+  ['A', 'B'].forEach(function (team) {
+    var keys = pick[team] || [];
+    for (var i = 0; i < keys.length; i++) {
+      var c = POOL_BY_KEY[keys[i]];
+      if (c) n += c.units.length;
+    }
+  });
+  return n;
+}
+
+function arenaStartBox() {
+  var n = pickUnitCount();
+  var kw = n <= 3 ? 0.78 : (n <= 5 ? 0.9 : 1);
+  var kh = n <= 3 ? 0.9 : 1;
+  var w = Math.max(SHRINK.minW, Math.round(ARENA_FULL.w * kw));
+  var h = Math.round(ARENA_FULL.h * kh);
+  return {
+    x: ARENA_FULL.x + (ARENA_FULL.w - w) / 2,
+    y: ARENA_FULL.y + (ARENA_FULL.h - h) / 2,
+    w: w,
+    h: h
+  };
+}
+
 function resetArena() {
-  ARENA.x = ARENA_FULL.x;
-  ARENA.y = ARENA_FULL.y;
-  ARENA.w = ARENA_FULL.w;
-  ARENA.h = ARENA_FULL.h;
+  var a = arenaStartBox();
+  ARENA.x = a.x;
+  ARENA.y = a.y;
+  ARENA.w = a.w;
+  ARENA.h = a.h;
 }
 
 // 持续收缩：每帧按 rate * dt 收窄，墙是"慢慢推过来"的，不是跳一下
@@ -856,6 +889,7 @@ function cast(u, target) {
   var T = TYPES[u.key];
   var S = T.skill;
   var aim = Math.atan2(target.y - u.y, target.x - u.x);
+  if (typeof sfxPlay === 'function') sfxPlay('cast');
 
   // 远程技能声明 noTurn 时只瞄准、不改自身运动方向（方向仍只由撞墙 / 其他技能改变）
   if (!S.noTurn) u.ang = aim;   // 转向
@@ -869,9 +903,23 @@ function cast(u, target) {
 
 /* ============================================================
    技能施放：CD 好了直接放，不做距离 / 角度 / 反应试探
+   ------------------------------------------------------------
+   2026-11-16：增加两层「可读性」改动
+     · 冲刺型技能贴脸时不放（避免直接穿过敌人）
+     · 所有主动技能有 0.16s 蓄力预警，锁定向目标点发射，给观众 0.16s 的反应时间
    ============================================================ */
+function castAllowed(u, s) {
+  var T = TYPES[u.key];
+  var S = T.skill;
+  if (S.passiveOnly) return false;
+  if (S.dashTime > 0 && s.dist < 55) return false;   // 贴脸时冲刺没有意义，等拉开距离
+  if (S.range && s.dist > S.range) return false;
+  return true;
+}
+
 function think(u, dt) {
   if (!u.alive || u.st.rage || u.dashT > 0 || u.cd > 0) return;
+  if (u.castT > 0) return;
   // 被动型"技能"（冰块的寒冰轨迹）不需要主动施放，由 onTick 持续生效
   if (TYPES[u.key].skill.passiveOnly) return;
 
@@ -881,24 +929,45 @@ function think(u, dt) {
   // 物品可以声明 canCast(u) 做"能用但暂时不能放"的判定（如：草已有种子时不能再种）
   var T = TYPES[u.key];
   if (T.canCast && !T.canCast(u)) return;
+  if (!castAllowed(u, s)) return;
 
-  // CD 好了就直接放技能，不做距离 / 角度 / 反应试探
-  cast(u, s.enemy);
+  var S = T.skill;
+  var wind = (S.windup == null ? 0.16 : S.windup);
+  if (wind <= 0) {
+    cast(u, s.enemy);
+    return;
+  }
+  // 锁定目标当前位置：蓄力期间目标可以走开，这就是"预警"带来的博弈
+  u.castT = wind;
+  u.castMax = wind;
+  u.castAim = { x: s.enemy.x, y: s.enemy.y };
+}
+
+/* 蓄力计时：归零时才真正施放（方向点已锁定） */
+function updateCasts(dt) {
+  for (var i = 0; i < units.length; i++) {
+    var u = units[i];
+    if (u.castT <= 0) continue;
+    u.castT -= dt;
+    if (!u.alive || u.st.rage) { u.castT = 0; u.castAim = null; continue; }
+    if (u.castT > 0) continue;
+    var aim = u.castAim;
+    u.castAim = null;
+    if (aim) cast(u, aim);
+  }
 }
 
 /* ============================================================
    匀速直线运动 + 撞墙随机转向
    ============================================================ */
-// 撞墙后随机取一个朝向场内的角度，避免固定对角反弹
-function wallBounceAngle(hx, hy) {
-  if (hx > 0 && hy > 0) return rand(0, Math.PI / 2);
-  if (hx < 0 && hy > 0) return rand(Math.PI / 2, Math.PI);
-  if (hx < 0 && hy < 0) return rand(Math.PI, Math.PI * 1.5);
-  if (hx > 0 && hy < 0) return rand(-Math.PI / 2, 0);
-  if (hx > 0) return rand(-Math.PI / 2, Math.PI / 2);
-  if (hx < 0) return rand(Math.PI / 2, Math.PI * 1.5);
-  if (hy > 0) return rand(0, Math.PI);
-  return rand(Math.PI, Math.PI * 2);
+/* 撞墙后按镜面反射，再叠加 ±15° 噪声。
+   完全随机转向会让同一阵容的胜负过度依赖运气；镜面反射保留台球感，
+   噪声只负责避免每局轨迹完全一样。 */
+function wallBounceAngle(u, hx, hy) {
+  var a = u.ang;
+  if (hx) a = Math.PI - a;
+  if (hy) a = -a;
+  return a + rand(-0.26, 0.26);
 }
 
 function move(u, dt) {
@@ -933,7 +1002,7 @@ function move(u, dt) {
     // 用 wallCd 同时限制"随机转向"的频率，否则贴着移动墙的单位会每帧随机变向、抖成筛子。
     if (u.wallCd <= 0) {
       u.wallCd = 0.12;
-      u.ang = wallBounceAngle(hx, hy);   // 撞墙后方向随机，但一定朝场内
+      u.ang = wallBounceAngle(u, hx, hy);   // 镜面反射 + 小噪声，方向仍只由撞墙改变
       var wx = u.x + hx * u.r, wy = u.y + hy * u.r;
       ring(wx, wy, 3, 30, 0.26, rgba(u.glow, 0.9));
       burst(wx, wy, 5, u.glow, 130);
@@ -1118,6 +1187,9 @@ function finish(by) {
   for (var i = 0; i < units.length; i++) {
     if (units[i].alive) ring(units[i].x, units[i].y, units[i].r, 220, 0.7, units[i].glow);
   }
+
+  if (typeof sfxPlay === 'function') sfxPlay('win');
+  if (typeof showResult === 'function') showResult(winner, sub, by);
 }
 
 // 决杀阶段：每秒扣除全体存活单位 5% 最大生命，无视护盾与 3 秒无敌抖动
@@ -1165,6 +1237,7 @@ function updateRelay(dt) {
     relayTimer[team] = 0;
     lineupIndex[team]++;
     deployRole(team, lineupIndex[team]);
+    if (typeof rebuildRoster === 'function') rebuildRoster();
     var role = POOL_BY_KEY[(pick[team] || [])[lineupIndex[team]]];
     if (role) {
       var ac = ARENA;
@@ -1244,6 +1317,7 @@ function tick(dt) {
     if (PT.onTick) PT.onTick(pu, dt);
   }
 
+  updateCasts(dt);    // 先结算蓄力，再让 CD 好的单位开始新的蓄力
   for (var a = 0; a < units.length; a++) think(units[a], dt);
   for (var b = 0; b < units.length; b++) if (units[b].alive) move(units[b], dt);
 

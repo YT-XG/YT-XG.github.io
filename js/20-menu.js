@@ -16,6 +16,24 @@ var KINDS = [
   { id: 'relay', label: '接力' }
 ];
 
+/* 详情面板默认只显示定位与总结，点「展开数值明细」才铺开所有数值。
+   状态只放在内存里，不写存档。 */
+var detailOpen = { A: false, B: false };
+
+function roleTags(keys) {
+  var out = [];
+  for (var i = 0; i < keys.length; i++) {
+    var c = POOL_BY_KEY[keys[i]];
+    if (!c || !c.role) continue;
+    var parts = c.role.split('/');
+    for (var j = 0; j < parts.length; j++) {
+      var tag = parts[j].trim();
+      if (tag && out.indexOf(tag) < 0) out.push(tag);
+    }
+  }
+  return out;
+}
+
 function rageSummary(key) {
   var R = TYPES[key].rage;
   if (!R) return '';
@@ -51,11 +69,34 @@ function detailHtml(team) {
     for (var w = 0; w < cc.units.length; w++) totalHp += TYPES[cc.units[w]].maxHp;
   }
 
+  var tags = roleTags(keys);
+  var hasBond = !!lineupBond(roleUnits(keys));
+
   var html = '<div class="d-side">' + SIDE_LABEL[team] + '</div>' +
     '<div class="d-name">' + (modeKind === 'relay' ? '接力 ' : '') + keys.length + ' 个角色</div>' +
     '<div class="d-meta">合计 ' + totalHp + ' HP' +
     (modeKind === 'relay' ? ' · 逐个上场，胜者保留血量' : ' · 同时上场') + '</div>';
 
+  if (tags.length || hasBond) {
+    html += '<div class="d-tags">';
+    for (var t = 0; t < tags.length; t++) {
+      html += '<span class="d-tag">' + deskEsc(tags[t]) + '</span>';
+    }
+    if (hasBond) html += '<span class="d-tag bond">羁绊</span>';
+    html += '</div>';
+  }
+
+  if (!keys.length) return html;
+
+  var open = !!detailOpen[team];
+  html += '<button type="button" class="d-toggle" data-detail-toggle="' + team + '">' +
+    (open ? '收起数值明细 ▴' : '展开数值明细 ▾') + '</button>';
+  if (!open) {
+    html += '<div class="d-hint">默认只显示定位与总血量，点开再看技能 / 被动 / 狂暴数值</div>';
+    return html;
+  }
+
+  html += '<div class="d-more">';
   for (var i = 0; i < keys.length; i++) {
     var c = POOL_BY_KEY[keys[i]];
     if (!c) continue;
@@ -71,10 +112,10 @@ function detailHtml(team) {
     html += '</div>';
   }
 
-  if (lineupBond(roleUnits(keys))) {
+  if (hasBond) {
     html += '<div class="d-bond">羁绊：一方阵亡 → 另一方原地无敌抖动 3 秒，随后进入狂暴（详情见上方各单位）</div>';
   }
-  return html;
+  return html + '</div>';
 }
 
 function lineupBond(keys) {
@@ -128,9 +169,75 @@ function buildMenu() {
   }
   buildModePick();
   buildSizePick();
+  buildSeriesPick();
+  buildComboPick();
   el.diceA.addEventListener('click', function () { randomTeam('A'); });
   el.diceB.addEventListener('click', function () { randomTeam('B'); });
   if (el.btnRandom) el.btnRandom.addEventListener('click', function () { randomTeam('A'); randomTeam('B'); });
+}
+
+/* 推荐组合：一键把当前选择方填成常见搭配，降低第一次选人的门槛 */
+var COMBOS = [
+  { label: '红青 + 长矛', keys: ['duo', 'spear'] },
+  { label: '草 + 水桶', keys: ['grass', 'bucket'] },
+  { label: '冰 + 弓箭', keys: ['ice', 'bow'] },
+  { label: '大狗 + 铁砧', keys: ['dog', 'anvil'] },
+  { label: '红青 + 草 + 水桶', keys: ['duo', 'grass', 'bucket'] }
+];
+
+function applyCombo(keys) {
+  var out = keys.slice(0, teamSize);
+  for (var i = 0; out.length < teamSize && i < POOL.length * 2; i++) {
+    var k = POOL[i % POOL.length].key;
+    if (out.indexOf(k) < 0) out.push(k);
+  }
+  pick[activeTeam] = out;
+  activeSlot = Math.min(activeSlot, teamSize - 1);
+  syncPick();
+}
+
+function buildComboPick() {
+  if (!el.comboPick) return;
+  el.comboPick.innerHTML = '';
+  var label = document.createElement('span');
+  label.className = 'cp-label';
+  label.textContent = '推荐组合';
+  el.comboPick.appendChild(label);
+  COMBOS.forEach(function (c) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = c.label;
+    b.title = '填入当前选择方（' + SIDE_LABEL[activeTeam] + '）';
+    b.addEventListener('click', function () { applyCombo(c.keys); });
+    el.comboPick.appendChild(b);
+  });
+}
+
+/* 单机赛制：单局 / 三局两胜 */
+function buildSeriesPick() {
+  if (!el.seriesPick) return;
+  el.seriesPick.innerHTML = '';
+  var row = document.createElement('div');
+  row.className = 'rp-row';
+  var t = document.createElement('span');
+  t.className = 'rp-title';
+  t.textContent = '赛制';
+  row.appendChild(t);
+  [{ v: 1, label: '单局' }, { v: 3, label: '三局两胜' }].forEach(function (o) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = o.label;
+    if (seriesBest === o.v) b.classList.add('on');
+    b.addEventListener('click', function () {
+      seriesBest = o.v;
+      seriesWins = { A: 0, B: 0 };
+      seriesGame = 1;
+      buildSeriesPick();
+      syncPick();
+    });
+    row.appendChild(b);
+  });
+  el.seriesPick.appendChild(row);
 }
 
 /* 桌面端：人数 1–6 快捷选择（与手机端共用 setSize / pick） */
@@ -181,8 +288,11 @@ function deskSyncChrome() {
 function deskSyncOdds() {
   if (!el.oddsA) return;
   var pct = (typeof mobiSoloPct === 'function') ? mobiSoloPct() : 50;
+  pct = Math.max(0, Math.min(100, Math.round(pct)));
   el.oddsA.textContent = pct + '%';
   el.oddsB.textContent = (100 - pct) + '%';
+  if (el.oddsBarA) el.oddsBarA.style.width = pct + '%';
+  if (el.oddsBarB) el.oddsBarB.style.width = (100 - pct) + '%';
 }
 
 /* 桌面赛事页的角色/物品图标（不依赖手机端 CSS） */
@@ -349,7 +459,8 @@ function syncPick() {
       var c = POOL_BY_KEY[(pick[team] || [])[s]];
       if (!c) continue;
       var sel = (active && activeSlot === s) ? ' sel' : '';
-      html += '<div class="slot-chip' + sel + '" data-team="' + team + '" data-slot="' + s + '">' +
+      html += '<div class="slot-chip' + sel + '" data-team="' + team + '" data-slot="' + s + '" title="' +
+        deskEsc(c.role + ' · ' + c.units.length + ' 个单位') + '">' +
         '<span class="sc-idx">' + (s + 1) + '</span>' +
         (c.img
           ? '<img class="pc-img" src="' + c.img + '" alt="' + c.name + '">'
@@ -372,7 +483,24 @@ function syncPick() {
     var body = team === 'A' ? el.detailBodyA : el.detailBodyB;
     var panel = team === 'A' ? el.detailA : el.detailB;
     body.innerHTML = detailHtml(team);
+    // 详情折叠按钮：阻止冒泡，避免同时触发「切换选择方」
+    var tog = body.querySelector('[data-detail-toggle]');
+    if (tog) {
+      tog.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var side = this.getAttribute('data-detail-toggle');
+        detailOpen[side] = !detailOpen[side];
+        syncPick();
+      });
+    }
     panel.classList.toggle('active', active);
+
+    if (el.comboPick) {
+      var cps = el.comboPick.querySelectorAll('button');
+      for (var ci = 0; ci < cps.length; ci++) {
+        cps[ci].title = '填入当前选择方（' + SIDE_LABEL[activeTeam] + '）';
+      }
+    }
   });
 
   var modeText = teamSize + 'v' + teamSize + (modeKind === 'relay' ? ' 接力' : ' 同时上场');
@@ -382,6 +510,7 @@ function syncPick() {
     SIDE_LABEL.A + ' <b>' + (pick.A || []).length + '</b> 人  VS  ' +
     SIDE_LABEL.B + ' <b>' + (pick.B || []).length + '</b> 人 ｜ 对局 <b>' +
     (roundDuration / 60) + ' 分钟</b>' +
+    (seriesBest === 3 ? ' ｜ <b>三局两胜</b>' : '') +
     (modeKind === 'relay' ? ' ｜ 胜者保留血量' : '');
 
   el.nameA.textContent = sideName('A');
@@ -466,6 +595,9 @@ function openMenu() {
   seeds = []; vines = []; reviveQueue = [];
   t = 0; roundTime = roundDuration; shake = 0; hitStop = 0;
   suddenDeath = false; deathAcc = 0; suddenStart = 0;
+  seriesWins = { A: 0, B: 0 };
+  seriesGame = 1;
+  if (typeof rebuildRoster === 'function') rebuildRoster();
 
   el.stage.classList.remove('sudden');
   el.timerLabel.textContent = 'SEC';
@@ -483,6 +615,8 @@ function openMenu() {
   el.btns.classList.add('hidden');
   el.btnPause.textContent = '暂停';
   el.btnSpeed.textContent = '速度 ×1';
+  if (typeof hideResult === 'function') hideResult();
+  if (typeof hidePause === 'function') hidePause();
   activeTeam = 'A';
   activeSlot = 0;
 
@@ -500,7 +634,31 @@ function startBattle() {
   if (typeof tourOddsStop === 'function') tourOddsStop();
   // 手机端：进战斗先把独立界面收起，让 canvas 占满
   if (typeof mobiOnBattleStart === 'function') mobiOnBattleStart();
+  // 新开一轮系列赛
+  seriesWins = { A: 0, B: 0 };
+  seriesGame = 1;
   reset();
+  applyFightChrome();
+}
+
+/* 系列赛「下一局」：保留 seriesWins / seriesGame，只重置这一局的战场 */
+function continueSeries() {
+  seriesGame++;
+  reset();
+  applyFightChrome();
+}
+
+/* 「重开 / R」：系列赛未结束时只重打当前局，不把比分清零 */
+function restartBattle() {
+  if (seriesBest === 3 && seriesWins.A < 2 && seriesWins.B < 2) {
+    reset();
+    applyFightChrome();
+    return;
+  }
+  startBattle();
+}
+
+function applyFightChrome() {
   phase = 'fight';
   paused = false;
   if (el.home) el.home.classList.remove('show');
@@ -509,5 +667,7 @@ function startBattle() {
   document.body.classList.remove('menu-open');
   el.btns.classList.remove('hidden');
   el.btnPause.textContent = '暂停';
+  if (typeof hideResult === 'function') hideResult();
+  if (typeof hidePause === 'function') hidePause();
 }
 

@@ -130,7 +130,10 @@ function drawDamagePanels() {
     });
 
     var ph = headH + rows.length * rowH + 8;
-    var x = side.team === 'A' ? 8 : W - 8 - PW;
+    // 信息条贴着当前场地左右边缘，场地随人数缩小时不会漂到很远
+    var x = side.team === 'A'
+      ? Math.max(8, ARENA.x - PW - 8)
+      : Math.min(W - 8 - PW, ARENA.x + ARENA.w + 8);
     var y = cy - ph / 2;
 
     // 3) 卡片底
@@ -1307,6 +1310,25 @@ function drawUnit(u) {
   var R = u.st.rage;
   var shaking = !!R && R.phase === 'shake';
 
+  // 技能蓄力预警：锁定方向画一条虚线，末端是落点圈
+  if (u.castT > 0 && u.castAim) {
+    var prog = u.castMax > 0 ? clamp(1 - u.castT / u.castMax, 0, 1) : 1;
+    var line = u.team === 'A' ? '232,72,63' : '74,123,240';
+    ctx.save();
+    ctx.strokeStyle = 'rgba(' + line + ',' + (0.25 + prog * 0.45).toFixed(3) + ')';
+    ctx.lineWidth = 1.5 + prog;
+    ctx.setLineDash([7, 6]);
+    ctx.beginPath();
+    ctx.moveTo(u.x + Math.cos(u.ang) * (u.r + 4), u.y + Math.sin(u.ang) * (u.r + 4));
+    ctx.lineTo(u.castAim.x, u.castAim.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.arc(u.castAim.x, u.castAim.y, 8 + prog * 8, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   if (shaking) {
     ctx.save();
     ctx.translate(rand(-2.5, 2.5), rand(-2.5, 2.5));
@@ -1651,5 +1673,6 @@ function render() {
   el.timerLabel.textContent = suddenDeath ? '-5%/s' : 'SEC';
   el.stage.classList.toggle('sudden', suddenDeath && phase === 'fight');
   el.status.textContent = statusText();
+  if (typeof updateRoster === 'function') updateRoster();
 }
 

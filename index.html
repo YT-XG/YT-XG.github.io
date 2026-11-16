@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>MC 方块对决 · 组合作战</title>
-<link rel="stylesheet" href="css/style.css?v=20261115b" />
+<link rel="stylesheet" href="css/style.css?v=20261116a" />
 <link rel="stylesheet" href="css/mobile.css?v=20261109a" media="(max-width: 980px), (max-height: 480px), (pointer: coarse)" />
 <link rel="stylesheet" href="css/mobi.css?v=20261111e" />
 </head>
@@ -21,14 +21,42 @@
       <div class="team a">
         <div class="tname" id="nameA">红方 · 红石块 + 青金石块</div>
         <div class="bar"><i id="hpA"></i></div>
+        <div class="roster" id="rosterA"></div>
       </div>
       <div class="clock"><b id="timer">180</b><small id="timerLabel">SEC</small></div>
       <div class="team b">
         <div class="tname" id="nameB">蓝方 · 长矛</div>
         <div class="bar b"><i id="hpB"></i></div>
+        <div class="roster" id="rosterB"></div>
       </div>
     </div>
     <div class="banner" id="banner"><strong></strong><em></em></div>
+    <div class="result" id="result">
+      <div class="result-card">
+        <div class="result-kicker" id="resKicker">对局结束</div>
+        <h2 id="resTitle">红方 胜利</h2>
+        <p id="resSub"></p>
+        <div class="result-grid" id="resStats"></div>
+        <div class="result-acts">
+          <button class="primary" id="resAgain" type="button">再来一局</button>
+          <button id="resNext" type="button">下一局</button>
+          <button id="resChange" type="button">换阵容</button>
+          <button id="resHome" type="button">主菜单</button>
+        </div>
+      </div>
+    </div>
+    <div class="pause" id="pause">
+      <div class="pause-card">
+        <b>已暂停</b>
+        <p>空格继续 · F 切换速度</p>
+        <div class="pause-acts">
+          <button class="primary" id="pauseResume" type="button">继续</button>
+          <button id="pauseRestart" type="button">重开</button>
+          <button id="pauseSound" type="button">音效：开</button>
+          <button id="pauseHome" type="button">主菜单</button>
+        </div>
+      </div>
+    </div>
   <div class="tour-panel" id="tourPanel"></div>
   <div class="tour-board" id="tourBoard"></div>
   <div class="tour-fx" id="tourFx"></div>
@@ -116,10 +144,12 @@
             <div class="pick-foot-info">
               <div class="pick-summary" id="pickSummary"></div>
               <div class="round-pick mode-pick" id="modePick"></div>
+              <div class="round-pick series-pick" id="seriesPick"></div>
             </div>
             <div class="pick-foot-act">
               <div class="pick-odds">
                 <span>预测胜率</span>
+                <div class="odds-bar"><i class="oa" id="oddsBarA"></i><i class="ob" id="oddsBarB"></i></div>
                 <b class="ra" id="oddsA">50%</b><i>:</i><b class="rb" id="oddsB">50%</b>
               </div>
               <button id="btnRandom" type="button" class="ghost" title="双方阵容全部随机">随机双方</button>
@@ -133,16 +163,17 @@
             <div class="pool-title">角色池</div>
             <div class="pool-hint">点红/蓝卡片切换选择方，再点角色</div>
           </div>
+          <div class="combo-pick" id="comboPick"></div>
           <div class="pool" id="pool"></div>
         </section>
 
         <aside class="detail detail-a" id="detailA">
-          <div class="detail-title">红方 · 角色技能数值</div>
+          <div class="detail-title">红方 · 角色详情</div>
           <div class="detail-body" id="detailBodyA"></div>
         </aside>
 
         <aside class="detail detail-b" id="detailB">
-          <div class="detail-title">蓝方 · 角色技能数值</div>
+          <div class="detail-title">蓝方 · 角色详情</div>
           <div class="detail-body" id="detailBodyB"></div>
         </aside>
       </div>
@@ -156,17 +187,18 @@
   <div class="status" id="status"></div>
 
   <div class="foot">
-    <div class="hint">纯 Canvas 2D + 原生 JS，零依赖，单文件可直接双击打开。</div>
+    <div class="hint">Canvas 2D · 原生 JS · 零依赖 · 本地对战</div>
     <div class="btns" id="btns">
       <button id="btnRestart">重开</button>
       <button id="btnPause">暂停</button>
       <button id="btnSpeed">速度 ×1</button>
+      <button id="btnSound">音效 开</button>
       <button id="btnMenu">主菜单</button>
     </div>
   </div>
 </div>
 
-    <script src="js/00-base.js?v=20261115b"></script>
+    <script src="js/00-base.js?v=20261116a"></script>
     <script src="js/05-wallet.js?v=20261111a"></script>
     <script src="js/items/red.js?v=20261109a"></script>
     <script src="js/items/lapis.js?v=20261109a"></script>
@@ -179,14 +211,14 @@
     <script src="js/items/milk.js?v=20261109a"></script>
     <script src="js/items/bucket.js?v=20261109a"></script>
     <script src="js/items/pool.js?v=20261109a"></script>
-    <script src="js/10-core.js?v=20261115b"></script>
-    <script src="js/20-menu.js?v=20261115b"></script>
-    <script src="js/30-sim.js?v=20261111b"></script>
-    <script src="js/40-render.js?v=20261111f"></script>
+    <script src="js/10-core.js?v=20261116a"></script>
+    <script src="js/20-menu.js?v=20261116a"></script>
+    <script src="js/30-sim.js?v=20261116a"></script>
+    <script src="js/40-render.js?v=20261116a"></script>
     <script src="js/45-icons.js?v=20261111f"></script>
-    <script src="js/50-ui.js?v=20261109a"></script>
+    <script src="js/50-ui.js?v=20261116a"></script>
     <script src="js/60-tournament.js?v=20261115a"></script>
-    <script src="js/70-tour-odds.js?v=20261111c"></script>
+    <script src="js/70-tour-odds.js?v=20261116a"></script>
     <script src="js/80-mobi.js?v=20261115b"></script>
 </body>
 </html>

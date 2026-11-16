@@ -8,7 +8,7 @@
 'use strict';
 
 /* 界面显示用版本号：桌面首页与手机首页共用同一个常量 */
-var APP_VERSION = 'v26.11.11';
+var APP_VERSION = 'v26.11.16';
 
 /* ============================================================
    运动模型
@@ -49,7 +49,7 @@ var TAU = Math.PI * 2;
 
 // 场地布局（改这里就能调整整体尺寸，画布宽高与 CSS 比例要同步）
 var ARENA_PAD_X = 132;   // 左右各 132 = 14 外边距 + 104 信息条 + 14 内边距
-var ARENA_PAD_TOP = 76;  // 上方留给 HUD 血条
+var ARENA_PAD_TOP = 96;  // 上方留给 HUD 血条 + 阵容条
 var ARENA_PAD_BOTTOM = 56;
 var ARENA_FULL = { x: ARENA_PAD_X, y: ARENA_PAD_TOP, w: W - ARENA_PAD_X * 2, h: H - ARENA_PAD_TOP - ARENA_PAD_BOTTOM };
 // 对局中会持续收缩的场地：x/w 每帧被读，收缩只改这两个字段

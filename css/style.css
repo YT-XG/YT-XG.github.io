@@ -1193,6 +1193,119 @@ button.primary:hover{background:linear-gradient(180deg,#457ce0,#284d9c);border-c
   background:rgba(4,7,12,.82);
 }
 .desk-names.on{display:flex;}
+
+/* ============================================================
+   2026-11-16：战斗可读性 / 选人决策 / 赛后面板
+   ============================================================ */
+.is-hidden{display:none !important;}
+
+/* —— 战斗 HUD 阵容条：每个单位一行小卡，补足血条与状态 —— */
+.roster{
+  display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;
+  min-height:19px;pointer-events:auto;
+}
+.team.b .roster{justify-content:flex-end;}
+.roster-chip{
+  display:flex;align-items:center;gap:4px;
+  min-width:0;padding:2px 5px;border-radius:5px;
+  background:rgba(12,17,26,.82);border:1px solid rgba(255,255,255,.07);
+  font-size:10px;line-height:1;color:#cfd8e6;
+  transition:opacity .15s,filter .15s;
+}
+.roster-chip .rc-dot{width:6px;height:6px;border-radius:2px;flex:none;}
+.roster-chip .rc-name{max-width:62px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.roster-chip .rc-hp{
+  width:30px;height:3px;flex:none;border-radius:2px;overflow:hidden;background:#1a2231;
+}
+.roster-chip .rc-hp i{display:block;height:100%;width:100%;border-radius:2px;transition:width .15s linear;}
+.roster-chip .rc-st{font-size:9px;color:#ffd166;letter-spacing:0;}
+.roster-chip.dead{opacity:.38;filter:grayscale(1);}
+.roster-chip.acting{box-shadow:0 0 0 1px rgba(255,209,102,.65) inset;}
+
+/* —— 选人页：角色定位标签 / 数值折叠 / 推荐组合 —— */
+.d-tags{display:flex;flex-wrap:wrap;gap:4px;margin:3px 0 4px;}
+.d-tag{
+  font-size:10px;line-height:1.2;padding:1px 7px;border-radius:99px;
+  color:#ffb3a4;background:rgba(232,72,63,.12);border:1px solid rgba(232,72,63,.3);
+}
+.detail-b .d-tag{color:#b9cdff;background:rgba(74,123,240,.12);border-color:rgba(74,123,240,.32);}
+.d-tag.bond{color:#ffd166;background:rgba(255,209,102,.1);border-color:rgba(255,209,102,.35);}
+.d-toggle{
+  margin-top:4px;padding:5px 8px;border-radius:6px;font-size:11px;
+  color:#9fb0c8;background:#141a25;border:1px solid #2a3446;
+}
+.d-toggle:hover{color:#e8eef8;border-color:#3d4a61;}
+.d-more{display:flex;flex-direction:column;gap:4px;margin-top:2px;}
+.d-hint{font-size:10.5px;color:#7d8ba1;}
+
+.combo-pick{display:flex;flex-wrap:wrap;gap:4px;}
+.combo-pick .cp-label{font-size:10px;color:#6f7d93;align-self:center;letter-spacing:.04em;}
+.combo-pick button{
+  padding:3px 8px;border-radius:6px;font-size:10.5px;color:#9fb0c8;
+  background:#141a25;border:1px solid #2a3446;
+}
+.combo-pick button:hover{color:#e8eef8;border-color:#3d4a61;background:#1a2130;}
+
+.pick-odds .odds-bar{
+  width:88px;height:7px;border-radius:99px;overflow:hidden;display:flex;
+  background:#1a2231;border:1px solid rgba(255,255,255,.05);
+}
+.pick-odds .odds-bar i{display:block;height:100%;transition:width .2s ease;}
+.pick-odds .odds-bar .oa{background:linear-gradient(90deg,#ff7a5f,#e8483f);}
+.pick-odds .odds-bar .ob{background:linear-gradient(90deg,#4a7bf0,#8fb4ff);}
+
+/* —— 结算卡片 —— */
+.result{
+  position:absolute;inset:0;z-index:24;display:none;
+  align-items:center;justify-content:center;padding:18px;
+  background:radial-gradient(ellipse 55% 50% at 50% 50%, rgba(5,8,13,.9), rgba(5,8,13,.62) 65%, rgba(5,8,13,.28));
+}
+.result.show{display:flex;}
+.result-card{
+  width:min(560px,94%);padding:20px 22px;border-radius:16px;
+  background:linear-gradient(180deg,#131a26,#0d121b 70%);
+  border:1px solid #2c3a50;box-shadow:0 26px 70px -24px rgba(0,0,0,.95);
+}
+.result-kicker{font-size:10.5px;letter-spacing:.22em;color:#7f8ca1;}
+.result-card h2{margin:5px 0 3px;font-size:clamp(22px,3.2vh,32px);letter-spacing:.04em;}
+.result-card p{margin:0 0 12px;font-size:12px;color:#9aa7bc;line-height:1.5;}
+.result-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-bottom:14px;}
+.result-stat{
+  padding:8px 9px;border-radius:9px;background:#111722;border:1px solid #232e40;
+  min-width:0;
+}
+.result-stat i{display:block;font-style:normal;font-size:10px;color:#76849a;letter-spacing:.06em;}
+.result-stat b{display:block;margin-top:3px;font-size:15px;color:#e9eef7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.result-stat.b b{font-size:12.5px;line-height:1.35;}
+.result-acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;}
+.result-acts button{padding:8px 16px;border-radius:9px;}
+.result-acts button.primary{padding:9px 22px;font-weight:600;}
+
+/* —— 暂停层 —— */
+.pause{
+  position:absolute;inset:0;z-index:26;display:none;
+  align-items:center;justify-content:center;padding:18px;
+  background:rgba(5,8,13,.62);backdrop-filter:blur(3px);
+}
+.pause.show{display:flex;}
+.pause-card{
+  width:min(360px,92%);padding:20px 22px;border-radius:14px;text-align:center;
+  background:#101621;border:1px solid #2c3a50;box-shadow:0 20px 60px -22px rgba(0,0,0,.95);
+}
+.pause-card b{display:block;font-size:18px;letter-spacing:.1em;color:#eef3fb;}
+.pause-card p{margin:6px 0 14px;font-size:11.5px;color:#7f8ca1;}
+.pause-acts{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;}
+.pause-acts button{padding:7px 14px;border-radius:8px;font-size:12px;}
+
+@media (max-width: 980px), (pointer: coarse){
+  .roster{gap:3px;margin-top:3px;min-height:0;}
+  .roster-chip{padding:1px 4px;font-size:9px;gap:3px;}
+  .roster-chip .rc-name{max-width:42px;}
+  .roster-chip .rc-hp{width:18px;height:2px;}
+  .result-card{padding:16px 16px;}
+  .result-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .combo-pick{display:none;}
+}
 .desk-names-box{
   width:min(820px,92vw);max-height:86vh;overflow:auto;
   border:1px solid #2f3a4d;border-radius:14px;background:#0b1018;
