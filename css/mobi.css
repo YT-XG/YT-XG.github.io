@@ -664,3 +664,8 @@ body.mobi-mode{overflow:hidden;}
 /* 竖屏提示层级高于手机画布；?mobi=1 桌面预览时隐藏提示 */
 .rotate-tip{z-index:200;}
 body.mobi-forced .rotate-tip{display:none !important;}
+
+/* 2026-11-16：征召模式 */
+.m-draft-tip{margin:-2px 0 4px;font-size:10px;color:#ffd166;letter-spacing:.04em;}
+.m-pool-item.taken{opacity:.35;filter:grayscale(1);pointer-events:none;}
+

@@ -1246,6 +1246,15 @@ button.primary:hover{background:linear-gradient(180deg,#457ce0,#284d9c);border-c
 }
 .combo-pick button:hover{color:#e8eef8;border-color:#3d4a61;background:#1a2130;}
 
+/* 征召模式：池子里已被选走的角色压暗并锁点击 */
+.draft-pick .draft-tip{font-size:10px;color:#6f7d93;letter-spacing:.02em;}
+.pool-slot.taken{opacity:.32;filter:grayscale(.55);cursor:not-allowed;}
+.pool-slot.taken:hover{border-color:#283244;background:#11161f;}
+.pool-slot.taken .ps-tags{opacity:.5;}
+.slot-chip.empty{border-style:dashed;background:rgba(20,26,36,.45);color:#5f6d82;}
+.slot-chip.empty b{font-weight:500;color:#6f7d93;}
+#btnStart.disabled{opacity:.45;filter:grayscale(.35);box-shadow:none;}
+
 .pick-odds .odds-bar{
   width:88px;height:7px;border-radius:99px;overflow:hidden;display:flex;
   background:#1a2231;border:1px solid rgba(255,255,255,.05);

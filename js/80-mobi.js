@@ -357,6 +357,12 @@ function mobiSoloHtml() {
     '<button type="button" class="m-sq" data-act="sizeUp">＋</button></div>' +
     '</div>';
 
+  if (draftMode) {
+    var df = draftFilledCount(), dt = draftOrder.length;
+    h += '<div class="m-draft-tip">征召 ' + df + '/' + dt + ' · ' +
+      (df < dt ? SIDE_LABEL[activeTeam] + ' 选择中' : '选人完成') + '</div>';
+  }
+
   /* 中间：双方 6 格阵容 */
   h += '<div class="m-arena">' + mobiTeamPane('A') +
     '<div class="m-vs">VS</div>' + mobiTeamPane('B') + '</div>';
@@ -388,6 +394,13 @@ function mobiSettingsHtml() {
         return '<button type="button" data-act="kind" data-kind="' + k.id + '"' +
           (modeKind === k.id ? ' class="on"' : '') + (dis ? ' disabled' : '') + '>' + k.label + '</button>';
       }).join('') + '</div></div>' +
+    '<div class="m-set-row"><span>选人模式</span><div class="m-seg">' +
+      [false, true].map(function (on) {
+        var dis = (on && teamSize > 4);
+        return '<button type="button" data-act="draft" data-on="' + (on ? 1 : 0) + '"' +
+          (draftMode === on ? ' class="on"' : '') + (dis ? ' disabled' : '') + '>' +
+          (on ? '征召' : '自由') + '</button>';
+      }).join('') + '</div></div>' +
     '<div class="m-set-row"><span>对局时长</span><div class="m-seg m-min">' +
       ROUND_OPTIONS.map(function (sec) {
         return '<button type="button" data-act="round" data-sec="' + sec + '"' +
@@ -406,8 +419,12 @@ function mobiPoolHtml() {
     '<div class="m-pool">';
   for (var i = 0; i < POOL.length; i++) {
     var c = POOL[i];
-    h += '<button type="button" class="m-pool-item" data-act="pickRole" data-key="' + c.key + '">' +
-      mobiIco(c.key, 40) + '<b>' + mobiEsc(c.short) + '</b><small>' + mobiEsc(c.role) + '</small></button>';
+    var owner = draftMode ? roleOwner(c.key) : '';
+    h += '<button type="button" class="m-pool-item' + (owner ? ' taken' : '') + '"' +
+      (owner ? ' disabled' : '') +
+      ' data-act="pickRole" data-key="' + c.key + '">' +
+      mobiIco(c.key, 40) + '<b>' + mobiEsc(c.short) + '</b>' +
+      '<small>' + (owner ? SIDE_LABEL[owner] + '已选' : mobiEsc(c.role)) + '</small></button>';
   }
   h += '</div><div class="m-drawer-f">' +
     '<button type="button" class="m-wide m-ghost" data-act="randSel">随机这一方</button>' +
@@ -888,12 +905,14 @@ function mobiClick(e) {
   if (act === 'sizeUp') { mobiSetSize(teamSize + 1); return; }
   if (act === 'sizeDown') { mobiSetSize(teamSize - 1); return; }
   if (act === 'kind') { mobiSetKind(t.getAttribute('data-kind')); return; }
+  if (act === 'draft') { setDraftMode(t.getAttribute('data-on') === '1'); mobiRender(); return; }
   if (act === 'round') { mobiSetRound(parseInt(t.getAttribute('data-sec'), 10)); return; }
   if (act === 'randA') { randomTeam('A'); syncPick(); mobiRender(); return; }
   if (act === 'randB') { randomTeam('B'); syncPick(); mobiRender(); return; }
   if (act === 'randBoth') { randomTeam('A'); randomTeam('B'); syncPick(); mobiRender(); return; }
   if (act === 'randSel') { randomTeam(mobi.activeTeam); syncPick(); mobiRender(); return; }
   if (act === 'slot') {
+    if (draftMode) return;   // 征召模式由轮次决定，不能自由切边
     mobi.activeTeam = t.getAttribute('data-team');
     mobi.activeSlot = parseInt(t.getAttribute('data-slot'), 10) || 0;
     activeTeam = mobi.activeTeam;
@@ -976,9 +995,13 @@ function mobiTouchEnd(e) {
 /* ---------- 单机操作 ---------- */
 function mobiEnterSolo() {
   setSize(teamSize);            // 保证 pick 长度与人数一致
-  mobi.activeTeam = 'A';
-  mobi.activeSlot = 0;
-  activeTeam = 'A'; activeSlot = 0;
+  if (draftMode) {
+    resetDraftOrder();
+  } else {
+    mobi.activeTeam = 'A';
+    mobi.activeSlot = 0;
+    activeTeam = 'A'; activeSlot = 0;
+  }
   mobi.drawer = '';
   buildModePick();
   syncPick();
@@ -1013,6 +1036,13 @@ function mobiSetRound(sec) {
 
 function mobiPickRole(key) {
   if (!POOL_BY_KEY[key]) return;
+  if (draftMode) {
+    if (draftPickRole(key)) {
+      syncPick();
+      mobiRender();
+    }
+    return;
+  }
   if (!pick[mobi.activeTeam]) pick[mobi.activeTeam] = [];
   pick[mobi.activeTeam][mobi.activeSlot] = key;
   if (mobi.activeSlot < teamSize - 1) {

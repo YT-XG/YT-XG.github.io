@@ -267,10 +267,10 @@ function sfxToggle() {
 el.btnRestart.addEventListener('click', restartBattle);
 el.btnStart.addEventListener('click', startBattle);
 el.btnMenu.addEventListener('click', openMenu);
-el.cardA.addEventListener('click', function () { activeTeam = 'A'; syncPick(); });
-el.cardB.addEventListener('click', function () { activeTeam = 'B'; syncPick(); });
-el.detailA.addEventListener('click', function () { activeTeam = 'A'; syncPick(); });
-el.detailB.addEventListener('click', function () { activeTeam = 'B'; syncPick(); });
+el.cardA.addEventListener('click', function () { if (!draftMode) { activeTeam = 'A'; syncPick(); } });
+el.cardB.addEventListener('click', function () { if (!draftMode) { activeTeam = 'B'; syncPick(); } });
+el.detailA.addEventListener('click', function () { if (!draftMode) { activeTeam = 'A'; syncPick(); } });
+el.detailB.addEventListener('click', function () { if (!draftMode) { activeTeam = 'B'; syncPick(); } });
 el.btnPause.addEventListener('click', togglePause);
 el.btnSpeed.addEventListener('click', toggleSpeed);
 if (el.btnSound) el.btnSound.addEventListener('click', sfxToggle);

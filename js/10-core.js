@@ -103,6 +103,13 @@ var RELAY_DELAY = 1.0;                   // 接力换人间隔（秒）
 var activeTeam = 'A';   // 当前正在选择的一方
 var activeSlot = 0;     // 当前正在选择的格子（0..teamSize-1）
 
+/* 征召模式：双方轮流选人，角色全局不可重复。
+   draftOrder 记录每一步的 {team, slot}，draftStep 指向当前轮到的位置。
+   最多支持 4v4（9 个角色池刚好够 8 个不重复角色）。 */
+var draftMode = false;
+var draftOrder = [];
+var draftStep = 0;
+
 /* 单机赛制：1 = 单局，3 = 三局两胜。
    赛事模式不读这个字段，仍按赛程自己的 BO2/BO3/BO5 走。 */
 var seriesBest = 1;
@@ -196,6 +203,7 @@ var el = {
   oddsBarB: document.getElementById('oddsBarB'),
   comboPick: document.getElementById('comboPick'),
   seriesPick: document.getElementById('seriesPick'),
+  draftPick: document.getElementById('draftPick'),
   rosterA: document.getElementById('rosterA'),
   rosterB: document.getElementById('rosterB'),
   result: document.getElementById('result'),

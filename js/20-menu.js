@@ -126,6 +126,190 @@ function lineupBond(keys) {
   return false;
 }
 
+/* ============================================================
+   征召模式（draft）：双方轮流选人，角色全局不可重复
+   ------------------------------------------------------------
+   · 顺序：A0,B0 → B1,A1 → A2,B2 …（蛇形，避免一方总拿先手）
+   · 最多 4v4：角色池 9 个，8 个不重复角色刚好够用
+   ============================================================ */
+function uiToast(text) {
+  if (typeof mobiIsMobile === 'function' && mobiIsMobile() && typeof mobiToast === 'function') {
+    mobiToast(text);
+    return;
+  }
+  if (typeof deskToast === 'function') deskToast(text);
+}
+
+function buildDraftOrder() {
+  var out = [];
+  for (var r = 0; r < teamSize; r++) {
+    var first = r % 2 === 0 ? 'A' : 'B';
+    var second = first === 'A' ? 'B' : 'A';
+    out.push({ team: first, slot: r });
+    out.push({ team: second, slot: r });
+  }
+  return out;
+}
+
+function draftCurrent() {
+  if (!draftOrder.length) return null;
+  return draftOrder[Math.min(draftStep, draftOrder.length - 1)];
+}
+
+function syncActiveFromDraft() {
+  var cur = draftCurrent();
+  if (!cur) return;
+  activeTeam = cur.team;
+  activeSlot = cur.slot;
+  if (typeof mobi !== 'undefined' && mobi) {
+    mobi.activeTeam = activeTeam;
+    mobi.activeSlot = activeSlot;
+  }
+}
+
+function resetDraftOrder() {
+  draftOrder = buildDraftOrder();
+  draftStep = 0;
+  syncActiveFromDraft();
+}
+
+function draftFilledCount() {
+  var n = 0;
+  for (var i = 0; i < draftOrder.length; i++) {
+    var o = draftOrder[i];
+    if (POOL_BY_KEY[(pick[o.team] || [])[o.slot]]) n++;
+  }
+  return n;
+}
+
+/* 某个角色是否已经被别人选走（排除 team/slot 自己） */
+function roleOwner(key, team, slot) {
+  var teams = ['A', 'B'];
+  for (var t = 0; t < 2; t++) {
+    var T = teams[t], arr = pick[T] || [];
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i] === key && !(T === team && i === slot)) return T;
+    }
+  }
+  return '';
+}
+
+/* 双方每个格子都有合法角色才算选满 */
+function lineupsComplete() {
+  var teams = ['A', 'B'];
+  for (var t = 0; t < 2; t++) {
+    var arr = pick[teams[t]] || [];
+    for (var i = 0; i < teamSize; i++) {
+      if (!POOL_BY_KEY[arr[i]]) return false;
+    }
+  }
+  return true;
+}
+
+function draftRefreshStep() {
+  for (var i = 0; i < draftOrder.length; i++) {
+    var o = draftOrder[i];
+    if (!POOL_BY_KEY[(pick[o.team] || [])[o.slot]]) {
+      draftStep = i;
+      syncActiveFromDraft();
+      return;
+    }
+  }
+  draftStep = draftOrder.length;
+}
+
+/* 开启征召时清掉重复：A 先保留，B 的重复角色换成池子里还没用过的 */
+function dedupeDraft() {
+  var used = {};
+  ['A', 'B'].forEach(function (team) {
+    var arr = pick[team] || [];
+    for (var i = 0; i < teamSize; i++) {
+      var k = arr[i];
+      if (k && !used[k]) { used[k] = 1; continue; }
+      var cand = '';
+      for (var p = 0; p < POOL.length; p++) {
+        if (!used[POOL[p].key]) { cand = POOL[p].key; break; }
+      }
+      if (cand) { arr[i] = cand; used[cand] = 1; }
+    }
+    pick[team] = arr;
+  });
+}
+
+function draftPickRole(key) {
+  var cur = draftCurrent();
+  if (!cur || !POOL_BY_KEY[key]) return false;
+  var owner = roleOwner(key, cur.team, cur.slot);
+  if (owner) {
+    uiToast('该角色已被' + SIDE_LABEL[owner] + '选走');
+    return false;
+  }
+  if (!pick[cur.team]) pick[cur.team] = [];
+  pick[cur.team][cur.slot] = key;
+  draftStep = Math.min(draftStep + 1, draftOrder.length);
+  if (draftStep < draftOrder.length) syncActiveFromDraft();
+  return true;
+}
+
+/* 统一入口：征召时忽略传入的 team/slot，按当前轮次写入 */
+function pickRoleFor(team, slot, key) {
+  if (draftMode) return draftPickRole(key);
+  if (!POOL_BY_KEY[key]) return false;
+  if (!pick[team]) pick[team] = [];
+  pick[team][slot] = key;
+  return true;
+}
+
+/* 开启征召时清空双方阵容，从红方第一手开始 */
+function setDraftMode(on) {
+  if (on && teamSize > 4) {
+    uiToast('征召模式最多 4v4（角色池只有 9 个角色）');
+    return;
+  }
+  var was = draftMode;
+  draftMode = !!on;
+  if (draftMode) {
+    if (!was) {
+      pick.A = [];
+      pick.B = [];
+      uiToast('征召模式：阵容已清空，从红方开始轮流选');
+    }
+    resetDraftOrder();
+    draftRefreshStep();
+  }
+  buildDraftPick();
+  syncPick();
+  if (typeof mobiIsMobile === 'function' && mobiIsMobile() && typeof mobiRender === 'function') mobiRender();
+}
+
+function buildDraftPick() {
+  if (!el.draftPick) return;
+  el.draftPick.innerHTML = '';
+  var row = document.createElement('div');
+  row.className = 'rp-row';
+  var t = document.createElement('span');
+  t.className = 'rp-title';
+  t.textContent = '选人';
+  row.appendChild(t);
+  [{ v: false, label: '自由' }, { v: true, label: '征召' }].forEach(function (o) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = o.label;
+    if (draftMode === o.v) b.classList.add('on');
+    if (o.v && teamSize > 4) {
+      b.disabled = true;
+      b.title = '征召最多 4v4';
+    }
+    b.addEventListener('click', function () { setDraftMode(o.v); });
+    row.appendChild(b);
+  });
+  var tip = document.createElement('span');
+  tip.className = 'draft-tip';
+  tip.textContent = draftMode ? '双方轮流选 · 角色不可重复' : '可重复选人';
+  row.appendChild(tip);
+  el.draftPick.appendChild(row);
+}
+
 function makeSlot(c) {
   var slot = document.createElement('div');
   slot.className = 'pool-slot';
@@ -139,6 +323,10 @@ function makeSlot(c) {
     '<span class="ps-tags"><i class="t-a">红</i><i class="t-b">蓝</i></span>';
 
   slot.addEventListener('click', function () {
+    if (draftMode) {
+      if (draftPickRole(c.key)) syncPick();
+      return;
+    }
     if (!pick[activeTeam]) pick[activeTeam] = [];
     pick[activeTeam][activeSlot] = c.key;
     // 填完自动跳下一格，整队填满后交给对面
@@ -170,6 +358,7 @@ function buildMenu() {
   buildModePick();
   buildSizePick();
   buildSeriesPick();
+  buildDraftPick();
   buildComboPick();
   el.diceA.addEventListener('click', function () { randomTeam('A'); });
   el.diceB.addEventListener('click', function () { randomTeam('B'); });
@@ -186,6 +375,10 @@ var COMBOS = [
 ];
 
 function applyCombo(keys) {
+  if (draftMode) {
+    uiToast('征召模式请手动选人，或先切回“自由”');
+    return;
+  }
   var out = keys.slice(0, teamSize);
   for (var i = 0; out.length < teamSize && i < POOL.length * 2; i++) {
     var k = POOL[i % POOL.length].key;
@@ -393,29 +586,68 @@ function buildModePick() {
   el.modePick.appendChild(row);
 }
 
-// 改人数：1v1 强制回到「同时上场」；不够的格子用角色池里还没用过的角色补齐
+// 改人数：1v1 强制回到「同时上场」；自由模式下不够的格子自动补齐
 function setSize(size) {
   size = Math.max(1, Math.min(6, size | 0));   // 手机端最多 6v6
+  var oldSize = teamSize;
+
+  if (draftMode && size > 4) {
+    draftMode = false;
+    uiToast('征召模式最多 4v4，已切回自由选人');
+  }
+  if (draftMode && size !== oldSize) {
+    pick.A = [];
+    pick.B = [];
+  }
+
   teamSize = size;
   if (size === 1) modeKind = 'vs';
 
   ['A', 'B'].forEach(function (team) {
     var arr = (pick[team] || []).slice(0, size);
-    while (arr.length < size) {
-      var cand = null;
-      for (var i = 0; i < POOL.length; i++) {
-        if (arr.indexOf(POOL[i].key) < 0) { cand = POOL[i].key; break; }
+    if (!draftMode) {
+      while (arr.length < size) {
+        var cand = null;
+        for (var i = 0; i < POOL.length; i++) {
+          if (arr.indexOf(POOL[i].key) < 0) { cand = POOL[i].key; break; }
+        }
+        arr.push(cand || POOL[arr.length % POOL.length].key);
       }
-      arr.push(cand || POOL[arr.length % POOL.length].key);
     }
     pick[team] = arr;
   });
 
   activeSlot = Math.min(activeSlot, size - 1);
+
+  if (draftMode) {
+    resetDraftOrder();
+    draftRefreshStep();
+  }
+  if (typeof buildDraftPick === 'function') buildDraftPick();
+}
+
+/* 征召随机：只填当前这一方，避开对方已经选走的角色 */
+function randomDraftTeam(team) {
+  var other = team === 'A' ? 'B' : 'A';
+  var used = {};
+  (pick[other] || []).forEach(function (k) { if (k) used[k] = 1; });
+  var keys = POOL.map(function (c) { return c.key; }).filter(function (k) { return !used[k]; });
+  if (keys.length < teamSize) {
+    uiToast('剩余角色不够，无法随机');
+    return;
+  }
+  for (var i = keys.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = keys[i]; keys[i] = keys[j]; keys[j] = tmp;
+  }
+  pick[team] = keys.slice(0, teamSize);
+  if (draftMode) draftRefreshStep();
+  syncPick();
 }
 
 // 随机一支队伍：洗牌角色池后取前 teamSize 个（池子不够就循环取）
 function randomTeam(team) {
+  if (draftMode) { randomDraftTeam(team); return; }
   var keys = POOL.map(function (c) { return c.key; });
   for (var i = keys.length - 1; i > 0; i--) {
     var j = Math.floor(Math.random() * (i + 1));
@@ -442,6 +674,16 @@ function syncPick() {
       tags[0].classList.toggle('on', aOn);
       tags[1].classList.toggle('on', bOn);
     }
+
+    if (draftMode) {
+      var owner = roleOwner(key);
+      var cc = POOL_BY_KEY[key];
+      slots[i].classList.toggle('taken', !!owner);
+      slots[i].title = cc.name + ' · ' + cc.role +
+        (owner ? ' · 已被' + SIDE_LABEL[owner] + '选走' : ' · 待选');
+    } else {
+      slots[i].classList.remove('taken');
+    }
   }
 
   ['A', 'B'].forEach(function (team) {
@@ -457,8 +699,12 @@ function syncPick() {
     var html = '';
     for (var s = 0; s < teamSize; s++) {
       var c = POOL_BY_KEY[(pick[team] || [])[s]];
-      if (!c) continue;
       var sel = (active && activeSlot === s) ? ' sel' : '';
+      if (!c) {
+        html += '<div class="slot-chip empty' + sel + '" data-team="' + team + '" data-slot="' + s + '"' +
+          ' title="点击后从角色池选择"><span class="sc-idx">' + (s + 1) + '</span><b>待选</b></div>';
+        continue;
+      }
       html += '<div class="slot-chip' + sel + '" data-team="' + team + '" data-slot="' + s + '" title="' +
         deskEsc(c.role + ' · ' + c.units.length + ' 个单位') + '">' +
         '<span class="sc-idx">' + (s + 1) + '</span>' +
@@ -474,6 +720,7 @@ function syncPick() {
     var chips = card.querySelectorAll('.slot-chip');
     for (var k = 0; k < chips.length; k++) {
       chips[k].addEventListener('click', function () {
+        if (draftMode) return;   // 征召模式由轮次决定，不能自由切边
         activeTeam = this.getAttribute('data-team');
         activeSlot = parseInt(this.getAttribute('data-slot'), 10) || 0;
         syncPick();
@@ -505,16 +752,29 @@ function syncPick() {
 
   var modeText = teamSize + 'v' + teamSize + (modeKind === 'relay' ? ' 接力' : ' 同时上场');
   if (el.menuMode) el.menuMode.textContent = modeText;
+  var draftText = '';
+  if (draftMode) {
+    var filled = draftFilledCount(), total = draftOrder.length;
+    draftText = ' ｜ <b>征召 ' + filled + '/' + total + '</b>' +
+      (filled < total ? ' · ' + SIDE_LABEL[activeTeam] + ' 选择中' : ' · 选人完成');
+  }
   el.pickSummary.innerHTML =
     '<b>' + modeText + '</b> ｜ ' +
     SIDE_LABEL.A + ' <b>' + (pick.A || []).length + '</b> 人  VS  ' +
     SIDE_LABEL.B + ' <b>' + (pick.B || []).length + '</b> 人 ｜ 对局 <b>' +
     (roundDuration / 60) + ' 分钟</b>' +
     (seriesBest === 3 ? ' ｜ <b>三局两胜</b>' : '') +
-    (modeKind === 'relay' ? ' ｜ 胜者保留血量' : '');
+    (modeKind === 'relay' ? ' ｜ 胜者保留血量' : '') + draftText;
 
   el.nameA.textContent = sideName('A');
   el.nameB.textContent = sideName('B');
+
+  if (el.btnStart) {
+    var ready = lineupsComplete();
+    el.btnStart.classList.toggle('disabled', !ready);
+    el.btnStart.title = ready ? '' : '双方阵容还没选满';
+  }
+  if (el.comboPick) el.comboPick.classList.toggle('is-hidden', draftMode);
 
   if (typeof deskSyncChrome === 'function') deskSyncChrome();
 }
@@ -630,6 +890,10 @@ function openMenu() {
 }
 
 function startBattle() {
+  if (!lineupsComplete()) {
+    uiToast('请先把双方阵容选满');
+    return;
+  }
   // R 键 / 重开按钮在赛事棋盘上也会触发：后台模拟期间先停下再重置，避免两边抢全局
   if (typeof tourOddsStop === 'function') tourOddsStop();
   // 手机端：进战斗先把独立界面收起，让 canvas 占满
