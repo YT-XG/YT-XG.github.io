@@ -1681,5 +1681,6 @@ function render() {
   el.stage.classList.toggle('sudden', suddenDeath && phase === 'fight');
   el.status.textContent = statusText();
   if (typeof updateRoster === 'function') updateRoster();
+  if (typeof updatePortraitCamera === 'function') updatePortraitCamera();
 }
 

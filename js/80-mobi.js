@@ -13,6 +13,7 @@
 
 var MOBI_W = 1024, MOBI_H = 512;
 var MOBI_MQ = '(max-width: 980px), (pointer: coarse)';
+var MOBI_FORCED = /[?&]mobi=1/.test(location.search);
 
 var mobi = {
   on: false,
@@ -31,8 +32,14 @@ var mobi = {
 };
 
 /* ---------- 基础工具 ---------- */
+function mobiIsPortrait() {
+  return !MOBI_FORCED && window.innerWidth < window.innerHeight;
+}
+
 function mobiIsMobile() {
-  if (/[?&]mobi=1/.test(location.search)) return true;
+  if (MOBI_FORCED) return true;
+  // 竖屏不再走 1024×512 小画布，而是交给桌面 DOM + 竖屏战场镜头
+  if (mobiIsPortrait()) return false;
   return window.matchMedia(MOBI_MQ).matches;
 }
 
@@ -147,6 +154,51 @@ function mobiOnBattleStart() {
   var inTour = (typeof tour !== 'undefined' && tour && tour.cur);
   if (!inTour && el.tourBoard) el.tourBoard.classList.remove('show');
   mobiHide();
+}
+
+/* 竖屏：收起 1024×512 手机画布，交还给桌面 DOM（首页/选人页纵向堆叠 + 战场竖屏镜头） */
+function mobiExitForPortrait() {
+  var wasScreen = mobi.screen;
+  var inTour = mobi.tourIntent;
+  mobi.on = false;
+  var root = mobiRoot();
+  if (root) root.classList.remove('on');
+  document.body.classList.remove('mobi-mode', 'mobi-battle');
+  document.body.classList.add('portrait');
+  mobiDisarmCarousel();
+  portraitCam = 0;
+  if (cv) cv.style.transform = '';
+
+  if (phase === 'menu') {
+    if (inTour && typeof tour !== 'undefined' && tour) {
+      if (el.home) el.home.classList.remove('show');
+      el.menu.classList.remove('show');
+      el.stage.classList.add('menu-open');
+      document.body.classList.add('menu-open');
+      el.btns.classList.add('hidden');
+      if (el.tourBoard) el.tourBoard.classList.add('show');
+      if (typeof tourRender === 'function') tourRender();
+    } else if (wasScreen === 'solo') {
+      enterPick(teamSize);
+    } else {
+      el.menu.classList.remove('show');
+      if (el.home) el.home.classList.add('show');
+      el.stage.classList.add('menu-open');
+      document.body.classList.add('menu-open');
+      el.btns.classList.add('hidden');
+      if (typeof deskSyncChrome === 'function') deskSyncChrome();
+    }
+  } else {
+    if (el.home) el.home.classList.remove('show');
+    el.menu.classList.remove('show');
+    if (el.tourBoard) el.tourBoard.classList.remove('show');
+    el.stage.classList.remove('menu-open');
+    document.body.classList.remove('menu-open');
+    el.btns.classList.remove('hidden');
+  }
+  setTimeout(function () {
+    if (typeof fitCanvas === 'function') fitCanvas();
+  }, 60);
 }
 
 /* 赛事每次重渲染后调用：把手机端拉到对应页面（或回落到旧棋盘） */
@@ -1160,6 +1212,44 @@ function mobiOnResize() {
   mobiScale();
   var root = mobiRoot();
   if (!root) return;
+  var wasPortrait = document.body.classList.contains('portrait');
+
+  if (mobiIsPortrait()) {
+    if (!wasPortrait) {
+      document.body.classList.add('portrait');
+      mobiExitForPortrait();
+    }
+    setTimeout(function () {
+      if (typeof fitCanvas === 'function') fitCanvas();
+    }, 60);
+    return;
+  }
+
+  if (wasPortrait) {
+    document.body.classList.remove('portrait');
+    portraitCam = 0;
+    if (cv) cv.style.transform = '';
+    if (phase === 'menu') {
+      if (el.home) el.home.classList.remove('show');
+      el.menu.classList.remove('show');
+      document.body.classList.remove('menu-open');
+      if (mobiIsMobile()) {
+        mobiShowScreen(mobi.screen || 'home');
+      } else {
+        // 桌面窗口从竖屏比例拉宽：回到桌面首页，不要留下空白
+        if (el.home) el.home.classList.add('show');
+        el.stage.classList.add('menu-open');
+        document.body.classList.add('menu-open');
+        el.btns.classList.add('hidden');
+        if (typeof deskSyncChrome === 'function') deskSyncChrome();
+      }
+    } else {
+      mobiHide();
+    }
+    if (typeof fitCanvas === 'function') fitCanvas();
+    return;
+  }
+
   if (!mobiIsMobile()) {
     // 切回桌面：收起手机界面，把旧页面交还
     mobi.on = false;
@@ -1178,9 +1268,18 @@ function mobiOnResize() {
 function mobiInit() {
   mobiBuild();
   mobiScale();
-  if (/[?&]mobi=1/.test(location.search)) document.body.classList.add('mobi-forced');
-  window.addEventListener('resize', mobiOnResize);
-  window.addEventListener('orientationchange', function () { setTimeout(mobiOnResize, 120); });
+  if (MOBI_FORCED) document.body.classList.add('mobi-forced');
+  window.addEventListener('resize', function () { setTimeout(mobiOnResize, 120); });
+  window.addEventListener('orientationchange', function () { setTimeout(mobiOnResize, 180); });
+  if (window.matchMedia) {
+    var orientMq = window.matchMedia('(orientation: portrait)');
+    var orientHandler = function () { setTimeout(mobiOnResize, 120); };
+    if (orientMq.addEventListener) orientMq.addEventListener('change', orientHandler);
+    else if (orientMq.addListener) orientMq.addListener(orientHandler);
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', function () { setTimeout(mobiOnResize, 120); });
+  }
   /* 每日赠送仍然静默发放（金额可在主菜单金币处看到），但不再弹提示条：
      第 91 条起单机模式不显示金币，避免「每日赠送 1000 金币」压在其他页面上 */
   if (mobiIsMobile()) {
@@ -1188,6 +1287,10 @@ function mobiInit() {
   } else {
     var root = mobiRoot();
     if (root) root.classList.remove('on');
+    if (mobiIsPortrait()) {
+      document.body.classList.add('portrait');
+      mobiExitForPortrait();
+    }
     // 桌面端：把 80 加载后的金币/赛季状态刷到首页与选人页
     if (typeof deskSyncChrome === 'function') deskSyncChrome();
   }

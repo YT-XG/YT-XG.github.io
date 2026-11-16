@@ -273,6 +273,42 @@ function sfxToggle() {
 }
 
 /* ============================================================
+   竖屏战场镜头
+   ------------------------------------------------------------
+   竖屏时 canvas 按高度铺满，宽度会超出屏幕；这里按存活单位重心
+   横向平移，让战斗中心始终在屏幕里。仅改 CSS transform，不动模拟。
+   ============================================================ */
+function updatePortraitCamera() {
+  if (!document.body.classList.contains('portrait')) {
+    if (cv && cv.style.transform) cv.style.transform = '';
+    return;
+  }
+  var stage = el.stage;
+  if (!stage || !cv) return;
+  var cssW = cv.clientWidth;
+  var stageW = stage.clientWidth || window.innerWidth;
+  if (!cssW || cssW <= stageW + 1) return;
+
+  var ax = 0, an = 0, bx = 0, bn = 0;
+  for (var i = 0; i < units.length; i++) {
+    var u = units[i];
+    if (!u.alive) continue;
+    if (u.team === 'A') { ax += u.x; an++; }
+    else { bx += u.x; bn++; }
+  }
+  var cx = W / 2;
+  if (an && bn) cx = (ax / an + bx / bn) / 2;
+  else if (an) cx = ax / an;
+  else if (bn) cx = bx / bn;
+
+  var target = (cx / W - 0.5) * cssW;
+  var max = Math.max(0, (cssW - stageW) / 2);
+  target = clamp(target, -max, max);
+  portraitCam += (target - portraitCam) * 0.18;
+  cv.style.transform = 'translateX(calc(-50% + ' + portraitCam.toFixed(1) + 'px))';
+}
+
+/* ============================================================
    交互
    ============================================================ */
 el.btnRestart.addEventListener('click', restartBattle);

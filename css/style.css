@@ -1281,10 +1281,11 @@ button.primary:hover{background:linear-gradient(180deg,#457ce0,#284d9c);border-c
   background:radial-gradient(ellipse 55% 50% at 50% 50%, rgba(5,8,13,.9), rgba(5,8,13,.62) 65%, rgba(5,8,13,.28));
 }
 .result.show{display:flex;}
-/* 幽灵挑战邀请层：覆盖整个页面，而不是只在舞台里 */
-.ghost{position:fixed;inset:0;z-index:430;}
-.ghost .result-card{width:min(540px,92vw);}
-.ghost .result-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+/* 幽灵挑战邀请层：覆盖整个页面，而不是只在舞台里。
+   注意只匹配 .result.ghost，避免影响普通 .ghost 按钮（如「随机双方」） */
+.result.ghost{position:fixed;inset:0;z-index:430;background:rgba(4,7,12,.92);}
+.result.ghost .result-card{width:min(540px,92vw);}
+.result.ghost .result-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
 .result-card{
   width:min(560px,94%);padding:20px 22px;border-radius:16px;
   background:linear-gradient(180deg,#131a26,#0d121b 70%);

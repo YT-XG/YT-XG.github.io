@@ -76,6 +76,8 @@ var REVIVE_DELAY = 1.0;        // 草在种子上复活的吟唱时间（秒）
 var t = 0, roundTime = 180, phase = 'menu', winner = null;
 /* 固定步长累加器：由 50-ui 的 frame() 消费；reset() 时清零 */
 var simAcc = 0;
+/* 竖屏战场镜头：按存活单位重心横向平移，单位是 CSS 像素 */
+var portraitCam = 0;
 /* 可复现对局：pendingSeed 由每日挑战 / 幽灵码写入；source 只用于赛后文案 */
 var pendingSeed = 0, hasPendingSeed = false;
 var matchSource = '';       // '' | 'daily' | 'ghost'
@@ -337,6 +339,7 @@ function reset() {
     matchSource = '';
   }
   simAcc = 0;
+  portraitCam = 0;
 
   units = []; particles = []; rings = []; floaters = []; bombs = []; arrows = []; icePatches = [];
   waters = [];
