@@ -7,6 +7,7 @@
    帧循环
    ============================================================ */
 var last = performance.now();
+var pauseFrame = 0;
 
 function frame(now) {
   requestAnimationFrame(frame);
@@ -39,10 +40,11 @@ function frame(now) {
     // 击杀演出期间粒子走慢动作（时间流速 0.28×）
     var fxScale = (typeof tourFx !== 'undefined' && tourFx) ? 0.28 : 1;
     fx(sdt * fxScale);
-    if (typeof tourFx !== 'undefined' && tourFx) tourFxTick(dt);
+    if (typeof tourFx !== 'undefined' && tourFx && typeof tourFxTick === 'function') tourFxTick(dt);
   }
 
-  render();
+  // 暂停时画面完全静止：每 6 帧画一次即可，省下持续重绘的开销
+  if (!paused || (pauseFrame++ % 6) === 0) render();
 }
 
 /* ============================================================
@@ -52,6 +54,7 @@ var rosterRefs = { A: [], B: [] };
 var rosterFrame = 0;
 
 function rosterStatus(u) {
+  if (u.ultT > 0) return '终';
   if (u.castT > 0) return '蓄';
   if (u.st && u.st.rage) return u.st.rage.phase === 'shake' ? '抖' : '狂';
   if (u.st && u.st.milkT > 0) return '导';
@@ -243,7 +246,7 @@ function sfxPlay(name) {
   if (!ac) return;
   // 用 performance.now 做节流：AudioContext 被挂起时 currentTime 不前进，会误吞后续音效
   var now = performance.now() / 1000;
-  var gaps = { hit: 0.045, cast: 0.06, death: 0.12, bomb: 0.08, rage: 0.2, win: 0.5, lose: 0.5 };
+  var gaps = { hit: 0.045, cast: 0.06, death: 0.12, bomb: 0.08, rage: 0.2, ult: 0.15, win: 0.5, lose: 0.5 };
   var gap = gaps[name] || 0.05;
   if (sfx.last[name] && now - sfx.last[name] < gap) return;
   sfx.last[name] = now;
@@ -253,6 +256,10 @@ function sfxPlay(name) {
   else if (name === 'death') sfxTone(ac, 240, 70, 0.34, 'sawtooth', 0.05, 0);
   else if (name === 'bomb') sfxTone(ac, 95, 40, 0.28, 'square', 0.08, 0);
   else if (name === 'rage') sfxTone(ac, 330, 660, 0.22, 'triangle', 0.06, 0);
+  else if (name === 'ult') {
+    sfxTone(ac, 260, 880, 0.28, 'triangle', 0.07, 0);
+    sfxTone(ac, 520, 1040, 0.2, 'sine', 0.05, 0.06);
+  }
   else if (name === 'win') {
     sfxTone(ac, 523, 523, 0.12, 'sine', 0.055, 0);
     sfxTone(ac, 784, 784, 0.18, 'sine', 0.055, 0.11);
@@ -278,6 +285,11 @@ function sfxToggle() {
    竖屏时 canvas 按高度铺满，宽度会超出屏幕；这里按存活单位重心
    横向平移，让战斗中心始终在屏幕里。仅改 CSS transform，不动模拟。
    ============================================================ */
+/* 缓存 clientWidth：每帧读取会强制浏览器重排，竖屏镜头只需要知道
+   canvas 与 stage 谁更宽；尺寸变化由 resize / 重新打开战斗时刷新。 */
+var portraitSize = { cssW: 0, stageW: 0, tick: 0 };
+window.addEventListener('resize', function () { portraitSize.cssW = 0; });
+
 function updatePortraitCamera() {
   if (!document.body.classList.contains('portrait')) {
     if (cv && cv.style.transform) cv.style.transform = '';
@@ -285,8 +297,13 @@ function updatePortraitCamera() {
   }
   var stage = el.stage;
   if (!stage || !cv) return;
-  var cssW = cv.clientWidth;
-  var stageW = stage.clientWidth || window.innerWidth;
+
+  if (!portraitSize.cssW || (portraitSize.tick++ % 30) === 0) {
+    portraitSize.cssW = cv.clientWidth;
+    portraitSize.stageW = stage.clientWidth || window.innerWidth;
+  }
+  var cssW = portraitSize.cssW;
+  var stageW = portraitSize.stageW;
   if (!cssW || cssW <= stageW + 1) return;
 
   var ax = 0, an = 0, bx = 0, bn = 0;

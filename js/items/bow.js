@@ -4,7 +4,7 @@
 
 TYPES.bow = {
   key: 'bow', name: '弓箭', role: '远程 / 持续',
-  r: 22, maxHp: 360, baseSpeed: 280, atk: 1.0,
+  r: 22, maxHp: 560, baseSpeed: 280, atk: 1.0,
   body: '#5f8f4a', light: '#b9df9a', dark: '#2e4626', glow: '#a4e86b',
   // 技能只负责"瞄准 + 射击"，不冲刺；cd 就是发射间隔
   // 移速 320 → 280（2026-11-6 第 60 条：远程不该同时拥有全场最高移速）
@@ -12,6 +12,10 @@ TYPES.bow = {
     name: '连珠箭', cd: 3.0, noTurn: true,
     dashSpeed: 0, dashTime: 0, dmgMult: 1,
     text: '每 3 秒瞄准最近敌人射出一箭；每 2 支普通箭后下一支为强化箭'
+  },
+  ultimate: {
+    name: '万箭齐发', cd: 14.0,
+    text: '向敌人方向扇形射出 9 支穿透箭（±0.46 rad，每支 24 伤害）'
   },
   passive: {
     name: '强化箭',
@@ -33,6 +37,17 @@ TYPES.bow = {
     fireArrow(u, power);
     floater(u.x, u.y - u.r - 20, power ? '强化箭' : '连珠箭',
       power ? '#ffd166' : '#c9f59b', 12);
+  },
+  // 终结技：以敌人方向为中心扇形齐射 9 支穿透箭
+  onUlt: function (u) {
+    for (var i = -4; i <= 4; i++) {
+      fireArrow(u, true, {
+        spread: i * 0.115,
+        speed: 820, dmg: 24, life: 1.05, hitR: 4
+      });
+    }
+    ring(u.x, u.y, u.r, u.r + 80, 0.4, '#ffe08a');
+    burst(u.x, u.y, 16, '#e8ffc0', 240);
   },
   draw: function (u) { drawBow(u); }
 };

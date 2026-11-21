@@ -8,6 +8,71 @@
 /* ============================================================
    渲染
    ============================================================ */
+/* 离屏小贴图缓存
+   ------------------------------------------------------------
+   单位光晕 / 深色底盘 / 水面 每帧都要用，但它们的渐变只跟「半径 / 阵营」有关，
+   跟位置无关。预渲染成小 canvas 后每帧只 drawImage，避免几十个
+   createRadialGradient / createLinearGradient 反复分配。 */
+var RENDER_SPRITE = {};
+
+function makeSprite(key, size, paint) {
+  var c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  paint(c.getContext('2d'), size);
+  RENDER_SPRITE[key] = c;
+  return c;
+}
+
+// 阵营光晕：固定 128×128，绘制时缩放到单位直径
+function teamGlowSprite(team) {
+  var key = 'glow.' + team;
+  var s = RENDER_SPRITE[key];
+  if (s) return s;
+  return makeSprite(key, 128, function (g, S) {
+    var rg = g.createRadialGradient(S / 2, S / 2, S * 0.17, S / 2, S / 2, S / 2);
+    rg.addColorStop(0, team === 'A' ? 'rgba(232,72,63,.30)' : 'rgba(74,123,240,.32)');
+    rg.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = rg;
+    g.beginPath();
+    g.arc(S / 2, S / 2, S / 2, 0, TAU);
+    g.fill();
+  });
+}
+
+// 深色圆牌底盘：按半径缓存（2× 分辨率，避免缩放后发虚）
+function tokenBaseSprite(r) {
+  var key = 'base.' + r;
+  var s = RENDER_SPRITE[key];
+  if (s) return s;
+  var S = Math.max(8, Math.ceil(r * 2 * 2));
+  return makeSprite(key, S, function (g, size) {
+    var k = size / 2;
+    var bg = g.createLinearGradient(k, k - r * 2, k, k + r * 2);
+    bg.addColorStop(0, '#1d2634');
+    bg.addColorStop(1, '#0d1219');
+    g.fillStyle = bg;
+    g.beginPath();
+    g.arc(k, k, r * 2, 0, TAU);
+    g.fill();
+  });
+}
+
+// 水面：固定 256×256 径向渐变，绘制时按当前半径缩放并用 globalAlpha 淡出
+function waterSprite() {
+  if (RENDER_SPRITE.water) return RENDER_SPRITE.water;
+  return makeSprite('water', 256, function (g, S) {
+    var rg = g.createRadialGradient(S / 2, S / 2, S * 0.04, S / 2, S / 2, S / 2);
+    rg.addColorStop(0, 'rgba(38,120,168,.30)');
+    rg.addColorStop(0.55, 'rgba(86,178,222,.17)');
+    rg.addColorStop(1, 'rgba(140,222,255,0)');
+    g.fillStyle = rg;
+    g.beginPath();
+    g.arc(S / 2, S / 2, S / 2, 0, TAU);
+    g.fill();
+  });
+}
+
 function drawArena() {
   ctx.fillStyle = '#080b11';
   ctx.fillRect(0, 0, W, H);
@@ -168,53 +233,49 @@ function drawDamagePanels() {
     ctx.lineTo(x + PW - 10, y + 35);
     ctx.stroke();
 
-    // 5) 排行行
+    // 5) 排行行：名字与百分比分两轮画，避免每一行都切换一次 ctx.font
     var bx = x + 8;
+    ctx.textAlign = 'left';
+    ctx.font = '10px "PingFang SC","Microsoft YaHei",sans-serif';
     for (var k = 0; k < rows.length; k++) {
       var it = rows[k];
       var ry = y + headH + k * rowH;
-      var dPct = sumD > 0 ? it.dealt / sumD : 0;
-      var tPct = sumT > 0 ? it.taken / sumT : 0;
-
-      // 名次 + 名字（阵亡的压暗）
-      ctx.textAlign = 'left';
       ctx.fillStyle = it.alive ? '#dfe7f4' : '#5d6879';
-      ctx.font = '10px "PingFang SC","Microsoft YaHei",sans-serif';
       ctx.fillText((k + 1) + ' ' + it.name, bx, ry + 6);
+    }
+
+    ctx.textAlign = 'right';
+    ctx.font = '9.5px ui-monospace,Consolas,monospace';
+    for (var k2 = 0; k2 < rows.length; k2++) {
+      var it2 = rows[k2];
+      var ry2 = y + headH + k2 * rowH;
+      var dPct = sumD > 0 ? it2.dealt / sumD : 0;
+      var tPct = sumT > 0 ? it2.taken / sumT : 0;
 
       // 伤害占比条（阵营色）
       ctx.fillStyle = '#1a2231';
-      roundRect(bx, ry + 13, barW, 5, 2.5);
+      roundRect(bx, ry2 + 13, barW, 5, 2.5);
       ctx.fill();
       if (dPct > 0) {
-        var g = ctx.createLinearGradient(bx, 0, bx + barW, 0);
-        g.addColorStop(0, side.color);
-        g.addColorStop(1, side.light);
-        ctx.fillStyle = g;
-        roundRect(bx, ry + 13, Math.max(2, barW * dPct), 5, 2.5);
+        // 细条只有 5px 高，渐变看不出差别；用纯色避免每帧创建几十个渐变对象
+        ctx.fillStyle = side.color;
+        roundRect(bx, ry2 + 13, Math.max(2, barW * dPct), 5, 2.5);
         ctx.fill();
       }
-      ctx.textAlign = 'right';
       ctx.fillStyle = side.light;
-      ctx.font = '9.5px ui-monospace,Consolas,monospace';
-      ctx.fillText(Math.round(dPct * 100) + '%', bx + innerW, ry + 15.5);
+      ctx.fillText(Math.round(dPct * 100) + '%', bx + innerW, ry2 + 15.5);
 
       // 承伤占比条（琥珀色）
       ctx.fillStyle = '#1a2231';
-      roundRect(bx, ry + 21, barW, 5, 2.5);
+      roundRect(bx, ry2 + 21, barW, 5, 2.5);
       ctx.fill();
       if (tPct > 0) {
-        var g2 = ctx.createLinearGradient(bx, 0, bx + barW, 0);
-        g2.addColorStop(0, '#a86a2c');
-        g2.addColorStop(1, '#e0a75a');
-        ctx.fillStyle = g2;
-        roundRect(bx, ry + 21, Math.max(2, barW * tPct), 5, 2.5);
+        ctx.fillStyle = '#c98a45';
+        roundRect(bx, ry2 + 21, Math.max(2, barW * tPct), 5, 2.5);
         ctx.fill();
       }
-      ctx.textAlign = 'right';
       ctx.fillStyle = '#e0a75a';
-      ctx.font = '9.5px ui-monospace,Consolas,monospace';
-      ctx.fillText(Math.round(tPct * 100) + '%', bx + innerW, ry + 23.5);
+      ctx.fillText(Math.round(tPct * 100) + '%', bx + innerW, ry2 + 23.5);
     }
   }
 
@@ -598,6 +659,8 @@ function drawArrows() {
 // 冰面残留：贴地椭圆；前 5 秒完全可见，最后 1 秒线性淡出
 function drawIcePatches() {
   var fade = TYPES.ice.iceTrail.fade;
+  // 大量冰面时降级：只画填充椭圆，省掉描边与裂纹（视觉效果接近，绘制量降到 1/3）
+  var heavy = icePatches.length > 48;
   for (var i = 0; i < icePatches.length; i++) {
     var p = icePatches[i];
     var a = clamp(p.life / fade, 0, 1);
@@ -607,6 +670,7 @@ function drawIcePatches() {
     ctx.beginPath();
     ctx.ellipse(p.x, p.y, p.r, p.r * 0.72, 0, 0, TAU);
     ctx.fill();
+    if (heavy) continue;
 
     ctx.globalAlpha = 0.55 * a;
     ctx.strokeStyle = '#e6fbff';
@@ -645,15 +709,10 @@ function drawWaters() {
     if (rr < 2) continue;
     var fadeK = w.age <= C.hold ? 1 : clamp(1 - (w.age - C.hold) / C.fade, 0, 1);
 
-    // 水体：中心略深、边缘透明
-    var g = ctx.createRadialGradient(w.x, w.y, rr * 0.08, w.x, w.y, rr);
-    g.addColorStop(0, 'rgba(38,120,168,' + (0.30 * fadeK).toFixed(3) + ')');
-    g.addColorStop(0.55, 'rgba(86,178,222,' + (0.17 * fadeK).toFixed(3) + ')');
-    g.addColorStop(1, 'rgba(140,222,255,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.ellipse(w.x, w.y, rr, rr * 0.82, 0, 0, TAU);
-    ctx.fill();
+    // 水体：中心略深、边缘透明（离屏贴图，按当前半径缩放 + 整体淡出）
+    ctx.globalAlpha = fadeK;
+    ctx.drawImage(waterSprite(), w.x - rr, w.y - rr * 0.82, rr * 2, rr * 1.64);
+    ctx.globalAlpha = 1;
 
     // 扩散波纹：3 圈错相位，持续从圆心向外推（"水从中间往四周散开"）
     for (var k = 0; k < 3; k++) {
@@ -1274,28 +1333,42 @@ function drawLasers() {
   }
 }
 
+/* 终结技瞬发光束（大狗三重咆哮等）：短寿命三层光柱 */
+function drawUltBeams() {
+  for (var i = 0; i < ultBeams.length; i++) {
+    var b = ultBeams[i];
+    var k = clamp(b.life / b.max, 0, 1);
+    var a = Math.min(1, k * 1.6);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.22 * a;
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth = b.width * 1.8;
+    ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+    ctx.globalAlpha = 0.7 * a;
+    ctx.lineWidth = b.width * 0.5;
+    ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+    ctx.globalAlpha = 0.95 * a;
+    ctx.strokeStyle = '#fff9e6';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+    ctx.restore();
+  }
+}
+
 /* 战斗内的单位外观：把 45-icons.js 的图标做成「圆牌」，
    和菜单 / 手机端保持同一套形象（第 97 条） */
 function drawTokenUnit(u, img) {
   var r = u.r;
 
-  // 队伍色光晕（替代各角色原来的 glow，红蓝一眼可分）
-  var gl = ctx.createRadialGradient(u.x, u.y, r * 0.35, u.x, u.y, r * 2.1);
-  gl.addColorStop(0, u.team === 'A' ? 'rgba(232,72,63,.30)' : 'rgba(74,123,240,.32)');
-  gl.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = gl;
-  ctx.beginPath();
-  ctx.arc(u.x, u.y, r * 2.1, 0, TAU);
-  ctx.fill();
+  // 队伍色光晕（替代各角色原来的 glow，红蓝一眼可分）：离屏贴图，避免每帧建渐变
+  var gr = r * 2.1;
+  ctx.drawImage(teamGlowSprite(u.team), u.x - gr, u.y - gr, gr * 2, gr * 2);
 
-  // 底盘
-  var bg = ctx.createLinearGradient(u.x, u.y - r, u.x, u.y + r);
-  bg.addColorStop(0, '#1d2634');
-  bg.addColorStop(1, '#0d1219');
-  ctx.fillStyle = bg;
+  // 底盘：同样是缓存的离屏贴图
+  ctx.drawImage(tokenBaseSprite(r), u.x - r, u.y - r, r * 2, r * 2);
   ctx.beginPath();
   ctx.arc(u.x, u.y, r, 0, TAU);
-  ctx.fill();
   ctx.strokeStyle = u.team === 'A' ? 'rgba(255,120,100,.55)' : 'rgba(120,160,255,.6)';
   ctx.lineWidth = 2;
   ctx.stroke();
@@ -1325,6 +1398,27 @@ function drawUnit(u) {
     ctx.setLineDash([]);
     ctx.beginPath();
     ctx.arc(u.castAim.x, u.castAim.y, 8 + prog * 8, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 终结技蓄力：金色虚线锁定目标 + 双层收束圈（比普通技能更醒目）
+  if (u.ultT > 0 && u.ultAim) {
+    var uProg = u.ultCastMax > 0 ? clamp(1 - u.ultT / u.ultCastMax, 0, 1) : 1;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,214,122,' + (0.3 + 0.55 * uProg).toFixed(3) + ')';
+    ctx.lineWidth = 2 + 2 * uProg;
+    ctx.setLineDash([4, 5]);
+    ctx.beginPath();
+    ctx.moveTo(u.x, u.y);
+    ctx.lineTo(u.ultAim.x, u.ultAim.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.arc(u.ultAim.x, u.ultAim.y, 18 + 36 * uProg, 0, TAU);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(u.x, u.y, u.r + 8 + 20 * uProg, 0, TAU);
     ctx.stroke();
     ctx.restore();
   }
@@ -1525,6 +1619,31 @@ function drawUnit(u) {
     ctx.stroke();
   }
 
+  // 终结技充能环：普通技能环外侧再套一圈金色；充满后呼吸闪烁
+  var UT = TYPES[u.key] && TYPES[u.key].ultimate;
+  if (UT) {
+    var ur = cr + 6;
+    var uk = clamp(1 - (u.ultCd || 0) / UT.cd, 0, 1);
+    ctx.strokeStyle = 'rgba(255,214,122,.12)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(u.x, u.y, ur, 0, TAU);
+    ctx.stroke();
+    if (u.ultCd > 0) {
+      ctx.strokeStyle = 'rgba(255,214,122,.55)';
+      ctx.beginPath();
+      ctx.arc(u.x, u.y, ur, -Math.PI / 2, -Math.PI / 2 + TAU * uk);
+      ctx.stroke();
+    } else {
+      var uPulse = 0.5 + 0.5 * Math.sin(t * 7 + u.seed);
+      ctx.strokeStyle = 'rgba(255,224,138,' + (0.55 + 0.4 * uPulse).toFixed(3) + ')';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(u.x, u.y, ur + uPulse * 1.5, 0, TAU);
+      ctx.stroke();
+    }
+  }
+
   // 羁绊狂暴状态：外圈光环 + 头顶文字
   if (R) {
     var aura = R.phase === 'shake'
@@ -1627,6 +1746,30 @@ function drawFx() {
   ctx.textAlign = 'left';
 }
 
+/* HUD 文本/血条不需要每帧写 DOM：每帧写 textContent 会触发样式重算，
+   在低端机上就是肉眼可见的掉帧。统一按 ~10Hz 刷新，画面里的数值仍然实时。 */
+var hudFrame = 0;
+var hudLast = { a: '', b: '', timer: '', label: '', status: '' };
+
+function syncHud() {
+  var A = teamHp('A'), B = teamHp('B');
+  var aw = (A.max ? (A.cur / A.max) * 100 : 0).toFixed(1) + '%';
+  var bw = (B.max ? (B.cur / B.max) * 100 : 0).toFixed(1) + '%';
+  if (aw !== hudLast.a) { el.hpA.style.width = aw; hudLast.a = aw; }
+  if (bw !== hudLast.b) { el.hpB.style.width = bw; hudLast.b = bw; }
+
+  var timer = suddenDeath ? '决杀 ' + Math.floor(t - suddenStart) + 's' : String(Math.ceil(roundTime));
+  var label = suddenDeath ? '-5%/s' : 'SEC';
+  if (timer !== hudLast.timer) { el.timer.textContent = timer; hudLast.timer = timer; }
+  if (label !== hudLast.label) { el.timerLabel.textContent = label; hudLast.label = label; }
+
+  el.stage.classList.toggle('sudden', suddenDeath && phase === 'fight');
+
+  var st = statusText();
+  if (st !== hudLast.status) { el.status.textContent = st; hudLast.status = st; }
+  if (typeof updateRoster === 'function') updateRoster(true);
+}
+
 function render() {
   /* 后台赔率模拟（第 83 条）期间画布上显示的是赛事棋盘，这里停画：
      模拟状态和当前对局无关，绘制只会白白耗掉低端机的帧预算 */
@@ -1669,18 +1812,13 @@ function render() {
 
   drawAnvilDrops();   // 落下的铁砧压在单位之上
   drawLasers();       // 大狗激光（压在单位之上）
+  drawUltBeams();     // 终结技瞬发光束（大狗三重咆哮等）
   drawVines();        // 藤蔓压在最上层
 
   ctx.restore();
 
-  var A = teamHp('A'), B = teamHp('B');
-  el.hpA.style.width = (A.max ? (A.cur / A.max) * 100 : 0) + '%';
-  el.hpB.style.width = (B.max ? (B.cur / B.max) * 100 : 0) + '%';
-  el.timer.textContent = suddenDeath ? '决杀 ' + Math.floor(t - suddenStart) + 's' : Math.ceil(roundTime);
-  el.timerLabel.textContent = suddenDeath ? '-5%/s' : 'SEC';
-  el.stage.classList.toggle('sudden', suddenDeath && phase === 'fight');
-  el.status.textContent = statusText();
-  if (typeof updateRoster === 'function') updateRoster();
-  if (typeof updatePortraitCamera === 'function') updatePortraitCamera();
+  hudFrame++;
+  if ((hudFrame % 6) === 0) syncHud();
+  if (typeof updatePortraitCamera === 'function' && (hudFrame % 2) === 0) updatePortraitCamera();
 }
 

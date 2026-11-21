@@ -4,12 +4,16 @@
 
 TYPES.lapis = {
   key: 'lapis', name: '青金石块', role: '辅助 / 续航', bond: 'red',
-  r: 24, maxHp: 200, baseSpeed: 200, atk: 1.0,
+  r: 24, maxHp: 320, baseSpeed: 200, atk: 1.0,
   body: '#2d5bd6', light: '#7ba2ff', dark: '#152a6b', glow: '#4a7bf0',
   skill: {
     name: '附魔折射', cd: 4.4,
     dashSpeed: 560, dashTime: 0.30, dmgMult: 1.15,
     text: '转向冲刺，撞击倍率 ×1.15'
+  },
+  ultimate: {
+    name: '折光爆裂', cd: 18.0,
+    text: '以自身为中心爆发折光：380px 内敌人受到 90 伤害并减速 2.5 秒（×0.4），自身获得 40 护盾'
   },
   passive: {
     name: '冰冻光环',
@@ -45,6 +49,24 @@ TYPES.lapis = {
     ring(u.x, u.y, u.r, 128, 0.45, '#6f9bff');
     burst(u.x, u.y, 18, '#8fb4ff', 160);
     floater(u.x, u.y - u.r - 20, '附魔折射', '#9cc0ff', 12);
+  },
+  // 终结技：范围折光爆发（伤害 + 强减速）并给自己一层护盾
+  onUlt: function (u) {
+    var R = 380, DMG = 90;
+    for (var k = 0; k < units.length; k++) {
+      var v = units[k];
+      if (!v.alive || v.team === u.team) continue;
+      if (Math.hypot(v.x - u.x, v.y - u.y) > R + v.r) continue;
+      hurt(v, DMG, u);
+      v.slowT = Math.max(v.slowT, 2.5);
+      v.slowMul = Math.min(v.slowMul || 1, 0.4);
+    }
+    u.st.shield = Math.max(u.st.shield || 0, 40);
+    u.st.shieldT = 0;
+    ring(u.x, u.y, u.r, R, 0.7, '#9cc0ff');
+    ring(u.x, u.y, u.r, R * 0.62, 0.5, '#dbe8ff');
+    burst(u.x, u.y, 30, '#8fb4ff', 340);
+    shake = Math.max(shake, 4);
   },
   onTick: function (u, dt) {
     var cfg = BALANCE.lapisAura;

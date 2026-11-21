@@ -10,12 +10,16 @@
 
 TYPES.dog = {
   key: 'dog', name: '大狗', role: '远程 / 压制',
-  r: 28, maxHp: 340, baseSpeed: 205, atk: 1.0,
+  r: 28, maxHp: 540, baseSpeed: 205, atk: 1.0,
   body: '#b5723a', light: '#f2cf9a', dark: '#5a3216', glow: '#ffb765',
 
   skill: {
     name: '咆哮激光', cd: 7.0, noTurn: true, dashTime: 0, dashSpeed: 0, dmgMult: 1,
     text: '朝最近敌人射出一道超长激光：方向锁定，持续 4 秒、每 0.1 秒一段（3 伤害/段，共 40 段）；激光放完才开始计 7 秒冷却'
+  },
+  ultimate: {
+    name: '三重咆哮', cd: 18.0, noTurn: true,
+    text: '瞬间朝敌人方向射出三道贯穿光束（±18°），每道 55 伤害'
   },
   passive: {
     name: '厚皮',
@@ -73,6 +77,19 @@ TYPES.dog = {
 
   // 厚皮：受到的伤害 ×0.85
   onDamaged: function (u, dmg) { return dmg * 0.85; },
+
+  // 终结技：三道瞬发光束（不等同于持续激光，不占用 laserT）
+  onUlt: function (u) {
+    var foe = nearestEnemy(u);
+    var base = foe ? Math.atan2(foe.y - u.y, foe.x - u.x) : u.ang;
+    for (var i = -1; i <= 1; i++) {
+      spawnUltBeam(u, base + i * 0.32, {
+        len: 960, width: 26, dmg: 55, color: '#ffcf8a', life: 0.42
+      });
+    }
+    ring(u.x, u.y, u.r, u.r + 120, 0.4, '#ffcf8a');
+    burst(u.x, u.y, 18, '#ffe0a8', 260);
+  },
 
   draw: function (u) { drawDog(u); }
 };

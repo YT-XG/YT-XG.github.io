@@ -4,12 +4,16 @@
 
 TYPES.red = {
   key: 'red', name: '红石块', role: '莽夫 / 先手', bond: 'lapis',
-  r: 24, maxHp: 200, baseSpeed: 200, atk: 1.0,
+  r: 24, maxHp: 320, baseSpeed: 200, atk: 1.0,
   body: '#c8342b', light: '#ff7a6a', dark: '#6d140e', glow: '#ff5a44',
   skill: {
     name: '红石脉冲', cd: 3.6,
     dashSpeed: 650, dashTime: 0.36, dmgMult: 1.9,
     text: '转向冲刺，撞击倍率 ×1.9'
+  },
+  ultimate: {
+    name: '红石陨星', cd: 16.0,
+    text: '在敌人周围空投 6 颗强化炸弹：半径 120px、每颗 70 伤害、1.3 秒引信'
   },
   passive: {
     name: '红石溅射',
@@ -40,6 +44,25 @@ TYPES.red = {
     burst(u.x, u.y, 16, '#ff7a5f', 250);
     floater(u.x, u.y - u.r - 20, '红石脉冲', '#ff9c85', 12);
     shake = Math.max(shake, 3.5);
+  },
+  // 终结技：围绕敌人空投一圈强化炸弹（落点固定，不跟随）
+  onUlt: function (u) {
+    var e = nearestEnemy(u);
+    var cx = e ? e.x : u.x, cy = e ? e.y : u.y;
+    var A = ARENA;
+    for (var i = 0; i < 6; i++) {
+      var a = i / 6 * TAU + t * 0.7;
+      bombs.push({
+        x: clamp(cx + Math.cos(a) * 92, A.x + 26, A.x + A.w - 26),
+        y: clamp(cy + Math.sin(a) * 92, A.y + 26, A.y + A.h - 26),
+        fuse: 1.3, max: 1.3,
+        radius: 120, dmg: 70,
+        team: u.team, owner: u, spin: rand(0, TAU)
+      });
+    }
+    ring(cx, cy, 12, 170, 0.55, '#ffb14d');
+    burst(cx, cy, 22, '#ffd166', 280);
+    shake = Math.max(shake, 5);
   },
   onHit: function (u) {
     if (u.st.rage || u.dashT <= 0) return;   // 常规模式只有技能冲刺撞击才触发；狂暴后改为炸弹

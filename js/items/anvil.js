@@ -9,13 +9,17 @@
 
 TYPES.anvil = {
   key: 'anvil', name: '铁砧', role: '延迟爆发 / 区域压制',
-  r: 30, maxHp: 420, baseSpeed: 200, atk: 1.0,
+  r: 30, maxHp: 660, baseSpeed: 200, atk: 1.0,
   body: '#8b98ab', light: '#e8effa', dark: '#3a4453', glow: '#c6d7ee',
   skill: {
     name: '天降铁砧', cd: 3.0, noTurn: true,
     // 非冲刺型技能：不加速、不转向，只标记落点
     dashTime: 0, dashSpeed: 0, dmgMult: 1,
     text: '在敌人当前位置锁定半径 200px 的落点圆，3 秒后铁砧砸落：圆内最近目标 210 伤害（边缘 126），其余目标减半'
+  },
+  ultimate: {
+    name: '铁砧风暴', cd: 16.0, noTurn: true,
+    text: '在敌人与其周围连续标记 4 个落点圆，3 秒后依次砸落'
   },
   passive: {
     name: '重压',
@@ -41,6 +45,22 @@ TYPES.anvil = {
     ring(e.x, e.y, 8, TYPES.anvil.anvil.markR, 0.5, '#cbd8ea');
     burst(e.x, e.y, 10, '#dfe8f7', 120);
     floater(u.x, u.y - u.r - 20, '天降铁砧', '#dfe8f7', 12);
+  },
+  // 终结技：敌人脚下 + 周围三个方向各标记一个落点（位置在生成瞬间锁定）
+  onUlt: function (u) {
+    var e = nearestEnemy(u);
+    if (!e) return;
+    var A = ARENA;
+    spawnAnvilMark(u, e.x, e.y);
+    for (var i = 0; i < 3; i++) {
+      var a = t * 0.9 + i * TAU / 3;
+      spawnAnvilMark(u,
+        clamp(e.x + Math.cos(a) * 140, A.x + 40, A.x + A.w - 40),
+        clamp(e.y + Math.sin(a) * 140, A.y + 40, A.y + A.h - 40));
+    }
+    ring(e.x, e.y, 10, TYPES.anvil.anvil.markR * 1.25, 0.6, '#cbd8ea');
+    burst(e.x, e.y, 16, '#dfe8f7', 180);
+    shake = Math.max(shake, 4);
   },
   draw: function (u) { drawAnvil(u); }
 };

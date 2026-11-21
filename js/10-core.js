@@ -61,6 +61,8 @@ function dmgOf(attacker, impact, victim) {
    状态
    ============================================================ */
 var units = [], particles = [], rings = [], floaters = [], bombs = [], arrows = [], icePatches = [];
+// 终结技的一次性光束（大狗等）：只做短寿命视觉，伤害在 spawnUltBeam 里立即结算
+var ultBeams = [];
 // 水桶的水面：{x,y,r:220,age,team,owner,phase}，有独立的引力与浸水计时（见 30-sim 的 updateWaters）
 var waters = [];
 // 铁砧的落点预警圆：生成时锁定坐标，delay 秒后砸落结算
@@ -259,6 +261,9 @@ function addUnit(key, x, y, team) {
     baseSpeed: d.baseSpeed, atk: d.atk, dmgMult: 1,
     body: d.body, light: d.light, dark: d.dark, glow: d.glow,
     skillName: d.skill.name,
+    ultName: d.ultimate ? d.ultimate.name : '',
+    ultCd: d.ultimate ? srand(5.0, 9.0) : 0,   // 终结技初始充能：错开各单位的大招节奏
+    ultT: 0, ultCastMax: 0, ultAim: null,
     x: x, y: y, ang: 0, vx: 0, vy: 0,
     alive: true, flash: 0,
     cd: d.skill.passiveOnly ? 0 : srand(0.8, 1.8), hitCd: 0, wallCd: 0,
@@ -340,8 +345,11 @@ function reset() {
   }
   simAcc = 0;
   portraitCam = 0;
+  if (typeof hudLast !== 'undefined') hudLast.status = '';   // 新一局强制重写底部状态栏
+  if (typeof portraitSize !== 'undefined') portraitSize.cssW = 0;
 
   units = []; particles = []; rings = []; floaters = []; bombs = []; arrows = []; icePatches = [];
+  ultBeams = [];
   waters = [];
   anvilMarks = [];
   seeds = []; vines = []; reviveQueue = [];

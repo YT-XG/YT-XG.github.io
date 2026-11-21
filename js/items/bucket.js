@@ -16,7 +16,7 @@
 
 TYPES.bucket = {
   key: 'bucket', name: '水桶', role: '区域控制 / 持续伤害',
-  r: 28, maxHp: 500, baseSpeed: 200, atk: 1.15,
+  r: 28, maxHp: 800, baseSpeed: 200, atk: 1.15,
   body: '#3f86a8', light: '#dff2fb', dark: '#17475c', glow: '#7fd8ff',
 
   skill: {
@@ -24,6 +24,10 @@ TYPES.bucket = {
     // 非冲刺型技能：原地放水，不加速、不转向（dashTime 0）
     dashTime: 0, dashSpeed: 0, dmgMult: 1,
     text: '每 8 秒在当前位置放出一滩水：半径 220px，约 0.9 秒从中心扩散成型；水持续 6 秒、再用 2 秒淡出，淡出途中仍然有引力与伤害，直到完全消失。水面向圆心产生引力（越靠圆心拉力越大）；敌方头顶出现「缺氧」计量，约 4 秒充满，充满后每秒损失 8% 最大生命；离开水面后缺氧值缓慢回落'
+  },
+  ultimate: {
+    name: '洪流', cd: 20.0, noTurn: true,
+    text: '在每名敌人脚下与自身位置各召出一滩水（半径 220px），持续 6 秒 + 2 秒淡出'
   },
   passive: {
     name: '浸水',
@@ -56,6 +60,20 @@ TYPES.bucket = {
     ring(u.x, u.y, u.r, C.r, 0.5, '#bfeeff');
     burst(u.x, u.y, 16, '#cdefff', 220);
     floater(u.x, u.y - u.r - 20, '涌泉', '#9fe4ff', 13);
+  },
+
+  // 终结技：在每名敌人脚下和自身位置各放一滩水（水面数量有 WATER_MAX 上限）
+  onUlt: function (u) {
+    for (var i = 0; i < units.length; i++) {
+      var v = units[i];
+      if (!v.alive || v.team === u.team) continue;
+      spawnWater(u, v.x, v.y);
+      ring(v.x, v.y, 12, TYPES.bucket.water.r, 0.55, '#bfeeff');
+    }
+    spawnWater(u, u.x, u.y);
+    ring(u.x, u.y, 12, TYPES.bucket.water.r, 0.55, '#bfeeff');
+    burst(u.x, u.y, 26, '#cdefff', 300);
+    shake = Math.max(shake, 3.5);
   },
 
   draw: function (u) { drawBucket(u); }

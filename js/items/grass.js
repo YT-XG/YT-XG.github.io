@@ -13,12 +13,16 @@
 
 TYPES.grass = {
   key: 'grass', name: '草', role: '召唤 / 控制',
-  r: 25, maxHp: 300, baseSpeed: 200, atk: 1.0,
+  r: 25, maxHp: 480, baseSpeed: 200, atk: 1.0,
   body: '#5fbf5a', light: '#c8f5b0', dark: '#2f6b2c', glow: '#9be36f',
 
   skill: {
     name: '生花', cd: 20.0, noTurn: true, dashTime: 0, dashSpeed: 0, dmgMult: 1,
     text: '每 20 秒在当前位置种下一颗种子：100 HP、不会移动、不挡路；只有血量归零才会消失（贴身接触不掉血，但敌方冲刺 / 箭矢 / 激光 / 铁砧 / 炸弹 / 冰面 / 狗奶引导都能打掉它）。场上已有种子时不能再种，复活 2 次后也不再种；草阵亡时若场上还有自己的种子，就按种子剩余血量在种子处复活'
+  },
+  ultimate: {
+    name: '荆棘乐园', cd: 22.0, noTurn: true,
+    text: '全场友军回复 20% 最大生命；同时定身所有敌人 2.5 秒并施加 6 秒中毒（每秒 12）'
   },
   passive: {
     name: '捆绑',
@@ -49,6 +53,29 @@ TYPES.grass = {
   // 常规碰撞伤害照常（atk 1.0），伤害主要来自捆绑的中毒
   onCast: function (u) {
     plantSeed(u, TYPES.grass.seed);
+  },
+
+  // 终结技：全场友军回血 + 敌方定身中毒（不改任何人的朝向）
+  onUlt: function (u) {
+    for (var i = 0; i < units.length; i++) {
+      var v = units[i];
+      if (!v.alive) continue;
+      if (v.team === u.team) {
+        var heal = v.maxHp * 0.20;
+        v.hp = Math.min(v.maxHp, v.hp + heal);
+        floater(v.x, v.y - v.r - 18, '回春 +' + Math.round(heal), '#8ce06a', 12);
+        ring(v.x, v.y, v.r, v.r + 42, 0.4, '#9be36f');
+      } else {
+        v.bindT = Math.max(v.bindT, 2.5);
+        v.poisonT = Math.max(v.poisonT, 6.0);
+        v.poisonAcc = Math.min(v.poisonAcc, 1.0);
+        v.poisonSrc = u;
+        ring(v.x, v.y, v.r, v.r + 36, 0.4, '#8ce06a');
+      }
+    }
+    ring(u.x, u.y, u.r, 420, 0.7, '#9be36f');
+    burst(u.x, u.y, 30, '#c8f5b0', 320);
+    floater(u.x, u.y - u.r - 26, '万木回春', '#c8f5b0', 14);
   },
 
   onTick: function (u, dt) {

@@ -13,7 +13,7 @@
 
 TYPES.milk = {
   key: 'milk', name: '野生狗奶', role: '全域压制 / 引导',
-  r: 26, maxHp: 360, baseSpeed: 200, atk: 1.0,
+  r: 26, maxHp: 560, baseSpeed: 200, atk: 1.0,
   body: '#e6cfa8', light: '#fff4de', dark: '#8a6a44', glow: '#ffe0a0',
 
   skill: {
@@ -22,6 +22,10 @@ TYPES.milk = {
     dashTime: 0, dashSpeed: 0, dmgMult: 1,
     text: '原地引导 15 秒：自身不可移动、免疫伤害，并显示 80 点打断护盾（受击先扣护盾，打空立即打断）；' +
       '场上所有敌方单位与召唤物每秒损失 6.6% 最大生命（15 秒合计 99%）。引导结束或被打断后才开始计 8 秒冷却'
+  },
+  ultimate: {
+    name: '野性反哺', cd: 24.0, noTurn: true,
+    text: '立即抽取所有敌人 20% 最大生命（对种子 50%），并回复自身 25% 最大生命'
   },
   passive: {
     name: '野奶之躯',
@@ -56,6 +60,27 @@ TYPES.milk = {
     ring(u.x, u.y, u.r, u.r + 96, 0.6, '#ffe0a0');
     burst(u.x, u.y, 18, '#fff1cc', 200);
     floater(u.x, u.y - u.r - 20, '野性哺育', '#ffe9b0', 13);
+  },
+
+  // 终结技：立即抽取所有敌方单位 / 敌方种子的生命，并回复自身
+  onUlt: function (u) {
+    var i;
+    for (i = 0; i < units.length; i++) {
+      var v = units[i];
+      if (!v.alive || v.team === u.team) continue;
+      hurt(v, v.maxHp * 0.20, u);
+      ring(v.x, v.y, v.r, v.r + 40, 0.4, '#ffe0a0');
+    }
+    for (i = seeds.length - 1; i >= 0; i--) {
+      var sd = seeds[i];
+      if (sd.team === u.team) continue;
+      hurtSeed(sd, sd.maxHp * 0.5, u);
+      if (sd.hp <= 0) destroySeed(i, '种子被汲取');
+    }
+    var heal = u.maxHp * 0.25;
+    u.hp = Math.min(u.maxHp, u.hp + heal);
+    floater(u.x, u.y - u.r - 26, '反哺 +' + Math.round(heal), '#ffe9b0', 14);
+    ring(u.x, u.y, u.r, u.r + 110, 0.6, '#ffe0a0');
   },
 
   onTick: function (u, dt) {

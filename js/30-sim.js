@@ -7,7 +7,17 @@
 
 /* ============================================================
    特效
-   ============================================================ */
+   ------------------------------------------------------------
+   终结技 / 6v6 同时开打时特效会短时间暴涨，这里给三个特效数组设上限：
+   超出后丢最早的，保证低端机不会因为粒子数无限增长而掉帧。 */
+var FX_PARTICLE_MAX = 900;
+var FX_RING_MAX = 160;
+var FX_FLOATER_MAX = 120;
+
+function trimFx(arr, max) {
+  if (arr.length > max) arr.splice(0, arr.length - max);
+}
+
 function burst(x, y, n, color, speed) {
   for (var i = 0; i < n; i++) {
     var a = rand(0, TAU), s = rand(speed * 0.25, speed);
@@ -18,12 +28,15 @@ function burst(x, y, n, color, speed) {
       size: rand(1.6, 3.6), color: color, grav: 120
     });
   }
+  trimFx(particles, FX_PARTICLE_MAX);
 }
 function ring(x, y, r0, r1, life, color) {
   rings.push({ x: x, y: y, r0: r0, r1: r1, life: life, max: life, color: color });
+  trimFx(rings, FX_RING_MAX);
 }
 function floater(x, y, text, color, size) {
   floaters.push({ x: x, y: y, vy: -34, life: 0.9, max: 0.9, text: text, color: color, size: size || 13 });
+  trimFx(floaters, FX_FLOATER_MAX);
 }
 
 /* ============================================================
@@ -119,6 +132,8 @@ function startRage(u) {
   if (typeof sfxPlay === 'function') sfxPlay('rage');
   u.st.rage = { phase: 'shake', t: BALANCE.bondShake, since: 0 };
   u.dashT = 0; u.dmgMult = 1; u.vx = 0; u.vy = 0; u.trail = [];
+  u.ultT = 0; u.ultAim = null;
+  if (u.st.ultChain) u.st.ultChain = null;
   ring(u.x, u.y, u.r, 170, 0.6, '#ffd166');
   burst(u.x, u.y, 22, '#ffe08a', 260);
   floater(u.x, u.y - u.r - 28, '羁绊·狂暴', '#ffe08a', 15);
@@ -340,9 +355,15 @@ function aimAngle(u, sx, sy, speed) {
   return Math.atan2(py - sy, px - sx);
 }
 
-function fireArrow(u, power) {
-  var C = power ? TYPES.bow.arrow.power : TYPES.bow.arrow.normal;
-  var aim = aimAngle(u, u.x, u.y, C.speed);
+function fireArrow(u, power, opts) {
+  var base = power ? TYPES.bow.arrow.power : TYPES.bow.arrow.normal;
+  var C = {
+    speed: (opts && opts.speed) || base.speed,
+    dmg: (opts && opts.dmg) || base.dmg,
+    life: (opts && opts.life) || base.life,
+    hitR: (opts && opts.hitR) || base.hitR
+  };
+  var aim = aimAngle(u, u.x, u.y, C.speed) + ((opts && opts.spread) || 0);
   u.faceAng = aim;   // 仅用于绘制朝向；移动方向 u.ang 保持不变
 
   var sx = u.x + Math.cos(aim) * (u.r + 6);
@@ -854,6 +875,7 @@ function statusText() {
       parts.push(u.name + ' 引导 ' + u.st.milkT.toFixed(1) + 's · 护盾 ' +
         Math.ceil(Math.max(0, u.st.shield)) + '/' + TYPES.milk.shieldMax);
     }
+    if (u.ultT > 0) parts.push(u.name + ' 终结技蓄力 ' + u.ultT.toFixed(1) + 's');
     // 水桶：头顶缺氧值（充满后每秒掉血），状态栏显示当前百分比
     if (u.waterT > 0) {
       parts.push(u.name + ' 缺氧 ' +
@@ -902,6 +924,112 @@ function cast(u, target) {
 }
 
 /* ============================================================
+   终结技：与普通技能完全独立的长冷却大招
+   ------------------------------------------------------------
+   · 每个物品在 TYPES[key].ultimate 里声明 name / cd / text / windup
+   · think() 先判断终结技：CD 好了、有目标 → 0.4s 金色蓄力 → onUlt()
+   · onUlt 只负责物品专属效果；通用的「连续突刺」与「瞬发光束」由下面的
+     startUltChain / spawnUltBeam 提供
+   · 终结技不消耗普通技能 CD；引导 / 定身 / 狂暴会中断蓄力
+   ============================================================ */
+function startUltChain(u, cfg) {
+  u.st.ultChain = {
+    left: cfg.count, count: cfg.count,
+    time: cfg.dashTime, speed: cfg.dashSpeed, mul: cfg.dmgMult,
+    interval: cfg.interval == null ? 0.16 : cfg.interval,
+    gap: 0, label: cfg.label || '连击'
+  };
+}
+
+// 连刺链：每次冲刺结束后间隔 interval 再锁定最近敌人冲一次，直到 count 段打完
+function updateUltChains(dt) {
+  for (var i = 0; i < units.length; i++) {
+    var u = units[i];
+    var c = u.st && u.st.ultChain;
+    if (!c) continue;
+    if (!u.alive || u.st.rage || u.st.milkT > 0) {
+      u.st.ultChain = null;
+      u.dmgMult = 1;
+      continue;
+    }
+    if (u.dashT > 0) continue;          // 正在冲刺：等这一段结束再排下一段
+    if (c.left <= 0) { u.st.ultChain = null; u.dmgMult = 1; continue; }
+    c.gap -= dt;
+    if (c.gap > 0) continue;
+
+    var tgt = nearestEnemy(u);
+    if (!tgt) { u.st.ultChain = null; u.dmgMult = 1; continue; }
+    u.ang = Math.atan2(tgt.y - u.y, tgt.x - u.x);
+    u.dashT = c.time;
+    u.dashSpeed = c.speed;
+    u.dmgMult = c.mul;
+    c.left--;
+    c.gap = c.interval;
+    ring(u.x, u.y, u.r, u.r + 54, 0.22, '#ffe08a');
+    burst(u.x, u.y, 7, '#fff0bd', 260);
+    floater(u.x, u.y - u.r - 18,
+      c.label + ' ' + (c.count - c.left) + '/' + c.count, '#ffe08a', 12);
+  }
+}
+
+// 终结技光束：一次性画一条光柱并立即结算沿途敌人与敌方种子（不做持续追踪）
+function spawnUltBeam(owner, ang, cfg) {
+  var x2 = owner.x + Math.cos(ang) * cfg.len;
+  var y2 = owner.y + Math.sin(ang) * cfg.len;
+  var color = cfg.color || '#ffcf8a';
+  var life = cfg.life || 0.45;
+  ultBeams.push({
+    x1: owner.x, y1: owner.y, x2: x2, y2: y2,
+    life: life, max: life, color: color, width: cfg.width
+  });
+  for (var i = 0; i < units.length; i++) {
+    var v = units[i];
+    if (!v.alive || v.team === owner.team) continue;
+    if (segDist(v.x, v.y, owner.x, owner.y, x2, y2) > cfg.width * 0.5 + v.r) continue;
+    hurt(v, cfg.dmg, owner);
+    burst(v.x, v.y, 8, color, 200);
+  }
+  for (var s = seeds.length - 1; s >= 0; s--) {
+    var sd = seeds[s];
+    if (sd.team === owner.team) continue;
+    if (segDist(sd.x, sd.y, owner.x, owner.y, x2, y2) > cfg.width * 0.5 + sd.r) continue;
+    hurtSeed(sd, cfg.dmg, owner);
+    if (sd.hp <= 0) destroySeed(s, '种子被光束烧毁');
+  }
+}
+
+function castUltimate(u) {
+  var T = TYPES[u.key];
+  var U = T.ultimate;
+  if (!U) return;
+  var aim = u.ultAim;
+  u.ultCd = U.cd;
+  u.ultT = 0;
+  u.ultAim = null;
+  if (typeof sfxPlay === 'function') sfxPlay('ult');
+  ring(u.x, u.y, u.r + 4, u.r + 150, 0.55, '#ffe08a');
+  ring(u.x, u.y, u.r + 4, u.r + 92, 0.4, '#fff6d8');
+  burst(u.x, u.y, 26, '#ffe9a8', 330);
+  floater(u.x, u.y - u.r - 38, '终结技 · ' + U.name, '#ffe08a', 16);
+  shake = Math.max(shake, 6);
+  hitStop = Math.max(hitStop, 0.03);
+  if (T.onUlt) T.onUlt(u, aim);
+}
+
+function updateUltCasts(dt) {
+  for (var i = 0; i < units.length; i++) {
+    var u = units[i];
+    if (u.ultT <= 0) continue;
+    u.ultT -= dt;
+    if (!u.alive || u.st.rage || u.st.milkT > 0 || u.bindT > 0) {
+      u.ultT = 0; u.ultAim = null; continue;
+    }
+    if (u.ultT > 0) continue;
+    castUltimate(u);
+  }
+}
+
+/* ============================================================
    技能施放：CD 好了直接放，不做距离 / 角度 / 反应试探
    ------------------------------------------------------------
    2026-11-16：增加两层「可读性」改动
@@ -918,16 +1046,34 @@ function castAllowed(u, s) {
 }
 
 function think(u, dt) {
-  if (!u.alive || u.st.rage || u.dashT > 0 || u.cd > 0) return;
-  if (u.castT > 0) return;
+  if (!u.alive || u.st.rage || u.dashT > 0) return;
+  if (u.castT > 0 || u.ultT > 0) return;
+  if (u.st.ultChain && u.st.ultChain.left > 0) return;
+  if (u.st.milkT > 0) return;   // 引导期间站桩，不施放任何技能
   // 被动型"技能"（冰块的寒冰轨迹）不需要主动施放，由 onTick 持续生效
   if (TYPES[u.key].skill.passiveOnly) return;
 
   var s = sense(u);
   if (!s.enemy) return;
 
-  // 物品可以声明 canCast(u) 做"能用但暂时不能放"的判定（如：草已有种子时不能再种）
   var T = TYPES[u.key];
+
+  // 终结技优先：与普通技能 CD 互不影响，有目标且充满就进入金色蓄力
+  // 被定身时不开始蓄力，避免蓄力→被中断→下一帧再蓄力的视觉刷屏
+  var U = T.ultimate;
+  if (U && u.ultCd <= 0 && u.bindT <= 0 && !(T.ultBlocked && T.ultBlocked(u))) {
+    var uw = U.windup == null ? 0.4 : U.windup;
+    u.ultT = Math.max(0.001, uw);
+    u.ultCastMax = u.ultT;
+    u.ultAim = { x: s.enemy.x, y: s.enemy.y };
+    ring(u.x, u.y, u.r, u.r + 70, 0.35, '#ffe08a');
+    floater(u.x, u.y - u.r - 26, '终结技蓄力', '#ffe08a', 12);
+    return;
+  }
+
+  if (u.cd > 0) return;
+
+  // 物品可以声明 canCast(u) 做"能用但暂时不能放"的判定（如：草已有种子时不能再种）
   if (T.canCast && !T.canCast(u)) return;
   if (!castAllowed(u, s)) return;
 
@@ -1283,6 +1429,7 @@ function tick(dt) {
   for (var i = 0; i < units.length; i++) {
     var u = units[i];
     u.cd = Math.max(0, u.cd - dt);
+    u.ultCd = Math.max(0, (u.ultCd || 0) - dt);
     u.hitCd = Math.max(0, u.hitCd - dt);
     u.wallCd = Math.max(0, u.wallCd - dt);
     u.flash = Math.max(0, u.flash - dt * 5);
@@ -1317,8 +1464,10 @@ function tick(dt) {
     if (PT.onTick) PT.onTick(pu, dt);
   }
 
+  updateUltCasts(dt); // 终结技蓄力结算
   updateCasts(dt);    // 先结算蓄力，再让 CD 好的单位开始新的蓄力
   for (var a = 0; a < units.length; a++) think(units[a], dt);
+  updateUltChains(dt); // 连刺链在移动前启动下一段冲刺
   for (var b = 0; b < units.length; b++) if (units[b].alive) move(units[b], dt);
 
   updateWaters(dt);   // 水桶力场：拖拽位置 + 浸水百分比伤害（不改 ang）
@@ -1349,6 +1498,10 @@ function fx(dt) {
   for (i = rings.length - 1; i >= 0; i--) {
     rings[i].life -= dt;
     if (rings[i].life <= 0) rings.splice(i, 1);
+  }
+  for (i = ultBeams.length - 1; i >= 0; i--) {
+    ultBeams[i].life -= dt;
+    if (ultBeams[i].life <= 0) ultBeams.splice(i, 1);
   }
   for (i = floaters.length - 1; i >= 0; i--) {
     var f = floaters[i];

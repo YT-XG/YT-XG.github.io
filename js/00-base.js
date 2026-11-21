@@ -8,7 +8,7 @@
 'use strict';
 
 /* 界面显示用版本号：桌面首页与手机首页共用同一个常量 */
-var APP_VERSION = 'v26.11.16b';
+var APP_VERSION = 'v26.11.21c';
 
 /* ============================================================
    运动模型
@@ -30,12 +30,19 @@ var W = 1290, H = 600;
    canvas 的 CSS 尺寸会随窗口放大（例如 1290 → 1550），如果后备存储还是 1290，
    浏览器就把整张位图拉大，里面的字必然糊。这里让 backing store = 显示尺寸 × DPR，
    于是 1 个 canvas 像素 = 1 个设备像素，文字才是锐的。
-   注意：改 cv.width/height 会重置 ctx 的全部状态，所以每次都要重新 setTransform。 */
+   注意：改 cv.width/height 会重置 ctx 的全部状态，所以每次都要重新 setTransform。
+   性能：DPR 封顶 2，并给后备存储设 3.2M 像素预算 —— 3 倍屏继续用 3 会让像素量翻倍，
+   而大窗口（1920×1080 下 canvas 可到 1880 CSS 宽）在 DPR 2 时接近 6.6M 像素，
+   渐变 / 文字的光栅化成本会明显拖慢低端机。 */
+var MAX_DPR = 2;
+var MAX_CANVAS_PIXELS = 3200000;
 function fitCanvas() {
   var rect = cv.getBoundingClientRect();
   var cssW = rect.width || 0;
   if (cssW < 40) return;                       // 还没布局好（或隐藏），保持原样
-  var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  var basePixels = cssW * (cssW * H / W);
+  var budgetDpr = Math.sqrt(MAX_CANVAS_PIXELS / Math.max(1, basePixels));
+  var dpr = Math.max(1, Math.min(MAX_DPR, budgetDpr, window.devicePixelRatio || 1));
   var bw = Math.round(cssW * dpr);
   var bh = Math.round(bw * H / W);
   if (cv.width === bw && cv.height === bh) return;

@@ -7,13 +7,17 @@ TYPES.ice = {
   // 基础移速 300 → 240：比长矛的 216 仍快约 11%，但比原来慢 20%（明显放缓，仍能追近战）。
   // 落冰按"每 30px 一块（或最多 0.14s 一块）"执行，240 px/s 下 30px 仅需 0.125s，
   // 仍由距离触发、轨迹连续（冰面半径 48 ≫ 间距 30），不会出现断档。
-  r: 26, maxHp: 420, baseSpeed: 240, atk: 1.0,
+  r: 26, maxHp: 660, baseSpeed: 240, atk: 1.0,
   body: '#6fd3e8', light: '#d8f7ff', dark: '#1f6f88', glow: '#9beeff',
   // 主动技能：沿"当前运动方向"突刺，noTurn 保证不改 ang（不追踪敌人）
   skill: {
     name: '冰霜突进', cd: 5.0, noTurn: true,
     dashSpeed: 900, dashTime: 0.3, dmgMult: 1,
     text: '每 5 秒沿当前运动方向突刺 0.3 秒（900 px/s，约 270px），不改变移动方向'
+  },
+  ultimate: {
+    name: '极寒领域', cd: 20.0, noTurn: true,
+    text: '冻结 400px 内所有敌人 2.2 秒并造成 45 伤害，同时在自身周围铺开一圈冰面'
   },
   passive: {
     name: '冰霜侵蚀',
@@ -37,6 +41,25 @@ TYPES.ice = {
     ring(u.x, u.y, u.r, 148, 0.38, '#9beeff');
     burst(u.x, u.y, 16, '#c8f6ff', 260);
     floater(u.x, u.y - u.r - 18, '冰霜突进', '#9beeff', 13);
+  },
+  // 终结技：范围冻结 + 一圈冰面（不改朝向，仍沿原方向滑行）
+  onUlt: function (u) {
+    var R = 400;
+    for (var i = 0; i < units.length; i++) {
+      var v = units[i];
+      if (!v.alive || v.team === u.team) continue;
+      if (Math.hypot(v.x - u.x, v.y - u.y) > R + v.r) continue;
+      hurt(v, 45, u);
+      v.bindT = Math.max(v.bindT, 2.2);   // 定身：speedOf 归零，方向不变
+      ring(v.x, v.y, v.r, v.r + 46, 0.4, '#c8f6ff');
+    }
+    for (var k = 0; k < 12; k++) {
+      var a = k / 12 * TAU;
+      dropIcePatch(u, u.x + Math.cos(a) * 150, u.y + Math.sin(a) * 150);
+    }
+    ring(u.x, u.y, u.r, R, 0.75, '#d8f7ff');
+    burst(u.x, u.y, 32, '#c8f6ff', 360);
+    shake = Math.max(shake, 4);
   },
   onTick: function (u, dt) {
     var C = TYPES.ice.iceTrail;

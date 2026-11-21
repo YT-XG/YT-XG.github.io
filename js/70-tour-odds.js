@@ -17,7 +17,7 @@
 
 /* 规则版本：改碰撞 / 技能结算这类「不改数值也会变结果」的机制时手动 +1，
    让旧缓存整体失效（数值改动则由 oddsFingerprint 里的 TYPES / BALANCE 自动覆盖） */
-var ODDS_RULES = 3;
+var ODDS_RULES = 4;
 
 var ODDS_ENABLED = true;
 var ODDS_DT = 1 / 30;          // 后台模拟步长：实测 1/30 与 1/60 胜率差 ≤ 5 个百分点（40 局样本内）

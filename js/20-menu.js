@@ -92,7 +92,7 @@ function detailHtml(team) {
   html += '<button type="button" class="d-toggle" data-detail-toggle="' + team + '">' +
     (open ? '收起数值明细 ▴' : '展开数值明细 ▾') + '</button>';
   if (!open) {
-    html += '<div class="d-hint">默认只显示定位与总血量，点开再看技能 / 被动 / 狂暴数值</div>';
+    html += '<div class="d-hint">默认只显示定位与总血量，点开再看技能 / 终结技 / 被动 / 狂暴数值</div>';
     return html;
   }
 
@@ -106,6 +106,7 @@ function detailHtml(team) {
       var d = TYPES[c.units[j]];
       html += '<p><em>' + d.name + '</em> ' + d.maxHp + ' HP · ' + d.baseSpeed + ' px/s · 攻击 ' + d.atk.toFixed(2) + '</p>' +
         '<p><em>技能</em> ' + d.skill.name + '：' + d.skill.text + '</p>' +
+        (d.ultimate ? '<p><em>终结技</em> ' + d.ultimate.name + '：' + d.ultimate.text + '</p>' : '') +
         '<p><em>被动</em> ' + d.passive.name + '：' + d.passive.text + '</p>' +
         (d.rage ? '<p><em>狂暴</em> ' + rageSummary(d.key) + '</p>' : '');
     }

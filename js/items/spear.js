@@ -4,12 +4,16 @@
 
 TYPES.spear = {
   key: 'spear', name: '长矛', role: '爆发 / 单点',
-  r: 30, maxHp: 366, baseSpeed: 216, atk: 1.30,
+  r: 30, maxHp: 580, baseSpeed: 216, atk: 1.30,
   body: '#b9c4d4', light: '#f4f8ff', dark: '#5b6678', glow: '#cfe0ff',
   skill: {
     name: '贯穿突刺', cd: 3.4,
     dashSpeed: 880, dashTime: 0.42, dmgMult: 2.1,
     text: '高速突刺（约 370px），撞击倍率 ×2.1'
+  },
+  ultimate: {
+    name: '五连贯穿', cd: 15.0,
+    text: '连续突刺 5 次：每段重新锁定最近敌人并高速突进（1150 px/s），撞击倍率 ×1.8'
   },
   passive: {
     name: '冲刺减伤',
@@ -21,6 +25,13 @@ TYPES.spear = {
     ring(u.x, u.y, u.r, 112, 0.3, '#dbe6ff');
     burst(u.x, u.y, 14, '#e6efff', 230);
     floater(u.x, u.y - u.r - 20, '贯穿突刺', '#e6efff', 12);
+  },
+  // 终结技：5 段连刺，每段都由 updateUltChains 重新锁定最近敌人
+  onUlt: function (u) {
+    startUltChain(u, {
+      count: 5, dashTime: 0.16, dashSpeed: 1150, dmgMult: 1.8,
+      interval: 0.21, label: '贯穿'
+    });
   },
   onDash: function (u, dt) {
     // 突刺期间允许极小幅度的追踪（仍属技能效果）
