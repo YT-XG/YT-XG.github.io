@@ -1670,27 +1670,75 @@ function drawUnit(u) {
     ctx.globalAlpha = 1;
   }
 
-  var bw = 52, bh = 6;
-  var bx = u.x - bw / 2, by = u.y - u.r - 21;
-  ctx.fillStyle = 'rgba(0,0,0,.72)';
-  roundRect(bx - 2, by - 2, bw + 4, bh + 4, 3);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,.12)';
-  roundRect(bx, by, bw, bh, 1.5);
-  ctx.fill();
-
+  /* 头顶十字血牌（仿方块风格）：整个十字就是血槽
+     ------------------------------------------------------------
+     ① 硬直角十字外框（石质浅灰）+ 1px 暗边，缩到再小也能从草皮/水面上认出来；
+     ② 深色内腔 = 空血区域；
+     ③ 血量按比例从十字底部向上填充，掉血时液面「自上而下回落」：
+        高血几乎填满十字，半血时液面正好切在横臂中线，低血只剩最下一小格色块；
+        填充色恒按阵营（红方红 / 蓝方蓝），不随血量改色；
+     ④ 数字压在十字中央，白字黑描边，压在色块或空腔上都读得清。
+     填充用两条矩形子路径 + clip 裁成十字，颜色不会溢出到十字外。 */
+  var bw = 60, bh = 8;                       // 状态细条 / 护盾条沿用 bw、by 定位
+  var bx = u.x - bw / 2, by = u.y - u.r - 46;
   var hpRatio = clamp(u.hp / u.maxHp, 0, 1);
-  ctx.fillStyle = u.team === 'A' ? '#ff6a55' : '#7ea6ff';
-  roundRect(bx, by, bw * hpRatio, bh, 1.5);
-  ctx.fill();
-  // 顶部高光：让 6px 的血条有一点金属厚度
-  ctx.fillStyle = 'rgba(255,255,255,.22)';
-  roundRect(bx + 1, by + 1, Math.max(0, bw * hpRatio - 2), 1.5, 1);
-  ctx.fill();
 
-  /* 血条上方两条状态细条按统一栈位排：冰冻值最贴近血条（最影响近战判断），
+  var bcx = u.x, bcy = by + bh / 2 + 16;
+  var armH = 24, armW = 28, spanX = 78, spanY = 66;
+  var plateL = bcx - spanX / 2;
+  var plateT = bcy - spanY / 2, plateB = bcy + spanY / 2;
+  var vL = bcx - armW / 2;
+  var hT = bcy - armH / 2;
+
+  // ① 轮廓投影：1px 暗边，保证在浅色地面 / 水面上也能分清十字边缘
+  ctx.fillStyle = 'rgba(0,0,0,.55)';
+  ctx.fillRect(vL - 3, plateT - 3, armW + 6, spanY + 6);
+  ctx.fillRect(plateL - 3, hT - 3, spanX + 6, armH + 6);
+
+  // ② 石质外框：十字轮廓外扩 2px（硬直角，保持方块风格）
+  ctx.fillStyle = '#b7b7ae';
+  ctx.fillRect(vL - 2, plateT - 2, armW + 4, spanY + 4);
+  ctx.fillRect(plateL - 2, hT - 2, spanX + 4, armH + 4);
+
+  // ③ 内腔：空血区域的深色血槽（上浅下深，做出凹槽感）
+  var caveG = ctx.createLinearGradient(0, plateT, 0, plateB);
+  caveG.addColorStop(0, '#1c1c1c');
+  caveG.addColorStop(0.62, '#101010');
+  caveG.addColorStop(1, '#090909');
+  ctx.fillStyle = caveG;
+  ctx.fillRect(vL, plateT, armW, spanY);
+  ctx.fillRect(plateL, hT, spanX, armH);
+
+  // ④ 血量填充：裁剪到十字形状，从底部向上长；掉血 = 液面自上而下回落
+  if (hpRatio > 0) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(vL, plateT, armW, spanY);
+    ctx.rect(plateL, hT, spanX, armH);
+    ctx.clip();
+
+    var fillH = spanY * hpRatio;
+    var fillTop = plateB - fillH;
+    var lowHp = hpRatio <= 0.25;
+    // 填充色恒按阵营：红方永远红、蓝方永远蓝（不随血量改色；低血只让液面亮边呼吸）
+    var isBlue = u.team === 'B';
+    var fg = ctx.createLinearGradient(0, fillTop, 0, plateB);
+    fg.addColorStop(0, isBlue ? '#8fb0ff' : '#ff6a52');
+    fg.addColorStop(0.55, isBlue ? '#3f6dff' : '#e8352b');
+    fg.addColorStop(1, isBlue ? '#2140b8' : '#a81a12');
+    ctx.fillStyle = fg;
+    ctx.fillRect(plateL, fillTop, spanX, fillH);
+
+    // 液面亮边：就是这一眼的"血量刻度"，低血时呼吸闪烁
+    var lvl = lowHp ? (0.45 + 0.55 * Math.abs(Math.sin(t * 6))) : 0.85;
+    ctx.fillStyle = 'rgba(255,214,196,' + lvl.toFixed(3) + ')';
+    ctx.fillRect(plateL, fillTop, spanX, Math.min(2, fillH));
+    ctx.restore();
+  }
+
+  /* 血条上方两条状态细条按统一栈位排：冰冻值最贴近血牌（最影响近战判断），
      缺氧值在它上面；两者同时存在时间距 7px，不会互相压字。stackTop 供狂暴文字让位。 */
-  var stackTop = by - 9;
+  var stackTop = bcy - spanY / 2 - 6;
   if (u.iceTick > 0.004) {
     drawOverBar(bx, bw, stackTop, u.iceTick, '#8ce0ff', '#ffffff', 'ice');
     stackTop -= 7;
@@ -1705,7 +1753,7 @@ function drawUnit(u) {
   // 护盾条：统一画在血条下方（青金石狂暴护盾 / 冰块周期护盾都走这里）
   var smax = TYPES[u.key].shieldMax;
   if (smax && u.st.shield > 0) {
-    var sy = by + bh + 2, sh = 3;
+    var sy = by + bh + 58, sh = 3;
     ctx.fillStyle = 'rgba(0,0,0,.6)';
     roundRect(bx - 2, sy - 1, bw + 4, sh + 2, 2);
     ctx.fill();
@@ -1718,17 +1766,26 @@ function drawUnit(u) {
   }
 
 
-  // 血条旁的具体数值：默认贴右侧；靠近右边界时改贴左侧，避免被画布裁掉
-  var hpTxt = Math.ceil(Math.max(0, u.hp)) + '/' + u.maxHp;
-  ctx.font = '600 10px "Chakra Petch",ui-monospace,Consolas,monospace';
-  ctx.textAlign = 'left';
-  var hpX = bx + bw + 6;
-  if (hpX + 42 > W) { hpX = bx - 6; ctx.textAlign = 'right'; }
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = 'rgba(0,0,0,.7)';
-  ctx.strokeText(hpTxt, hpX, by + 6);
-  ctx.fillStyle = u.team === 'A' ? '#ffb4aa' : '#b9cdff';
-  ctx.fillText(hpTxt, hpX, by + 6);
+  // 血牌数字：只显当前血量，大号粗体压在十字中央（横臂作衬底）
+  // 四位数（BOSS / 高 HP 角色）按宽度做横向压缩，保证不越出横臂；高度不变，仍然读得清
+  var hpTxt = String(Math.ceil(Math.max(0, u.hp)));
+  var hpMaxW = spanX - 10;
+  ctx.font = '700 24px "Chakra Petch",ui-monospace,Consolas,monospace';
+  var hpW = ctx.measureText(hpTxt).width;
+  var hpSqueeze = hpW > hpMaxW ? hpMaxW / hpW : 1;
+  ctx.save();
+  if (hpSqueeze < 1) {
+    ctx.translate(bcx, 0);
+    ctx.scale(hpSqueeze, 1);
+    ctx.translate(-bcx, 0);
+  }
+  ctx.textAlign = 'center';
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = 'rgba(0,0,0,.8)';
+  ctx.strokeText(hpTxt, bcx, bcy + 8);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(hpTxt, bcx, bcy + 8);
+  ctx.restore();
   ctx.textAlign = 'left';
 
   var cr = u.r + 16;
@@ -1808,7 +1865,7 @@ function drawUnit(u) {
     var label = R.phase === 'shake' ? '无敌抖动' : '狂暴';
     // 让位给血条上方的状态细条：有几条就把文字抬高几层，避免互相压字
     var labelY = Math.min(by - 6, stackTop - 2);
-    ctx.font = '700 10px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.font = '700 11px "PingFang SC","Microsoft YaHei",sans-serif';
     ctx.textAlign = 'center';
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(0,0,0,.7)';
@@ -1861,9 +1918,9 @@ function drawUnitStatus(u) {
   if (rows.length > 6) rows.length = 6;
 
   ctx.save();
-  ctx.font = '600 9px "PingFang SC","Microsoft YaHei",sans-serif';
+  ctx.font = '600 10.5px "PingFang SC","Microsoft YaHei",sans-serif';
   ctx.textBaseline = 'middle';
-  var CH = 15, GAP = 3, PAD = 6, ICO = 11, maxW = 0;
+  var CH = 17, GAP = 3, PAD = 6, ICO = 12, maxW = 0;
   for (var i = 0; i < rows.length; i++) {
     var tw = ctx.measureText(rows[i][1]).width;
     rows[i].w = ICO + PAD * 2 + 3 + tw;
@@ -1972,14 +2029,30 @@ function drawFx() {
       if (Math.abs(g.x - f.x) < 36 && Math.abs(g.y - f.y) < 18) lift++;
     }
     var fy2 = f.y - Math.min(4, lift) * 11;
+    /* 伤害数字（f.pop）：入场 0.1s 从 0.55 弹到 1.2、再回落 1.0，
+       描边按字号加粗 + 填充带同色辉光，满屏飘字里一眼能认出是掉血 */
+    var pop = 1;
+    if (f.pop) {
+      var age = f.max - f.life;
+      if (age < 0.1) pop = 0.55 + (age / 0.1) * 0.65;
+      else if (age < 0.22) pop = 1.2 - ((age - 0.1) / 0.12) * 0.2;
+    }
     ctx.globalAlpha = Math.min(1, fa * 1.6);
-    ctx.font = '600 ' + f.size + 'px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.font = (f.pop ? '800 ' : '600 ') + f.size + 'px "PingFang SC","Microsoft YaHei",sans-serif';
     ctx.textAlign = 'center';
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(0,0,0,.55)';
-    ctx.strokeText(f.text, f.x, fy2);
+    ctx.lineWidth = f.pop ? Math.max(3, f.size * 0.22) : 3;
+    ctx.strokeStyle = f.pop ? 'rgba(0,0,0,.72)' : 'rgba(0,0,0,.55)';
+    ctx.save();
+    ctx.translate(f.x, fy2);
+    if (pop !== 1) ctx.scale(pop, pop);
+    ctx.strokeText(f.text, 0, 0);
     ctx.fillStyle = f.color;
-    ctx.fillText(f.text, f.x, fy2);
+    if (f.pop) {
+      ctx.shadowColor = f.color;
+      ctx.shadowBlur = 10;
+    }
+    ctx.fillText(f.text, 0, 0);
+    ctx.restore();
   }
   ctx.globalAlpha = 1;
   ctx.textAlign = 'left';
@@ -2029,7 +2102,8 @@ function render() {
      需要补一帧干净画面时才画（否则最后一帧会残留半空中的粒子）。
      结算横幅出现时死亡粒子与扩散环还没播完，这里让它们继续动完再停。 */
   if (phase !== 'fight' && !renderDirty && !hasFx && !renderHadFx &&
-      !(typeof tourFx !== 'undefined' && tourFx && tourFx.zoom > 1.001)) return;
+      !(typeof tourFx !== 'undefined' && tourFx && tourFx.zoom > 1.001) &&
+      !(typeof endFx !== 'undefined' && endFx)) return;
   renderDirty = false;
   renderHadFx = hasFx;
 
@@ -2050,6 +2124,16 @@ function render() {
     ctx.translate(tf.x, tf.y);
     ctx.scale(tourFx.zoom, tourFx.zoom);
     ctx.translate(-tf.x, -tf.y);
+  }
+  // 终局特写：聚焦倒下 / 存活方，缓入放大、结尾缓出
+  if (typeof endFx !== 'undefined' && endFx) {
+    var ef = endFx;
+    var efIn = Math.min(1, ef.t / 0.35);
+    var efOut = Math.min(1, Math.max(0, (ef.dur - ef.t) / 0.35));
+    var efZoom = 1 + 0.35 * efIn * efOut;
+    ctx.translate(ef.focus.x, ef.focus.y);
+    ctx.scale(efZoom, efZoom);
+    ctx.translate(-ef.focus.x, -ef.focus.y);
   }
   /* 终末震荡演出：先聚焦 BOSS，随冲击波扩散逐渐拉远到全场。
      0～0.3s 定在 BOSS 身上（1.55×）；0.3～2.0s 平滑拉远到 0.82×并回到场地中心；

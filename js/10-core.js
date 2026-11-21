@@ -96,6 +96,8 @@ var portraitCam = 0;
 var bossCine = null;
 /* 终末震荡大招演出：{t, dur, x, y, shards:[...]}，纯表现层，fx() 推进寿命 */
 var bossNukeFx = null;
+/* 终局特写：一方倒下后先慢镜头聚焦，演出结束再弹结算；{t,dur,focus,winner,sub,by} */
+var endFx = null;
 /* 可复现对局：pendingSeed 由每日挑战 / 幽灵码写入；source 只用于赛后文案 */
 var pendingSeed = 0, hasPendingSeed = false;
 var matchSource = '';       // '' | 'daily' | 'ghost'
@@ -449,6 +451,7 @@ function reset() {
   bossMergeAct = null;
   bossCine = null;
   bossNukeFx = null;
+  endFx = null;
   suddenDeath = false; deathAcc = 0; suddenStart = 0;
   shake = 0; hitStop = 0;
   lineupIndex = { A: 0, B: 0 };

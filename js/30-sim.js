@@ -34,8 +34,13 @@ function ring(x, y, r0, r1, life, color) {
   rings.push({ x: x, y: y, r0: r0, r1: r1, life: life, max: life, color: color });
   trimFx(rings, FX_RING_MAX);
 }
-function floater(x, y, text, color, size) {
-  floaters.push({ x: x, y: y, vy: -34, life: 0.9, max: 0.9, text: text, color: color, size: size || 13 });
+/* 飘字。opt.pop = 伤害数字专用：入场弹出放大 + 描边加粗 + 同色辉光（见 drawFloaters） */
+function floater(x, y, text, color, size, opt) {
+  floaters.push({
+    x: x, y: y, vy: -34, life: 0.9, max: 0.9,
+    text: text, color: color, size: size || 13,
+    pop: !!(opt && opt.pop)
+  });
   trimFx(floaters, FX_FLOATER_MAX);
 }
 
@@ -158,7 +163,7 @@ function hurt(u, amount, src, opt) {
       if (u.flash < 0.25) u.flash = 0.25;
     } else {
       u.flash = 1;
-      floater(u.x + rand(-9, 9), u.y - u.r - 28, '-' + Math.round(amount), '#ffd166', 15);
+      floater(u.x + rand(-9, 9), u.y - u.r - 72, '-' + Math.round(amount), '#ffd166', 22, { pop: 1 });
       burst(u.x, u.y, 7, '#ffb199', 170);
     }
   }
@@ -885,7 +890,7 @@ function hurtSeed(s, amount, src, opt) {
   s.lastHit = t;
   if (src && typeof src.dealt === 'number') src.dealt += amount;
   if (!dot) {
-    floater(s.x, s.y - s.r - 22, '-' + Math.round(amount), '#ffb1a0', 11);
+    floater(s.x, s.y - s.r - 22, '-' + Math.round(amount), '#ffb1a0', 14, { pop: 1 });
     burst(s.x, s.y, 4, '#c8f5b0', 120);
   }
 }
@@ -1674,17 +1679,41 @@ function finish(by) {
 
   // 手机端单机已不提供押注，这里不再做任何金币结算
 
-  var title = winner === 'draw' ? '平局' : (sideName(winner) + ' 胜利');
-  el.banner.querySelector('strong').textContent = title;
-  el.banner.querySelector('em').textContent = sub + ' · 按 R 再来一局 · Esc 返回主菜单';
-  el.banner.classList.add('show');
-
   for (var i = 0; i < units.length; i++) {
     if (units[i].alive) ring(units[i].x, units[i].y, units[i].r, 220, 0.7, units[i].glow);
   }
 
+  // 单机 / BOSS：先播一段慢镜头特写，结束后再弹结算横幅与结算页，
+  // 避免大招 / 击杀瞬间直接跳出结算。
+  endFx = { t: 0, dur: 1.5, focus: endFocusPoint(), winner: winner, sub: sub, by: by };
+}
+
+/* 终局特写聚焦点：优先最后阵亡的单位，其次存活方重心，最后场地中心 */
+function endFocusPoint() {
+  var sx = 0, sy = 0, n = 0, lastFall = null;
+  for (var i = 0; i < units.length; i++) {
+    var u = units[i];
+    if (!u.alive) lastFall = u;
+    else { sx += u.x; sy += u.y; n++; }
+  }
+  if (lastFall) return { x: lastFall.x, y: lastFall.y };
+  if (n) return { x: sx / n, y: sy / n };
+  return { x: ARENA.x + ARENA.w / 2, y: ARENA.y + ARENA.h / 2 };
+}
+
+/* 终局特写演出结束：延迟到这里才出横幅与结算页 */
+function endFxFinish() {
+  if (!endFx) return;
+  var snap = endFx;
+  endFx = null;
+
+  var title = snap.winner === 'draw' ? '平局' : (sideName(snap.winner) + ' 胜利');
+  el.banner.querySelector('strong').textContent = title;
+  el.banner.querySelector('em').textContent = snap.sub + ' · 按 R 再来一局 · Esc 返回主菜单';
+  el.banner.classList.add('show');
+
   if (typeof sfxPlay === 'function') sfxPlay('win');
-  if (typeof showResult === 'function') showResult(winner, sub, by);
+  if (typeof showResult === 'function') showResult(snap.winner, snap.sub, snap.by);
 }
 
 // 决杀阶段：每秒扣除全体存活单位 5% 最大生命，无视护盾与 3 秒无敌抖动
@@ -1700,7 +1729,7 @@ function deathStrike() {
     if (loss <= 0) continue;
     u.hp = Math.max(0, u.hp - loss);
     u.flash = 1;
-    floater(u.x + rand(-8, 8), u.y - u.r - 26, '-' + Math.round(loss), '#ff6b5a', 13);
+    floater(u.x + rand(-8, 8), u.y - u.r - 72, '-' + Math.round(loss), '#ff6b5a', 16, { pop: 1 });
     burst(u.x, u.y, 5, '#ff8a6b', 120);
     if (u.hp <= 0) {
       u.alive = false;
@@ -1717,7 +1746,7 @@ function deathStrike() {
     var sd = seeds[s];
     var sl = sd.maxHp * DEATH_DRAIN;
     sd.hp -= sl;
-    floater(sd.x, sd.y - 14, '-' + Math.round(sl), '#ff8a6b', 11);
+    floater(sd.x, sd.y - 14, '-' + Math.round(sl), '#ff8a6b', 13);
     if (sd.hp <= 0) {
       burst(sd.x, sd.y, 14, '#9be36f', 200);
       seeds.splice(s, 1);
@@ -1816,7 +1845,7 @@ function tick(dt) {
     if (u.dotT > 0) {
       u.dotT -= dt;
       if (u.dotT <= 0) {
-        if (u.dotAmt > 0) floater(u.x, u.y - u.r - 28, '-' + Math.round(u.dotAmt), '#ffb199', 12);
+        if (u.dotAmt > 0) floater(u.x, u.y - u.r - 72, '-' + Math.round(u.dotAmt), '#ffb199', 16, { pop: 1 });
         u.dotAmt = 0;
         u.dotT = 0;
       }

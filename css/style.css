@@ -1224,18 +1224,18 @@ button.primary:hover{background:linear-gradient(180deg,#457ce0,#284d9c);border-c
 .team.b .roster{justify-content:flex-end;}
 .roster-chip{
   display:flex;align-items:center;gap:4px;
-  min-width:0;padding:2px 5px;border-radius:5px;
+  min-width:0;padding:3px 6px;border-radius:5px;
   background:rgba(12,17,26,.82);border:1px solid rgba(255,255,255,.07);
-  font-size:10px;line-height:1;color:#cfd8e6;
+  font-size:11px;line-height:1;color:#cfd8e6;
   transition:opacity .15s,filter .15s;
 }
 .roster-chip .rc-dot{width:6px;height:6px;border-radius:2px;flex:none;}
 .roster-chip .rc-name{max-width:62px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .roster-chip .rc-hp{
-  width:30px;height:3px;flex:none;border-radius:2px;overflow:hidden;background:#1a2231;
+  width:34px;height:5px;flex:none;border-radius:2px;overflow:hidden;background:#1a2231;
 }
 .roster-chip .rc-hp i{display:block;height:100%;width:100%;border-radius:2px;transition:width .15s linear;}
-.roster-chip .rc-st{font-size:9px;color:#ffd166;letter-spacing:0;}
+.roster-chip .rc-st{font-size:10px;color:#ffd166;letter-spacing:0;}
 .roster-chip.dead{opacity:.38;filter:grayscale(1);}
 .roster-chip.acting{box-shadow:0 0 0 1px rgba(255,209,102,.65) inset;}
 
@@ -1355,9 +1355,9 @@ button.primary:hover{background:linear-gradient(180deg,#457ce0,#284d9c);border-c
 
 @media (max-width: 980px), (pointer: coarse){
   .roster{gap:3px;margin-top:3px;min-height:0;}
-  .roster-chip{padding:1px 4px;font-size:9px;gap:3px;}
+  .roster-chip{padding:2px 5px;font-size:10px;gap:3px;}
   .roster-chip .rc-name{max-width:42px;}
-  .roster-chip .rc-hp{width:18px;height:2px;}
+  .roster-chip .rc-hp{width:20px;height:4px;}
   .result-card{padding:16px 16px;}
   .result-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
   .combo-pick{display:none;}
@@ -1955,7 +1955,7 @@ h1 em{font-size:11px;letter-spacing:.04em;color:#6f7d93;margin-left:12px;}
 }
 .hud{padding:12px 18px;}
 .tname{
-  font-size:10px;letter-spacing:.14em;color:#8b98ad;
+  font-size:12px;letter-spacing:.12em;color:#c2cddf;
 }
 .team.a .tname::before,.team.b .tname::before{
   content:'';display:inline-block;width:6px;height:6px;margin-right:7px;
@@ -1964,7 +1964,7 @@ h1 em{font-size:11px;letter-spacing:.04em;color:#6f7d93;margin-left:12px;}
 }
 .team.b .tname::before{background:#4d7dff;box-shadow:0 0 9px rgba(80,130,255,.9);}
 .bar{
-  position:relative;height:10px;border-radius:2px;overflow:hidden;
+  position:relative;height:12px;border-radius:2px;overflow:hidden;
   background:#0a0f17;border:1px solid rgba(255,255,255,.08);
 }
 .bar::after{
@@ -1993,7 +1993,7 @@ h1 em{font-size:11px;letter-spacing:.04em;color:#6f7d93;margin-left:12px;}
 .btns button:hover{
   background:rgba(255,75,58,.12);border-color:rgba(255,75,58,.45);color:#ffd6cc;
 }
-.status{font-size:11px;letter-spacing:.06em;color:#ffc98a;}
+.status{font-size:12.5px;letter-spacing:.06em;color:#ffc98a;}
 
 /* 结算 / 暂停卡片：板块化 */
 .result-card,.pause-card,.desk-names-box{

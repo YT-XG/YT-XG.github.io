@@ -33,7 +33,11 @@ var mobi = {
 
 /* ---------- 基础工具 ---------- */
 function mobiIsPortrait() {
-  return !MOBI_FORCED && window.innerWidth < window.innerHeight;
+  if (MOBI_FORCED) return false;
+  // 优先用 orientation 媒体查询（手机浏览器横屏瞬间宽高比可能尚未刷新），
+  // 回退到宽高比较。
+  if (window.matchMedia && window.matchMedia('(orientation: portrait)').matches) return true;
+  return window.innerWidth < window.innerHeight;
 }
 
 function mobiIsMobile() {
@@ -1266,10 +1270,11 @@ function mobiOnResize() {
   mobiScale();
   var root = mobiRoot();
   if (!root) return;
+  // 无论横竖，先同步横屏提示遮罩的显隐（清掉竖屏时写入的 inline display）
+  mobiSyncOrientation();
   var wasPortrait = document.body.classList.contains('portrait');
 
   if (mobiIsPortrait()) {
-    mobiSyncOrientation();
     setTimeout(function () {
       if (typeof fitCanvas === 'function') fitCanvas();
     }, 60);
@@ -1322,6 +1327,7 @@ function mobiInit() {
   if (MOBI_FORCED) document.body.classList.add('mobi-forced');
   window.addEventListener('resize', function () { setTimeout(mobiOnResize, 120); });
   window.addEventListener('orientationchange', function () { setTimeout(mobiOnResize, 180); });
+  window.addEventListener('pageshow', function () { setTimeout(mobiOnResize, 120); });
   if (window.matchMedia) {
     var orientMq = window.matchMedia('(orientation: portrait)');
     var orientHandler = function () { setTimeout(mobiOnResize, 120); };
@@ -1338,9 +1344,7 @@ function mobiInit() {
   } else {
     var root = mobiRoot();
     if (root) root.classList.remove('on');
-    if (mobiIsPortrait()) {
-      mobiSyncOrientation();
-    }
+    mobiSyncOrientation();
     // 桌面端：把 80 加载后的金币/赛季状态刷到首页与选人页
     if (typeof deskSyncChrome === 'function') deskSyncChrome();
   }

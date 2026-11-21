@@ -23,6 +23,8 @@ function frame(now) {
 
   if (!paused && !oddsBusy) {
     var sdt = dt * speedMul;
+    /* 终局特写：模拟已停，演出时间降到 0.35× 做慢镜头，结束后再弹结算 */
+    if (typeof endFx !== 'undefined' && endFx) sdt *= 0.35;
     /* 终末震荡演出：镜头按真实时间推进；期间模拟时间降到 0.3×（全程慢动作），
        慢动作只影响表现，不影响伤害结算与胜负判定。 */
     if (typeof bossCine !== 'undefined' && bossCine) {
@@ -48,6 +50,11 @@ function frame(now) {
     var fxScale = (typeof tourFx !== 'undefined' && tourFx) ? 0.28 : 1;
     fx(sdt * fxScale);
     if (typeof tourFx !== 'undefined' && tourFx && typeof tourFxTick === 'function') tourFxTick(dt);
+    // 终局特写计时：演出走完后再出结算横幅 / 结算页
+    if (typeof endFx !== 'undefined' && endFx) {
+      endFx.t += dt;
+      if (endFx.t >= endFx.dur && typeof endFxFinish === 'function') endFxFinish();
+    }
   }
 
   // 暂停时画面完全静止：每 6 帧画一次即可，省下持续重绘的开销

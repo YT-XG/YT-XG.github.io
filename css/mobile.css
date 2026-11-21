@@ -50,12 +50,12 @@
   .hint{font-size:10px;}
   .stage{border-radius:10px;}
   .hud{padding:6px 10px;gap:8px;}
-  .tname{font-size:10px;margin-bottom:3px;}
-  .bar{height:5px;}
+  .tname{font-size:11px;margin-bottom:3px;}
+  .bar{height:7px;}
   .clock{font-size:16px;}
   .foot{margin-top:4px;gap:6px;}
   .btns button{padding:5px 10px;font-size:11px;}
-  .status{font-size:10px;}
+  .status{font-size:11px;}
 
   /* 主菜单：单列卡片（宽屏两列），时长设置贴底 */
   .home{align-items:flex-start;padding:calc(10px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom));}
