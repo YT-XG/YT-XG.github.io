@@ -335,10 +335,13 @@ function makeSlot(c) {
   slot.className = 'pool-slot';
   slot.setAttribute('data-key', c.key);
   slot.title = c.name + ' · ' + c.units.length + ' 个单位';
+  var ico = (typeof iconSvg === 'function') ? iconSvg(c.key) : '';
   slot.innerHTML =
     (c.img
       ? '<img class="ps-img" src="' + c.img + '" alt="' + c.name + '">'
-      : '<span class="ps-dot" style="background:' + c.body + ';box-shadow:0 0 6px ' + c.glow + '"></span>') +
+      : ico
+        ? '<span class="ps-ico">' + ico + '</span>'
+        : '<span class="ps-dot" style="background:' + c.body + ';box-shadow:0 0 6px ' + c.glow + '"></span>') +
     '<b>' + c.short + '</b>' +
     '<span class="ps-tags"><i class="t-a">红</i><i class="t-b">蓝</i></span>';
 
@@ -725,9 +728,10 @@ function syncPick() {
 
     card.className = 'pick-card' + (active ? ' active' : '') +
       (teamSize > 1 ? ' multi' : '') + ' slots-' + teamSize;
-    card.style.color = team === 'A' ? '#e8483f' : '#4a7bf0';
+    card.setAttribute('data-team', team);
+    card.style.color = team === 'A' ? '#ff4b3a' : '#4d7dff';
     card.style.background = 'linear-gradient(160deg,' +
-      rgba(team === 'A' ? '#e8483f' : '#4a7bf0', 0.14) + ',#11161f 72%)';
+      rgba(team === 'A' ? '#ff4b3a' : '#4d7dff', 0.10) + ',rgba(7,10,16,.94) 62%)';
 
     var html = '';
     for (var s = 0; s < teamSize; s++) {
@@ -738,12 +742,15 @@ function syncPick() {
           ' title="点击后从角色池选择"><span class="sc-idx">' + (s + 1) + '</span><b>待选</b></div>';
         continue;
       }
+      var sic = (typeof iconSvg === 'function') ? iconSvg(c.key) : '';
       html += '<div class="slot-chip' + sel + '" data-team="' + team + '" data-slot="' + s + '" title="' +
         deskEsc(c.role + ' · ' + c.units.length + ' 个单位') + '">' +
         '<span class="sc-idx">' + (s + 1) + '</span>' +
         (c.img
           ? '<img class="pc-img" src="' + c.img + '" alt="' + c.name + '">'
-          : '<span class="pc-dot" style="background:' + c.body + ';box-shadow:0 0 10px ' + c.glow + '"></span>') +
+          : sic
+            ? '<span class="pc-ico">' + sic + '</span>'
+            : '<span class="pc-dot" style="background:' + c.body + ';box-shadow:0 0 10px ' + c.glow + '"></span>') +
         '<b>' + c.name + '</b>' +
         '<small>' + c.units.length + ' 单位</small>' +
         '</div>';

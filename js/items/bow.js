@@ -4,14 +4,14 @@
 
 TYPES.bow = {
   key: 'bow', name: '弓箭', role: '远程 / 持续',
-  r: 22, maxHp: 560, baseSpeed: 280, atk: 1.0,
+  r: 22, maxHp: 620, baseSpeed: 280, atk: 1.0,
   body: '#5f8f4a', light: '#b9df9a', dark: '#2e4626', glow: '#a4e86b',
   // 技能只负责"瞄准 + 射击"，不冲刺；cd 就是发射间隔
   // 移速 320 → 280（2026-11-6 第 60 条：远程不该同时拥有全场最高移速）
   skill: {
-    name: '连珠箭', cd: 3.0, noTurn: true,
+    name: '连珠箭', cd: 2.8, noTurn: true,
     dashSpeed: 0, dashTime: 0, dmgMult: 1,
-    text: '每 3 秒瞄准最近敌人射出一箭；每 2 支普通箭后下一支为强化箭'
+    text: '每 2.8 秒瞄准最近敌人射出一箭；每 2 支普通箭后下一支为强化箭'
   },
   ultimate: {
     name: '万箭齐发', cd: 14.0,
@@ -19,12 +19,12 @@ TYPES.bow = {
   },
   passive: {
     name: '强化箭',
-    text: '每第 3 支箭强化：箭速 880（普通 640）、可穿透、伤害 80（普通 56）'
+    text: '每第 3 支箭强化：箭速 880（普通 640）、可穿透、伤害 102（普通 68）'
   },
   // 箭矢参数：普通箭命中即消失；强化箭对每个敌人只结算一次并继续飞行
   arrow: {
-    normal: { speed: 640, dmg: 56, life: 0.95, hitR: 5 },
-    power: { speed: 880, dmg: 80, life: 0.95, hitR: 6 },
+    normal: { speed: 640, dmg: 68, life: 0.95, hitR: 5 },
+    power: { speed: 880, dmg: 102, life: 0.95, hitR: 6 },
     cycle: 3, powerAt: 2
   },
   createState: function () { return { shots: 0 }; },

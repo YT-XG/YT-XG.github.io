@@ -14,7 +14,7 @@
 /* 赛事选手名单（第 94 条）：默认全部用随机名字。
    · 名字池 18 个，每届随机取 N 个、不重复
    · 「自定义玩家姓名」里填过的位置优先用自定义名，其余位置继续随机
-   · 名字只决定显示与身份，抽签 / 分组 / A·B 档搭配 / 排名 / 赛程逻辑完全不看名字 */
+   · 名字只决定显示与身份，抽签 / 分组 / 排名 / 赛程逻辑完全不看名字 */
 var TOUR_NAMES = ['阿石', '小七', '老白', '阿青', '铁蛋', '小满', '阿竹', '大熊',
                   '阿梨', '小九', '灰灰', '阿灯', '豆子', '阿海', '小鹿', '黑桃',
                   '兮眠', '西瓜'];
@@ -77,53 +77,62 @@ function tourEsc(s) {
 }
 
 /* 9 角色两两对位实测胜率（数值 = 行角色胜率 %）
-   ⚠️ 2026-11-7（第 82 条）首次用实测矩阵替换；2026-11-9（第 89 条）补入 bucket 行。
-   2026-11-21（第 96 条）「撞击技能化 + DoT 调参」后整体重跑：
-     node tools/sim.js --n 10 --dur 180 → 720 局，逐格填写实测值。
+   ⚠️ 2026-11-21（第 97 条）「2v2 平衡重构」后整体重跑：
+     node tools/sim.js --n 20 --dur 180 → 1440 局，逐格填写实测值。
    本表只服务「阵容期望强度 / 蛇形分组」，**不再参与赔率与单机预测**：
-   赛事赔率与选人页胜率都由真实引擎无渲染实时模拟得出（见 70-tour-odds.js）。 */
+   赛事赔率与选人页胜率都由真实引擎无渲染实时模拟得出（见 70-tour-odds.js）。
+   注意 1v1 单对位存在明显的技能克制（草 vs 狗奶 0%、红青 vs 狗奶 97.5% 等），
+   这张表用来看「对 8 个对手的平均强度」，不要当成精确的单挑预测。 */
 var TOUR_MATCHUP = {
-  duo:   { spear: 85.0, bow: 45.0, ice: 25.0, grass: 50.0, dog: 90.0, anvil: 50.0, milk: 95.0, bucket: 50.0 },
-  spear: { duo: 15.0, bow: 50.0, ice: 0.0,  grass: 55.0, dog: 55.0, anvil: 50.0, milk: 75.0, bucket: 65.0 },
-  bow:   { duo: 55.0, spear: 50.0, ice: 50.0, grass: 65.0, dog: 65.0, anvil: 70.0, milk: 50.0, bucket: 20.0 },
-  ice:   { duo: 75.0, spear: 100.0, bow: 50.0, grass: 50.0, dog: 30.0, anvil: 55.0, milk: 30.0, bucket: 10.0 },
-  grass: { duo: 50.0, spear: 45.0, bow: 35.0, ice: 50.0,   dog: 40.0, anvil: 20.0, milk: 35.0, bucket: 75.0 },
-  dog:   { duo: 10.0, spear: 45.0, bow: 35.0, ice: 70.0,   grass: 60.0, anvil: 50.0, milk: 85.0, bucket: 70.0 },
-  anvil: { duo: 50.0, spear: 50.0, bow: 30.0, ice: 45.0,   grass: 80.0, dog: 50.0, milk: 70.0, bucket: 55.0 },
-  milk:  { duo: 5.0,  spear: 25.0, bow: 50.0, ice: 70.0,  grass: 65.0, dog: 15.0, anvil: 30.0, bucket: 75.0 },
-  bucket:{ duo: 50.0, spear: 35.0, bow: 80.0, ice: 90.0,  grass: 25.0, dog: 30.0, anvil: 45.0, milk: 25.0 }
+  duo:   { spear: 50.0, bow: 32.5, ice: 10.0, dog: 72.5, grass: 7.5,  anvil: 42.5, milk: 97.5, bucket: 87.5 },
+  spear: { duo: 50.0,   bow: 52.5, ice: 2.5,  dog: 42.5, grass: 15.0, anvil: 67.5, milk: 75.0, bucket: 87.5 },
+  bow:   { duo: 67.5,   spear: 47.5, ice: 42.5, dog: 62.5, grass: 32.5, anvil: 75.0, milk: 67.5, bucket: 55.0 },
+  ice:   { duo: 90.0,   spear: 97.5, bow: 57.5, dog: 45.0, grass: 47.5, anvil: 55.0, milk: 7.5,  bucket: 7.5 },
+  grass: { duo: 92.5,   spear: 85.0, bow: 67.5, ice: 52.5, dog: 70.0,   anvil: 32.5, milk: 0.0,  bucket: 20.0 },
+  dog:   { duo: 27.5,   spear: 57.5, bow: 37.5, ice: 55.0, grass: 30.0, anvil: 50.0, milk: 62.5, bucket: 75.0 },
+  anvil: { duo: 57.5,   spear: 32.5, bow: 25.0, ice: 45.0, grass: 67.5, dog: 50.0,   milk: 75.0, bucket: 50.0 },
+  milk:  { duo: 2.5,    spear: 25.0, bow: 32.5, ice: 92.5, grass: 100.0, dog: 37.5, anvil: 25.0, bucket: 67.5 },
+  bucket:{ duo: 12.5,   spear: 12.5, bow: 45.0, ice: 92.5, grass: 80.0,  dog: 25.0, anvil: 50.0, milk: 32.5 }
 };
 
-/* ---------- 抽签分档（第 82 条；2026-11-21 第 96 条按新矩阵重排） ----------
-   一强一弱：每人必得 1 个 A 档 + 1 个 B 档。
-   分档依据 = 上表 1v1 总胜率（A 档 53.1%~61.3%，B 档 41.9%~50.0%）；
-   旧分档（A：spear/milk/anvil/bow）在撞击技能化 + DoT 调参后已反转：
-   milk 变成最弱（41.9）、duo 变成最强（61.3），因此按实测重排。 */
-var TOUR_BANDS = {
-  A: ['duo', 'anvil', 'bow', 'dog'],
-  B: ['ice', 'bucket', 'spear', 'grass', 'milk']
-};
+/* ---------- 抽签：不分档（2026-11-21 第 97 条） ----------
+   2v2 平衡重构后 9 个角色的综合胜率已经拉平（2v2 48%~51%），
+   原来「A 档 × B 档」的一强一弱配额失去意义，因此改为**全员同权纯随机**：
+   从 9 个角色的 36 个双人组合里抽 tour.size 个不重复组合，
+   用贪心让每个角色的出场次数尽量接近（8 人 16 格 / 9 角色 ≈ 1.8 次，
+   16 人 32 格 ≈ 3.6 次），既保证组合不重复，也不会出现某个角色被抽爆。 */
 
-function tourBandOf(key) {
-  if (TOUR_BANDS.A.indexOf(key) >= 0) return 'A';
-  if (TOUR_BANDS.B.indexOf(key) >= 0) return 'B';
-  return '?';
+function tourAllPairs() {
+  var keys = POOL.map(function (p) { return p.key; });
+  var out = [];
+  for (var i = 0; i < keys.length; i++) {
+    for (var j = i + 1; j < keys.length; j++) out.push([keys[i], keys[j]]);
+  }
+  return out;
 }
 
-/* 选手卡上的角色行：每个角色后面跟一个 A/B 档小徽标 */
+/* 从全部组合里抽 size 个不重复组合，尽量让各角色出场次数均衡 */
+function tourDealPairs(size) {
+  var pairs = tourShuffle(tourAllPairs());
+  var use = {}, res = [];
+  while (res.length < size && pairs.length) {
+    var bestI = 0, bestV = Infinity;
+    for (var i = 0; i < pairs.length; i++) {
+      var v = (use[pairs[i][0]] || 0) + (use[pairs[i][1]] || 0);
+      if (v < bestV) { bestV = v; bestI = i; }
+    }
+    var chosen = pairs.splice(bestI, 1)[0];
+    use[chosen[0]] = (use[chosen[0]] || 0) + 1;
+    use[chosen[1]] = (use[chosen[1]] || 0) + 1;
+    res.push(chosen);
+  }
+  return res;
+}
+
+/* 选手卡上的角色行：只列名字（档位徽标已随 A/B 分档一起取消） */
 function tourRolesHtml(p) {
   if (!p || !p.roles) return '';
-  return p.roles.map(function (k) {
-    var band = tourBandOf(k);
-    var cls = band === 'A' ? 'a' : (band === 'B' ? 'b' : '');
-    return tourRoleName(k) + '<i class="tb-band ' + cls + '">' + band + '</i>';
-  }).join(' / ');
-}
-
-/* 阵容档位组合（一强一弱 → “A+B”） */
-function tourBandTag(p) {
-  if (!p || !p.roles) return '';
-  return p.roles.map(tourBandOf).sort().join('+');
+  return p.roles.map(tourRoleName).join(' / ');
 }
 
 /* 阵容期望强度：两个角色对 8 个对手的胜率平均（只用于蛇形分组排序） */
@@ -245,22 +254,14 @@ function tourDeal() {
   if (typeof tourOddsStop === 'function') tourOddsStop();
   tour.oddsN = 0;   // 赛段变了：重新按待算场次分摊样本量
 
-  /* 一强一弱配额抽签（第 82 条）
-     · 每人固定 1 个 A 档 + 1 个 B 档，玩家之间不出现完全相同的阵容（因此不会有镜像对局）
-     · 构造方式：把两个档位各自打乱后，用「偏移 k」的两两配对（k = 0…count-1），
-       A 档每个角色出现 count 次；B 档 5 人时无法整除（8 人赛出现 1~2 次、
-       16 人赛出现 3~4 次），但组合不会重复 */
-  var count = Math.floor(tour.size / 4);
-  if (count < 1) count = 1;
-  var bandA = tourShuffle(TOUR_BANDS.A.slice());
-  var bandB = tourShuffle(TOUR_BANDS.B.slice());
-  var combos = [];
-  for (var k = 0; k < count; k++) {
-    for (var c = 0; c < bandA.length; c++) {
-      combos.push([bandA[c], bandB[(c + k) % bandB.length]]);
-    }
+  /* 不分档抽签（2026-11-21 第 97 条）
+     · 9 个角色同权，从 36 个双人组合里抽 tour.size 个不重复组合（不会出现镜像对局）
+     · 贪心让每个角色出场次数尽量接近（8 人赛每角色约 2 次、16 人赛约 4 次） */
+  var combos = tourDealPairs(tour.size);
+  if (combos.length < tour.size) {
+    // 兜底：组合不够时允许重复（角色池 < 抽签人数时才会发生）
+    while (combos.length < tour.size) combos.push(tourShuffle(POOL.map(function (p) { return p.key; })).slice(0, 2));
   }
-  combos = combos.slice(0, tour.size);
   tourShuffle(combos);
 
   var players = [];
@@ -274,7 +275,7 @@ function tourDeal() {
   }
 
   /* 蛇形分组：按阵容期望强度从高到低，依次 0→N→N→0 地填组，
-     让每个小组都拿到「一强一弱」且平均强度接近，避免死亡之组 */
+     让每个小组的平均强度接近，避免死亡之组（不再有档位配额，仅按强度排） */
   var gCount = tour.size / 4;
   var groups = [];
   for (var g = 0; g < gCount; g++) groups.push([]);
@@ -308,8 +309,7 @@ function tourDeal() {
   tour.fixtures = fx;
   tour.stage = 'group';
   tour.dealAnim = true;   // 只在下一次渲染播放抽签/落位动画，之后重渲染不再播
-  tourLog('平衡抽签：A 档 ' + bandA.length + ' + B 档 ' + bandB.length + '，每人 1A+1B · 蛇形分 ' + gCount + ' 组 · ' +
-    fx.length + ' 场（BO2）· 资金 ' + tour.bank);
+  tourLog('抽签完成 · ' + fx.length + ' 场 BO2 · 资金 ' + tour.bank);
   tourSave();
   tourRender();
 }
@@ -917,8 +917,7 @@ function tourBetLineInner() {
 
 function tourBetMetaInner() {
   var pending = tour.bets.reduce(function (s, b) { return s + b.stake; }, 0);
-  return '初始 ' + TOUR_START_BANK + ' · 押注中 ' + pending +
-    ' · 已结算 ' + tour.settled + '（赢 ' + tour.winBets + '）';
+  return '押注中 ' + pending + ' · 结算 ' + tour.settled + (tour.winBets ? ' · 赢 ' + tour.winBets : '');
 }
 
 function tourBetsInner() {
@@ -951,7 +950,7 @@ function tourSideHtml() {
 
 /* ---------- ① 分组棋盘 / 组内对阵 ----------
    第 84 条改版：小组赛不再把 6 场 vs 卡全部铺开。
-   · 每组只列「谁 · 什么角色（A/B 档）· 胜-负 · 几分」，按积分排；
+   · 每组只列「谁 · 什么角色 · 胜-负 · 几分」，按积分排；
    · 全场只显示「下一场对决」一张卡，押注也只针对这一场。 */
 
 /* 4 人组的标准循环赛轮次：组内名单顺序固定（蛇形分组写入的顺序），
@@ -1012,28 +1011,71 @@ function tourGroupPanel(g, animate) {
       '<span class="pt">' + p.pts + ' 分</span>' +
       '</div>';
   });
+  h += '</div>';
+  /* 组内对阵：6 场循环赛的真实结果（未打显示「待打」，下一场单独高亮）。
+     第 9 条：小组赛页下方原是大片空白，这里用真实赛程填满，不做装饰。 */
+  h += '<div class="tb-ng-fixtures">';
+  list.forEach(function (f) {
+    if (!f.a || !f.b) return;
+    var isNext = nx && nx === f;
+    var sc = f.done ? (f.score || '') : (isNext ? '待打' : '—');
+    h += '<div class="tb-fx' + (f.done ? ' done' : '') + (isNext ? ' next' : '') + '">' +
+      '<span class="n a">' + f.a.name + '</span><i>vs</i>' +
+      '<span class="n b">' + f.b.name + '</span>' +
+      '<span class="sc">' + sc + '</span></div>';
+  });
   h += '</div></div>';
   return h;
 }
 
 /* 下一场对决卡：双方名字 / 角色 / 积分 + 预测 + 押A / 开始 / 押B */
+function tourIcoRow(p) {
+  if (!p || !p.roles) return '';
+  return p.roles.map(function (k) { return deskRoleIco(k, 54); }).join('');
+}
+
+/* 本组已打完的交手记录（与手机端 mobiH2hHtml 同口径）：只有真打过才列，没打过给「首次交手」 */
+function tourH2hHtml(p, fx, cls) {
+  if (!p || !fx || !tour.fixtures) return '';
+  var rows = tour.fixtures.filter(function (f) {
+    return f.group === fx.group && f.done && (f.a === p || f.b === p);
+  });
+  if (!rows.length) return '<div class="tb-h2h ' + cls + '"><span class="empty">首次交手</span></div>';
+  var h = '<div class="tb-h2h ' + cls + '">';
+  rows.slice(0, 2).forEach(function (f) {
+    var opp = (f.a === p) ? f.b : f.a;
+    var mine = Math.round((f.a === p ? f.winsA : f.winsB) || 0);
+    var theirs = Math.round((f.a === p ? f.winsB : f.winsA) || 0);
+    var c = mine > theirs ? ' win' : (mine < theirs ? ' lose' : ' draw');
+    h += '<div class="r' + c + '"><span>vs ' + tourEsc(opp ? opp.name : '—') + '</span>' +
+      '<b>' + mine + ' : ' + theirs + '</b></div>';
+  });
+  return h + '</div>';
+}
+
 function tourNextCard(fx) {
   if (!fx) return '<div class="tb-ng-next empty">小组赛已全部打完 · 点下方生成积分排名</div>';
   var pct = tourFxPct(fx);
   var key = tourBetKey(fx);
   return '<section class="tb-ng-next">' +
     '<div class="tb-ng-next-head"><i>下一场对决</i>' +
-    '<span>组' + (fx.group + 1) + ' · BO2 · 第 2 局换边</span></div>' +
+    '<span>组' + (fx.group + 1) + ' · BO2</span></div>' +
     '<div class="tb-ng-vs">' +
     '<div class="tb-ng-team a">' +
     '<span class="nm a">' + fx.a.name + '</span>' +
+    '<span class="tb-ng-ico">' + tourIcoRow(fx.a) + '</span>' +
     '<span class="ro">' + tourRolesHtml(fx.a) + '</span>' +
-    '<span class="pt">' + fx.a.pts + ' 分 · ' + fx.a.w + '-' + fx.a.l + '</span></div>' +
+    '<span class="pt">' + fx.a.pts + ' 分 · ' + fx.a.w + '-' + fx.a.l + '</span>' +
+    tourH2hHtml(fx.a, fx, 'a') +
+    '</div>' +
     '<div class="tb-ng-vsmid">VS</div>' +
     '<div class="tb-ng-team b">' +
     '<span class="nm b">' + fx.b.name + '</span>' +
+    '<span class="tb-ng-ico">' + tourIcoRow(fx.b) + '</span>' +
     '<span class="ro">' + tourRolesHtml(fx.b) + '</span>' +
-    '<span class="pt">' + fx.b.pts + ' 分 · ' + fx.b.w + '-' + fx.b.l + '</span></div>' +
+    '<span class="pt">' + fx.b.pts + ' 分 · ' + fx.b.w + '-' + fx.b.l + '</span>' +
+    tourH2hHtml(fx.b, fx, 'b') +
+    '</div>' +
     '</div>' +
     '<div class="tb-ng-odds" data-prob="' + key + '">预测 ' + pct + '% · ' + (100 - pct) + '%' +
     tourFxNote(fx) + '</div>' +
@@ -1048,13 +1090,13 @@ function tourNextCard(fx) {
 function renderGroups() {
   var b = el.tourBoard;
   var gCount = tour.size / 4;
-  var html = '<div class="tb-head">赛事模式 · ' + tour.size + ' 名玩家 · 以 ' + gCount + ' 组为例' +
+  var html = '<div class="tb-head">赛事模式 · ' + tour.size + ' 名玩家' +
     (tour.restored ? ' <i class="tb-tag">已恢复上次进度</i>' : '') + '</div>';
 
   /* 赛事准备：桌面端三栏（参赛选手 / 操作 / 物品），不再铺空组框 */
   if (tour.stage === 'setup') {
     var names = tour.names || [];
-    html += '<div class="tb-sub">每人抽 1 个 A 档 + 1 个 B 档，再按阵容强度蛇形分组；' +
+    html += '<div class="tb-sub">9 个角色同权随机抽 2 个（组合不重复、出场次数尽量均衡），再按阵容强度蛇形分组；' +
       '组内 BO2 → 双败淘汰 → 总决赛 BO5</div>';
     html += '<div class="tb-setup">';
     html += '<section class="ts-panel"><h3>参赛选手</h3><div class="ts-pgrid">';
@@ -1078,9 +1120,9 @@ function renderGroups() {
 
     html += '<section class="ts-panel"><h3>物品</h3><div class="ts-igrid">';
     for (var ci = 0; ci < POOL.length; ci++) {
-      var pc = POOL[ci], pband = tourBandOf(pc.key);
+      var pc = POOL[ci];
       html += '<div class="ts-item">' + deskRoleIco(pc.key, 46) +
-        '<b>' + tourEsc(pc.short) + '<i class="ts-band ' + (pband === 'A' ? 'a' : (pband === 'B' ? 'b' : '')) + '">' + pband + '</i></b>' +
+        '<b>' + tourEsc(pc.short) + '</b>' +
         '<small>' + tourEsc(pc.role) + '</small></div>';
     }
     html += '</div></section></div>';
@@ -1096,9 +1138,6 @@ function renderGroups() {
   /* 抽签揭晓动画：只在 tourDeal() 之后第一次渲染时播放（tour.dealAnim 不落存档）。
      延迟用 CSS 变量 --gseq / --cseq 交给 @keyframes，JS 不跑逐帧动画，手机也不掉帧。 */
   var animate = !!tour.dealAnim;
-  html += '<div class="tb-sub">A 档（' + TOUR_BANDS.A.map(tourRoleName).join(' / ') + '）· ' +
-    'B 档（' + TOUR_BANDS.B.map(tourRoleName).join(' / ') + '）· 每人各抽 1 个 · ' +
-    '按阵容强度蛇形分 ' + gCount + ' 组 · 组内 BO2（第 2 局换边）</div>';
 
   /* 新版小组赛页（第 84 条）：外层 .tb-ng 是唯一滚动容器（手机整页也只滚这一块），
      上面一张「下一场对决」，下面各组排名。押注只针对下一场。 */
@@ -1112,8 +1151,7 @@ function renderGroups() {
 
   var doneN = tour.fixtures.filter(function (f) { return f.done; }).length;
   html += '<div class="tb-foot">' +
-    '<span class="tb-hint">已完成 ' + doneN + ' / ' + tour.fixtures.length +
-    ' 场 · 每组只显示下一场 · 赛前可押注（100 起，赔率按预测胜率）</span>' +
+    '<span class="tb-hint">已完成 ' + doneN + ' / ' + tour.fixtures.length + ' 场</span>' +
     '<button type="button" class="tb-ghost" data-act="restart">重开赛事</button>' +
     '<button type="button" class="tb-ghost" data-act="exit">退出赛事</button></div>';
 
@@ -1213,13 +1251,12 @@ function koCard(zone, ri, mi, m) {
 var BK_BW = 176, BK_BH = 72, BK_GAPX = 68, BK_GAPY = 22;
 var BK_STEP = BK_BH + BK_GAPY, BK_TOP = 30;
 
-/* 节点内的物品行：把玩家两个角色的简称并成一行（如「红青组合 · 弓箭」）
-   前置档位组合（A+B），让手机赛程图也能看出抽签规则 */
+/* 节点内的物品行：把玩家两个角色的简称并成一行（如「红青组合 · 弓箭」） */
 function bkItemsText(p) {
   if (!p || !p.roles || !p.roles.length) return '';
   var out = [];
   for (var i = 0; i < p.roles.length; i++) out.push(tourRoleName(p.roles[i]));
-  return tourBandTag(p) + ' · ' + out.join(' · ');
+  return out.join(' · ');
 }
 
 // 方框 + 折线沿用桌面 SVG 的类名与配色，保证两端视觉一致

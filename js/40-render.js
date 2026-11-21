@@ -74,50 +74,149 @@ function waterSprite() {
 }
 
 function drawArena() {
-  ctx.fillStyle = '#080b11';
+  // 场外底色 + 两侧阵营余光（余光只留在场地外，避免和网格打架）
+  ctx.fillStyle = '#05070d';
   ctx.fillRect(0, 0, W, H);
 
   var a = ARENA;
 
-  ctx.fillStyle = '#0e1219';
+  var out = ctx.createLinearGradient(0, 0, W, 0);
+  out.addColorStop(0, 'rgba(255,75,58,.10)');
+  out.addColorStop(.16, 'rgba(255,75,58,0)');
+  out.addColorStop(.84, 'rgba(77,125,255,0)');
+  out.addColorStop(1, 'rgba(77,125,255,.10)');
+  ctx.fillStyle = out;
+  ctx.fillRect(0, 0, W, H);
+
+  // 场地底色：上亮下暗，让单位像站在一块有厚度的台面
+  var bg = ctx.createLinearGradient(0, a.y, 0, a.y + a.h);
+  bg.addColorStop(0, '#0d131c');
+  bg.addColorStop(.45, '#0a0f17');
+  bg.addColorStop(1, '#080c13');
+  ctx.fillStyle = bg;
   ctx.fillRect(a.x, a.y, a.w, a.h);
 
-  var g = ctx.createLinearGradient(a.x, 0, a.x + a.w, 0);
-  g.addColorStop(0, 'rgba(232,72,63,.085)');
-  g.addColorStop(0.5, 'rgba(20,26,38,0)');
-  g.addColorStop(1, 'rgba(74,123,240,.085)');
-  ctx.fillStyle = g;
+  // 左右阵营环境光
+  var lg = ctx.createLinearGradient(a.x, 0, a.x + a.w, 0);
+  lg.addColorStop(0, 'rgba(255,75,58,.13)');
+  lg.addColorStop(.26, 'rgba(255,75,58,.015)');
+  lg.addColorStop(.5, 'rgba(0,0,0,0)');
+  lg.addColorStop(.74, 'rgba(77,125,255,.02)');
+  lg.addColorStop(1, 'rgba(77,125,255,.15)');
+  ctx.fillStyle = lg;
   ctx.fillRect(a.x, a.y, a.w, a.h);
 
-  ctx.strokeStyle = 'rgba(255,255,255,.028)';
-  ctx.lineWidth = 1;
+  // 中心顶光
+  var cx = a.x + a.w / 2, cy = a.y + a.h / 2;
+  var rg = ctx.createRadialGradient(cx, a.y + a.h * .42, 20, cx, a.y + a.h * .42, Math.max(a.w, a.h) * .55);
+  rg.addColorStop(0, 'rgba(120,160,235,.075)');
+  rg.addColorStop(1, 'rgba(120,160,235,0)');
+  ctx.fillStyle = rg;
+  ctx.fillRect(a.x, a.y, a.w, a.h);
+
+  // 网格：细格 32 / 大格 96，裁剪在场地内
+  ctx.save();
   ctx.beginPath();
-  for (var x = a.x; x <= a.x + a.w + 1; x += 48) {
-    ctx.moveTo(Math.round(x) + 0.5, a.y);
-    ctx.lineTo(Math.round(x) + 0.5, a.y + a.h);
+  ctx.rect(a.x, a.y, a.w, a.h);
+  ctx.clip();
+
+  var gx, gy, px, py;
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(126,158,206,.05)';
+  ctx.beginPath();
+  for (gx = a.x; gx <= a.x + a.w + 1; gx += 32) {
+    px = Math.round(gx) + 0.5;
+    ctx.moveTo(px, a.y);
+    ctx.lineTo(px, a.y + a.h);
   }
-  for (var y = a.y; y <= a.y + a.h + 1; y += 48) {
-    ctx.moveTo(a.x, Math.round(y) + 0.5);
-    ctx.lineTo(a.x + a.w, Math.round(y) + 0.5);
+  for (gy = a.y; gy <= a.y + a.h + 1; gy += 32) {
+    py = Math.round(gy) + 0.5;
+    ctx.moveTo(a.x, py);
+    ctx.lineTo(a.x + a.w, py);
   }
   ctx.stroke();
 
-  ctx.save();
-  ctx.setLineDash([5, 12]);
-  ctx.strokeStyle = 'rgba(150,170,205,.16)';
+  ctx.strokeStyle = 'rgba(140,175,225,.085)';
   ctx.beginPath();
-  ctx.moveTo(a.x + a.w / 2, a.y + 12);
-  ctx.lineTo(a.x + a.w / 2, a.y + a.h - 12);
+  for (gx = a.x; gx <= a.x + a.w + 1; gx += 96) {
+    px = Math.round(gx) + 0.5;
+    ctx.moveTo(px, a.y);
+    ctx.lineTo(px, a.y + a.h);
+  }
+  for (gy = a.y; gy <= a.y + a.h + 1; gy += 96) {
+    py = Math.round(gy) + 0.5;
+    ctx.moveTo(a.x, py);
+    ctx.lineTo(a.x + a.w, py);
+  }
+  ctx.stroke();
+
+  // 中央刻度盘：低调的“竞技场”标识
+  var cr = Math.min(a.w, a.h) * .17;
+  ctx.strokeStyle = 'rgba(150,180,230,.09)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, cr, 0, TAU);
+  ctx.stroke();
+  ctx.setLineDash([2, 6]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, cr * .55, 0, TAU);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  for (var tk = 0; tk < 12; tk++) {
+    var tka = tk * TAU / 12;
+    var r1 = cr * 1.06, r2 = cr * 1.14;
+    ctx.strokeStyle = tk % 3 === 0 ? 'rgba(255,255,255,.12)' : 'rgba(150,180,230,.06)';
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(tka) * r1, cy + Math.sin(tka) * r1);
+    ctx.lineTo(cx + Math.cos(tka) * r2, cy + Math.sin(tka) * r2);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 中线：稀疏虚线，断开处正好让中央刻度盘呼吸
+  ctx.save();
+  ctx.setLineDash([6, 14]);
+  ctx.strokeStyle = 'rgba(160,185,225,.16)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(Math.round(cx) + 0.5, a.y + 14);
+  ctx.lineTo(Math.round(cx) + 0.5, a.y + a.h - 14);
   ctx.stroke();
   ctx.restore();
 
-  ctx.strokeStyle = 'rgba(120,142,182,.28)';
-  ctx.lineWidth = 2;
+  // 暗角（画在角标与边框之前，避免把边缘压没）
+  var vg = ctx.createRadialGradient(cx, cy, Math.min(a.w, a.h) * .35, cx, cy, Math.max(a.w, a.h) * .72);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,.30)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(a.x, a.y, a.w, a.h);
+
+  // 四角 L 形角标
+  var cl = 16;
+  var corners = [[a.x, a.y, 1, 1], [a.x + a.w, a.y, -1, 1], [a.x, a.y + a.h, 1, -1], [a.x + a.w, a.y + a.h, -1, -1]];
+  ctx.strokeStyle = 'rgba(255,255,255,.18)';
+  ctx.lineWidth = 1.5;
+  for (var ci = 0; ci < 4; ci++) {
+    var c = corners[ci];
+    ctx.beginPath();
+    ctx.moveTo(c[0] + c[2] * 2, c[1] + c[3] * cl);
+    ctx.lineTo(c[0] + c[2] * 2, c[1] + c[3] * 2);
+    ctx.lineTo(c[0] + c[2] * cl, c[1] + c[3] * 2);
+    ctx.stroke();
+  }
+
+  // 外框：左红右蓝，中间过渡
+  var eg = ctx.createLinearGradient(a.x, 0, a.x + a.w, 0);
+  eg.addColorStop(0, 'rgba(255,90,70,.5)');
+  eg.addColorStop(.3, 'rgba(150,175,215,.22)');
+  eg.addColorStop(.7, 'rgba(150,175,215,.22)');
+  eg.addColorStop(1, 'rgba(90,140,255,.55)');
+  ctx.strokeStyle = eg;
+  ctx.lineWidth = 1.5;
   ctx.strokeRect(a.x + 0.5, a.y + 0.5, a.w - 1, a.h - 1);
 
-  ctx.strokeStyle = 'rgba(120,142,182,.1)';
-  ctx.lineWidth = 6;
-  ctx.strokeRect(a.x - 4, a.y - 4, a.w + 8, a.h + 8);
+  ctx.strokeStyle = 'rgba(120,160,235,.06)';
+  ctx.lineWidth = 7;
+  ctx.strokeRect(a.x - 3.5, a.y - 3.5, a.w + 7, a.h + 7);
 }
 
 /* ============================================================
@@ -202,12 +301,16 @@ function drawDamagePanels() {
     var y = cy - ph / 2;
 
     // 3) 卡片底
-    ctx.fillStyle = 'rgba(11,15,22,.82)';
-    roundRect(x, y, PW, ph, 10);
+    ctx.fillStyle = 'rgba(7,10,15,.9)';
+    roundRect(x, y, PW, ph, 8);
     ctx.fill();
-    ctx.strokeStyle = rgba(side.color, 0.35);
+    ctx.strokeStyle = 'rgba(255,255,255,.07)';
     ctx.lineWidth = 1;
     ctx.stroke();
+
+    // 顶边色条：让左右两张卡一眼能分清阵营
+    ctx.fillStyle = rgba(side.color, 0.8);
+    ctx.fillRect(x + 1, y + 1, PW - 2, 2);
 
     // 靠场地一侧的竖线，强调这是战斗区之外的信息条
     ctx.fillStyle = rgba(side.color, 0.5);
@@ -216,15 +319,15 @@ function drawDamagePanels() {
     // 4) 标题
     ctx.textAlign = 'center';
     ctx.fillStyle = side.light;
-    ctx.font = '600 14px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.font = '600 13px "PingFang SC","Microsoft YaHei",sans-serif';
     var title = teamNames[side.team]
       ? (side.team === 'A' ? '红 ' : '蓝 ') + teamNames[side.team]
       : SIDE_LABEL[side.team];
-    ctx.fillText(title, x + PW / 2, y + 15);
+    ctx.fillText(title, x + PW / 2, y + 16);
 
-    ctx.fillStyle = '#68758b';
+    ctx.fillStyle = '#6d7a90';
     ctx.font = '9.5px "PingFang SC","Microsoft YaHei",sans-serif';
-    ctx.fillText('总伤 ' + Math.round(sumD) + ' · 承伤 ' + Math.round(sumT), x + PW / 2, y + 29);
+    ctx.fillText('总伤 ' + Math.round(sumD) + ' · 承伤 ' + Math.round(sumT), x + PW / 2, y + 30);
 
     ctx.strokeStyle = 'rgba(255,255,255,.07)';
     ctx.lineWidth = 1;
@@ -236,7 +339,7 @@ function drawDamagePanels() {
     // 5) 排行行：名字与百分比分两轮画，避免每一行都切换一次 ctx.font
     var bx = x + 8;
     ctx.textAlign = 'left';
-    ctx.font = '10px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.font = '10.5px "PingFang SC","Microsoft YaHei",sans-serif';
     for (var k = 0; k < rows.length; k++) {
       var it = rows[k];
       var ry = y + headH + k * rowH;
@@ -245,7 +348,7 @@ function drawDamagePanels() {
     }
 
     ctx.textAlign = 'right';
-    ctx.font = '9.5px ui-monospace,Consolas,monospace';
+    ctx.font = '9.5px "Chakra Petch",ui-monospace,Consolas,monospace';
     for (var k2 = 0; k2 < rows.length; k2++) {
       var it2 = rows[k2];
       var ry2 = y + headH + k2 * rowH;
@@ -253,29 +356,29 @@ function drawDamagePanels() {
       var tPct = sumT > 0 ? it2.taken / sumT : 0;
 
       // 伤害占比条（阵营色）
-      ctx.fillStyle = '#1a2231';
-      roundRect(bx, ry2 + 13, barW, 5, 2.5);
+      ctx.fillStyle = '#151c28';
+      roundRect(bx, ry2 + 13, barW, 6, 1.5);
       ctx.fill();
       if (dPct > 0) {
-        // 细条只有 5px 高，渐变看不出差别；用纯色避免每帧创建几十个渐变对象
+        // 细条只有 6px 高，渐变看不出差别；用纯色避免每帧创建几十个渐变对象
         ctx.fillStyle = side.color;
-        roundRect(bx, ry2 + 13, Math.max(2, barW * dPct), 5, 2.5);
+        roundRect(bx, ry2 + 13, Math.max(2, barW * dPct), 6, 1.5);
         ctx.fill();
       }
       ctx.fillStyle = side.light;
-      ctx.fillText(Math.round(dPct * 100) + '%', bx + innerW, ry2 + 15.5);
+      ctx.fillText(Math.round(dPct * 100) + '%', bx + innerW, ry2 + 16);
 
       // 承伤占比条（琥珀色）
-      ctx.fillStyle = '#1a2231';
-      roundRect(bx, ry2 + 21, barW, 5, 2.5);
+      ctx.fillStyle = '#151c28';
+      roundRect(bx, ry2 + 22, barW, 6, 1.5);
       ctx.fill();
       if (tPct > 0) {
         ctx.fillStyle = '#c98a45';
-        roundRect(bx, ry2 + 21, Math.max(2, barW * tPct), 5, 2.5);
+        roundRect(bx, ry2 + 22, Math.max(2, barW * tPct), 6, 1.5);
         ctx.fill();
       }
       ctx.fillStyle = '#e0a75a';
-      ctx.fillText(Math.round(tPct * 100) + '%', bx + innerW, ry2 + 23.5);
+      ctx.fillText(Math.round(tPct * 100) + '%', bx + innerW, ry2 + 25);
     }
   }
 
@@ -1567,18 +1670,22 @@ function drawUnit(u) {
     ctx.globalAlpha = 1;
   }
 
-  var bw = 48, bh = 5;
-  var bx = u.x - bw / 2, by = u.y - u.r - 20;
-  ctx.fillStyle = 'rgba(0,0,0,.65)';
-  roundRect(bx - 2, by - 2, bw + 4, bh + 4, 4);
+  var bw = 52, bh = 6;
+  var bx = u.x - bw / 2, by = u.y - u.r - 21;
+  ctx.fillStyle = 'rgba(0,0,0,.72)';
+  roundRect(bx - 2, by - 2, bw + 4, bh + 4, 3);
   ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,.14)';
-  roundRect(bx, by, bw, bh, 2.5);
+  ctx.fillStyle = 'rgba(255,255,255,.12)';
+  roundRect(bx, by, bw, bh, 1.5);
   ctx.fill();
 
   var hpRatio = clamp(u.hp / u.maxHp, 0, 1);
   ctx.fillStyle = u.team === 'A' ? '#ff6a55' : '#7ea6ff';
-  roundRect(bx, by, bw * hpRatio, bh, 2.5);
+  roundRect(bx, by, bw * hpRatio, bh, 1.5);
+  ctx.fill();
+  // 顶部高光：让 6px 的血条有一点金属厚度
+  ctx.fillStyle = 'rgba(255,255,255,.22)';
+  roundRect(bx + 1, by + 1, Math.max(0, bw * hpRatio - 2), 1.5, 1);
   ctx.fill();
 
   /* 血条上方两条状态细条按统一栈位排：冰冻值最贴近血条（最影响近战判断），
@@ -1613,7 +1720,7 @@ function drawUnit(u) {
 
   // 血条旁的具体数值：默认贴右侧；靠近右边界时改贴左侧，避免被画布裁掉
   var hpTxt = Math.ceil(Math.max(0, u.hp)) + '/' + u.maxHp;
-  ctx.font = '600 10px ui-monospace,Consolas,monospace';
+  ctx.font = '600 10px "Chakra Petch",ui-monospace,Consolas,monospace';
   ctx.textAlign = 'left';
   var hpX = bx + bw + 6;
   if (hpX + 42 > W) { hpX = bx - 6; ctx.textAlign = 'right'; }

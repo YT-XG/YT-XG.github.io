@@ -113,6 +113,11 @@ function teamLabel(team) { return teamNames[team] || SIDE_LABEL[team]; }
    · modeKind  —— 'vs' 同时上场 / 'relay' 轮流上场（上一个倒下，下一个才进场）
    · 接力时 lineupIndex 记录当前上场的角色序号；胜者保持血量，败者换人 */
 var pick = { A: ['duo'], B: ['spear'] };
+/* 是否为 1v1 单挑局：双方阵容长度都是 1（1v1 之外的任何人数都返回 false） */
+function soloMode() {
+  var A = pick && pick.A, B = pick && pick.B;
+  return !!(A && B && A.length === 1 && B.length === 1);
+}
 var teamSize = 1;                        // 1 / 2 / 3
 var modeKind = 'vs';                     // 'vs' | 'relay'
 var lineupIndex = { A: 0, B: 0 };
@@ -257,9 +262,12 @@ var el = {
    ============================================================ */
 function addUnit(key, x, y, team) {
   var d = TYPES[key];
+  // 1v1 单挑修正：只放大「缺队友」角色的生命上限（见 BALANCE.solo），2v2 / 3v3 恒为 1
+  var hpMul = soloMode() ? (BALANCE.solo.hpMul[key] || 1) : 1;
+  var maxHp = d.maxHp * hpMul;
   var u = {
     key: key, name: d.name, team: team,
-    r: d.r, maxHp: d.maxHp, hp: d.maxHp,
+    r: d.r, maxHp: maxHp, hp: maxHp,
     baseSpeed: d.baseSpeed, atk: d.atk, dmgMult: 1,
     body: d.body, light: d.light, dark: d.dark, glow: d.glow,
     skillName: d.skill.name,

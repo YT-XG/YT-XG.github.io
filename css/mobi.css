@@ -683,3 +683,348 @@ body.mobi-forced .rotate-tip{display:none !important;}
 .m-home-menu button{height:54px;font-size:20px;}
 .m-home-menu button.daily{height:50px;font-size:17px;}
 
+
+/* ============================================================
+   2026-11-21 视觉升级 v2 —— 手机横屏 1024×512 同步
+   只改颜色 / 材质 / 字重 / 圆角，所有定位与尺寸保持原样
+   ============================================================ */
+
+.mobi{
+  background:
+    radial-gradient(760px 460px at 10% -10%, rgba(255,75,58,.17), transparent 64%),
+    radial-gradient(700px 440px at 94% 112%, rgba(77,125,255,.16), transparent 64%),
+    linear-gradient(180deg,#080b12 0%,#05070c 58%,#070a11 100%);
+}
+.mobi::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:
+    linear-gradient(rgba(140,170,220,.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(140,170,220,.05) 1px, transparent 1px);
+  background-size:64px 64px;
+  -webkit-mask-image:radial-gradient(ellipse 84% 74% at 26% 8%, #000 8%, transparent 80%);
+  mask-image:radial-gradient(ellipse 84% 74% at 26% 8%, #000 8%, transparent 80%);
+}
+.mobi-board{position:absolute;z-index:1;}
+
+/* 数字 / 英文标签统一等宽几何字体 */
+.m-ver,.m-home-coin b,.m-size b,.m-odds b,.m-bank b,.m-card-score,.m-prob,
+.m-vs-big,.m-grow .wl,.m-grow .pt,.m-cstats b,.m-ko-pred b,.m-ko-stat .r b,
+.m-done-row .dmg,.m-done-row .pt,.m-done-row .wl,.m-card-tag{
+  font-family:"Chakra Petch",ui-monospace,Consolas,monospace;
+  font-variant-numeric:tabular-nums;
+}
+
+/* 通用小件：硬边 + 冷灰内高光 */
+.m-mini,.m-ghost,.m-home2,.m-sq,.m-seg button,.m-team-head button,.m-tab{
+  border-radius:3px;border-color:rgba(255,255,255,.09);
+  background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.012));
+  color:#a9b7ca;
+}
+.m-mini:active,.m-ghost:active,.m-home2:active{background:rgba(255,255,255,.08);color:#eef3fb;}
+.m-primary,.m-deal,.m-start,.m-bigbtn{
+  border-radius:4px;border:1px solid #ff8a72;
+  background:linear-gradient(180deg,#ff5f47,#c62a1e);
+  box-shadow:0 12px 28px -16px rgba(255,70,50,.95), inset 0 1px 0 rgba(255,255,255,.3);
+}
+
+/* ① 主菜单 */
+.m-home-head h2{
+  font-size:46px;letter-spacing:.02em;color:transparent;
+  background:linear-gradient(177deg,#ffffff 4%,#ffc6b6 18%,#ff6a52 56%,#c62a1e 100%);
+  -webkit-background-clip:text;background-clip:text;
+  filter:drop-shadow(0 8px 24px rgba(190,35,22,.5));
+  text-shadow:none;
+}
+.m-ver{font-size:20px;letter-spacing:.16em;color:#c3d0e2;}
+.m-home-menu{counter-reset:mEntry;}
+.m-home-menu button{
+  position:relative;display:flex;align-items:center;justify-content:space-between;
+  height:54px;padding:0 16px 0 44px;text-align:left;
+  border:1px solid rgba(255,82,62,.32);border-left:2px solid #ff5a44;border-radius:3px;
+  background:linear-gradient(100deg,rgba(255,75,58,.12),rgba(255,255,255,.016));
+  color:#ffb4a5;font-size:18px;letter-spacing:.06em;
+  transition:background .16s,border-color .16s,transform .16s;
+}
+.m-home-menu button::before{
+  counter-increment:mEntry;content:counter(mEntry,decimal-leading-zero);
+  position:absolute;left:15px;font-family:"Chakra Petch",ui-monospace,monospace;
+  font-size:11px;letter-spacing:.1em;color:#6b7a91;
+}
+.m-home-menu button::after{
+  content:'→';font-family:"Chakra Petch",ui-monospace,monospace;
+  font-size:15px;color:rgba(255,255,255,.38);margin-left:10px;flex:0 0 auto;
+}
+.m-home-menu button:active{background:linear-gradient(100deg,rgba(255,75,58,.2),rgba(255,255,255,.02));}
+.m-home-menu button.dim{
+  border-color:rgba(255,255,255,.1);border-left-color:#3a475c;
+  background:linear-gradient(100deg,rgba(255,255,255,.035),rgba(255,255,255,.012));
+  color:#7e8ba1;
+}
+.m-home-menu button.dim::before{color:#4e5c73;}
+.m-home-menu button.daily{
+  border-color:rgba(255,196,94,.3);border-left-color:#ffc45e;
+  background:linear-gradient(100deg,rgba(255,196,94,.1),rgba(255,255,255,.014));
+  color:#ffd9a8;
+}
+.m-roster-i{
+  border-radius:3px;border-color:rgba(255,255,255,.06);
+  background:linear-gradient(165deg,rgba(255,255,255,.04),rgba(255,255,255,.01));
+}
+.m-roster-t{letter-spacing:.24em;color:#63718a;}
+.m-home-note b{
+  border-radius:2px;background:rgba(255,75,58,.12);border:1px solid rgba(255,75,58,.18);
+  color:#ff8a76;letter-spacing:.1em;
+}
+.m-credit{color:#5b6981;letter-spacing:.14em;}
+
+/* ② 单机 */
+.m-cap{letter-spacing:.16em;color:#63718a;}
+.m-size b{letter-spacing:.02em;color:#eef3fb;}
+.m-sq{font-family:"Chakra Petch",ui-monospace,monospace;}
+.m-seg button.on{
+  border-color:rgba(255,75,58,.8);color:#ffd0c6;
+  background:linear-gradient(180deg,rgba(255,75,58,.3),rgba(255,75,58,.12));
+}
+.m-team-head span{letter-spacing:.16em;}
+.m-team-head button{font-size:11px;letter-spacing:.06em;}
+.m-slot{
+  border-radius:3px;border-color:rgba(255,255,255,.075);
+  background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.01));
+}
+.m-slot.sel{
+  border-color:#ff5a44;
+  box-shadow:0 0 0 1px rgba(255,90,70,.3) inset, 0 0 28px -16px rgba(255,90,70,.95);
+  background:linear-gradient(180deg,rgba(255,75,58,.12),rgba(255,255,255,.015));
+}
+.m-team.b .m-slot.sel{
+  border-color:#5b86ff;
+  box-shadow:0 0 0 1px rgba(91,134,255,.3) inset, 0 0 28px -16px rgba(91,134,255,.95);
+  background:linear-gradient(180deg,rgba(77,125,255,.12),rgba(255,255,255,.015));
+}
+.m-slot .ph{color:#4d5970;letter-spacing:.08em;}
+.m-vs{font-family:"Chakra Petch",ui-monospace,monospace;letter-spacing:.18em;color:#5a6880;}
+.m-odds b{font-size:26px;letter-spacing:.02em;}
+.m-tab{border-radius:3px;color:#8b98ad;letter-spacing:.22em;}
+
+/* 抽屉 */
+.m-drawer{background:linear-gradient(180deg,#0c111a,#070a11);border-color:rgba(255,255,255,.1);}
+.m-drawer-h{border-bottom-color:rgba(255,255,255,.06);}
+.m-drawer-h b{letter-spacing:.14em;}
+.m-drawer-h button{border-radius:3px;background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.1);}
+.m-pool-item{
+  border-radius:3px;border-color:rgba(255,255,255,.07);
+  background:linear-gradient(170deg,rgba(255,255,255,.04),rgba(255,255,255,.008));
+}
+.m-pool-item b{letter-spacing:.03em;}
+
+/* ③ 赛事准备 */
+.m-panel{
+  border-radius:5px;border-color:rgba(255,255,255,.075);
+  background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.01));
+}
+.m-panel::before{
+  content:'';position:absolute;left:0;top:0;right:0;height:2px;pointer-events:none;
+  background:linear-gradient(90deg,rgba(255,75,58,.6),rgba(255,196,94,.42),rgba(77,125,255,.6));
+  opacity:.6;
+}
+.m-panel h3{font-size:16px;letter-spacing:.2em;}
+.m-pcell{
+  border-radius:3px;border-color:rgba(255,255,255,.06);
+  background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.008));
+  letter-spacing:.02em;
+}
+.m-pcell i{font-family:"Chakra Petch",ui-monospace,monospace;color:#5f6d84;}
+.m-bank{letter-spacing:.18em;}
+.m-bank b{font-size:26px;color:#ffd9a8;}
+.m-deal{height:50px;font-size:14px;letter-spacing:.14em;}
+.m-link em{letter-spacing:.02em;}
+.m-item{
+  border-radius:4px;border-color:rgba(255,255,255,.07);
+  background:linear-gradient(170deg,rgba(255,255,255,.045),rgba(255,255,255,.008));
+}
+.m-item:active{border-color:rgba(255,90,70,.4);}
+.m-item b{letter-spacing:.03em;}
+.m-band{border-radius:2px;font-family:"Chakra Petch",ui-monospace,monospace;}
+.m-band.a{background:rgba(255,75,58,.9);}
+.m-band.b{background:rgba(77,125,255,.9);}
+
+/* ④ 小组赛 / 对阵卡 */
+.m-vs-card{
+  border-radius:5px;border-color:rgba(255,255,255,.09);
+  background:linear-gradient(160deg,rgba(255,75,58,.07),rgba(7,10,16,.94) 52%);
+}
+.m-card-tag{letter-spacing:.2em;color:#7e8ba1;}
+.m-card-score{letter-spacing:.16em;}
+.m-cname{letter-spacing:.06em;}
+.m-cstats span{
+  border-radius:3px;border-color:rgba(255,255,255,.07);
+  background:rgba(255,255,255,.025);
+}
+.m-prob{
+  height:10px;border-radius:2px;border-color:rgba(255,255,255,.12);
+}
+.m-prob .ra{background:linear-gradient(90deg,#ff8a70,#c62a1e);}
+.m-prob .rb{background:linear-gradient(90deg,#2747c9,#7ea6ff);}
+.m-gbox{
+  border-radius:5px;border-color:rgba(255,255,255,.08);
+  background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.01));
+}
+.m-ghead{letter-spacing:.08em;}
+.m-grow{border-radius:2px;}
+.m-grow.next{background:linear-gradient(90deg,rgba(255,75,58,.14),rgba(255,75,58,.04));}
+.m-grow .pt{color:#ffd9a8;}
+.m-dots i{border-radius:1px;background:#2a3446;}
+.m-dots i.on{background:#ff5a44;box-shadow:0 0 8px rgba(255,90,70,.8);}
+
+/* ④.1 小组赛结束 */
+.m-standings-head{letter-spacing:.18em;}
+.m-endbox,.m-endbox-t{border-radius:5px;}
+.m-endbox{
+  border-color:rgba(255,255,255,.075);
+  background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.01));
+}
+.m-endbox-t{letter-spacing:.14em;color:#dfe7f4;}
+.m-end-row{border-radius:2px;}
+
+/* ④.2 淘汰赛 */
+.m-ko-bracket{
+  border-radius:5px;border-color:rgba(255,255,255,.08);
+  background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.008));
+}
+.m-ko-bhead{border-bottom-color:rgba(255,255,255,.06);}
+.m-ko-bhead b{letter-spacing:.12em;}
+.m-ko-bhead button{border-radius:3px;}
+.m-ko-card{
+  border-radius:5px;border-color:rgba(255,255,255,.09);
+  background:linear-gradient(160deg,rgba(77,125,255,.08),rgba(7,10,16,.94) 54%);
+}
+.m-ko-title{letter-spacing:.14em;}
+.m-ko-round{letter-spacing:.1em;color:#7e8ba1;}
+.m-ko-team b{border-radius:3px;letter-spacing:.05em;}
+.m-ko-vs{
+  width:44px;height:44px;border-radius:3px;
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.012));
+  border-color:rgba(255,255,255,.12);color:#8b98ad;
+}
+.m-ko-pred b,.m-ko-stat .r b{letter-spacing:.02em;}
+.m-bet{
+  border-radius:3px;border-color:rgba(255,255,255,.09);
+  background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.012));
+}
+.m-bet.a.on{border-color:rgba(255,90,70,.8);background:linear-gradient(180deg,rgba(255,75,58,.24),rgba(255,75,58,.08));color:#ffb4a5;}
+.m-bet.b.on{border-color:rgba(91,134,255,.8);background:linear-gradient(180deg,rgba(77,125,255,.24),rgba(77,125,255,.08));color:#a9c0ff;}
+.ko-start{border-radius:4px;letter-spacing:.12em;}
+
+/* ④.3 结算 */
+.m-done-panel{
+  border-radius:5px;border-color:rgba(111,192,122,.36);
+  background:linear-gradient(160deg,rgba(111,192,122,.07),rgba(7,10,16,.94) 56%);
+}
+.m-done-t{letter-spacing:.16em;}
+.m-podium{
+  border-radius:4px;border-color:rgba(111,192,122,.45);
+  background:linear-gradient(180deg,rgba(111,192,122,.1),rgba(111,192,122,.03));
+}
+.m-done-head{border-bottom-color:rgba(255,255,255,.06);}
+.m-done-row{border-bottom-color:rgba(255,255,255,.05);}
+
+/* 弹层 / toast */
+.m-modal-box{
+  border-radius:5px;border-color:rgba(255,255,255,.1);
+  background:linear-gradient(180deg,#111722,#080b10);
+  box-shadow:0 30px 80px -30px #000, 0 0 0 1px rgba(255,255,255,.03) inset;
+}
+.m-modal-box h3{letter-spacing:.12em;}
+.m-name-grid label{border-radius:3px;border-color:rgba(255,255,255,.08);background:rgba(255,255,255,.03);}
+.m-modal-act button{border-radius:3px;}
+.m-toast{
+  border-radius:3px;border-color:rgba(255,255,255,.12);
+  background:rgba(8,11,16,.96);letter-spacing:.04em;
+}
+
+/* ============================================================
+   2026-11-21 手机横屏 1024×512 · 第二轮（单机页场地底板 / 侧拉条）
+   只改 .m-arena 的背景与 .m-team-head / .m-slot / .m-tab 的材质，
+   不动任何绝对坐标（.m-arena 30/142/964/252 等由 80-mobi.js 使用）。
+   ============================================================ */
+.m-arena{
+  border:1px solid rgba(255,255,255,.055);border-radius:5px;
+  background:
+    radial-gradient(560px 210px at 10% -16%, rgba(255,75,58,.13), transparent 72%),
+    radial-gradient(560px 210px at 90% 116%, rgba(77,125,255,.13), transparent 72%),
+    linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.008));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 26px 54px -38px rgba(0,0,0,.9);
+}
+.m-arena::before{
+  content:'';position:absolute;left:50%;top:10px;bottom:10px;width:1px;
+  background:linear-gradient(180deg,transparent,rgba(255,255,255,.14) 16%,rgba(255,255,255,.14) 84%,transparent);
+  pointer-events:none;
+}
+.m-team-head span{padding-left:9px;border-left:2px solid #ff5a44;letter-spacing:.12em;}
+.m-team.b .m-team-head span{padding-left:0;padding-right:9px;border-left:0;border-right:2px solid #5b86ff;}
+.m-slot.big::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:2px;
+  background:linear-gradient(180deg,#ff6a52,rgba(255,75,58,0));
+}
+.m-team.b .m-slot.big::before{
+  left:auto;right:0;
+  background:linear-gradient(180deg,#5b86ff,rgba(77,125,255,0));
+}
+.m-vs{
+  padding:4px 11px;border-radius:3px;background:rgba(8,11,16,.9);
+  border:1px solid rgba(255,255,255,.09);
+  box-shadow:0 0 24px rgba(5,7,12,.9);
+}
+.m-tab{font-size:10px;letter-spacing:.2em;box-shadow:0 10px 26px -18px rgba(0,0,0,.9);}
+.m-tab.l{
+  color:#ff9c85;border-color:rgba(255,75,58,.34);
+  background:linear-gradient(90deg, rgba(255,75,58,.18), rgba(255,75,58,.04));
+}
+.m-tab.r{
+  color:#a9c0ff;border-color:rgba(91,134,255,.34);
+  background:linear-gradient(270deg, rgba(77,125,255,.18), rgba(77,125,255,.04));
+}
+.m-odds > span{letter-spacing:.16em;color:#7f8da3;}
+.m-odds i{font-family:var(--font-num);}
+
+/* ============================================================
+   2026-11-21 手机横屏 · 第三轮（分组对战卡 / 单机 HUD 条 / 卡槽提亮）
+   对应 js/80-mobi.js: mobiCardSide() / mobiGroupsHtml() 的 HTML 结构。
+   ============================================================ */
+.m-team-head{
+  padding:0 10px;border-radius:3px;
+  background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.012));
+  box-shadow:inset 0 -1px 0 rgba(255,255,255,.07);
+}
+.m-slot{
+  background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.012));
+  border-color:rgba(255,255,255,.085);
+}
+
+.m-vs-card{
+  position:relative;overflow:hidden;
+  border:1px solid rgba(255,255,255,.10);
+  background:
+    radial-gradient(460px 240px at 10% 12%, rgba(255,75,58,.16), transparent 72%),
+    radial-gradient(460px 240px at 90% 88%, rgba(77,125,255,.16), transparent 72%),
+    linear-gradient(180deg,#0d131e,#080b12);
+  box-shadow:0 26px 60px -44px rgba(0,0,0,.95), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.m-vs-card::before{
+  content:'';position:absolute;left:0;right:0;top:0;height:2px;
+  background:linear-gradient(90deg,#ff5a44,#ffc45e 46%,#5b86ff);opacity:.85;
+}
+.m-card-tag{color:#a6b4c9;font-family:var(--font-num);letter-spacing:.06em;}
+.m-card-score{
+  font-size:30px;letter-spacing:.08em;color:#e9f0fb;
+  text-shadow:0 0 22px rgba(140,170,220,.28);
+}
+.m-win-note{color:#8fd8a8;}
+.m-cstats span{color:#7e8ca2;}
+.m-cstats b{color:#dce6f4;}
+.m-h2h{color:#79879c;}
+.m-h2h .t{color:#8c9aaf;}
+.m-vs-big{color:#dfe8f6;text-shadow:0 0 20px rgba(120,155,205,.30);}
+.m-pred{font-family:var(--font-num);font-size:12px;letter-spacing:.04em;color:#a3b1c6;}
+.m-bet.a{border-color:rgba(255,75,58,.30);}
+.m-bet.b{border-color:rgba(91,134,255,.30);}

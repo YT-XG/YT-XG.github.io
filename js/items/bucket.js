@@ -23,7 +23,7 @@ TYPES.bucket = {
     name: '涌泉', cd: 8.0, noTurn: true,
     // 非冲刺型技能：原地放水，不加速、不转向（dashTime 0）
     dashTime: 0, dashSpeed: 0, dmgMult: 1,
-    text: '每 8 秒在当前位置放出一滩水：半径 220px，约 0.9 秒从中心扩散成型；水持续 6 秒、再用 2 秒淡出，淡出途中仍然有引力与伤害，直到完全消失。水面向圆心产生引力（越靠圆心拉力越大）；敌方头顶出现「缺氧」计量，约 3.2 秒充满，充满后每秒损失 12% 最大生命；离开水面后缺氧值缓慢回落'
+    text: '每 8 秒在当前位置放出一滩水：半径 220px，约 0.9 秒从中心扩散成型；水持续 6 秒、再用 2 秒淡出，淡出途中仍然有引力与伤害，直到完全消失。水面向圆心产生引力（越靠圆心拉力越大）；敌方头顶出现「缺氧」计量，约 3.2 秒充满，充满后每秒损失 13.5% 最大生命；离开水面后缺氧值缓慢回落'
   },
   ultimate: {
     name: '洪流', cd: 20.0, noTurn: true,
@@ -48,7 +48,7 @@ TYPES.bucket = {
   water: {
     r: 220, grow: 0.9, hold: 6.0, fade: 2.0,
     gravity: 380, wetThreshold: 3.2, oxicDecay: 0.35,
-    dotPct: 0.12, dotInterval: 1.0
+    dotPct: 0.128, dotInterval: 1.0
   },
 
   createState: function () { return {}; },

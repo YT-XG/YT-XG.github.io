@@ -18,7 +18,7 @@ TYPES.grass = {
 
   skill: {
     name: '生花', cd: 20.0, noTurn: true, dashTime: 0, dashSpeed: 0, dmgMult: 1,
-    text: '每 20 秒在当前位置种下一颗种子：160 HP、不会移动、不挡路；只有血量归零才会消失（贴身接触不掉血，但敌方冲刺 / 箭矢 / 激光 / 铁砧 / 炸弹 / 冰面 / 狗奶引导都能打掉它）。场上已有种子时不能再种，复活 2 次后也不再种；草阵亡时若场上还有自己的种子，就按种子剩余血量在种子处复活'
+    text: '每 20 秒在当前位置种下一颗种子：150 HP、不会移动、不挡路；只有血量归零才会消失（贴身接触不掉血，但敌方冲刺 / 箭矢 / 激光 / 铁砧 / 炸弹 / 冰面 / 狗奶引导都能打掉它）。场上已有种子时不能再种，复活 2 次后也不再种；草阵亡时若场上还有自己的种子，就按种子剩余血量在种子处复活'
   },
   ultimate: {
     name: '荆棘乐园', cd: 22.0, noTurn: true,
@@ -26,14 +26,14 @@ TYPES.grass = {
   },
   passive: {
     name: '捆绑',
-    text: '每 5 秒向 220px 内最近的敌人伸出藤蔓：命中后定身 3 秒，并中毒 5 秒、每秒 20 点伤害'
+    text: '每 6 秒向 220px 内最近的敌人伸出藤蔓：命中后定身 2.4 秒，并中毒 5 秒、每秒 16 点伤害'
   },
 
   // 捆绑参数
-  vine: { cd: 5.0, range: 220, root: 3.0, poisonTime: 5.0, poisonDps: 20 },
+  vine: { cd: 6.0, range: 220, root: 2.4, poisonTime: 5.0, poisonDps: 16 },
   // 种子参数：healRadius 与铁砧落点半径（200）／捆绑射程（220）同量级，
   // 既能覆盖一小片战斗区、又不至于让草"全场挂机回血"
-  seed: { hp: 160, r: 14, healRadius: 200, healPerSec: 10, hitCd: 0.35 },
+  seed: { hp: 150, r: 14, healRadius: 200, healPerSec: 8, hitCd: 0.35 },
   revivesAtSeed: true,   // 死亡时尝试在种子上复活（见 30-sim.js 的 queueRevive）
   maxRevives: 2,         // 最多靠种子复活 2 次，之后就是真死
 

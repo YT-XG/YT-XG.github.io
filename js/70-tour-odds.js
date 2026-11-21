@@ -17,7 +17,7 @@
 
 /* 规则版本：改碰撞 / 技能结算这类「不改数值也会变结果」的机制时手动 +1，
    让旧缓存整体失效（数值改动则由 oddsFingerprint 里的 TYPES / BALANCE 自动覆盖） */
-var ODDS_RULES = 4;
+var ODDS_RULES = 5;   // 2026-11-21 第 97 条：多目标衰减 + 1v1 单挑修正表（机制改动）
 
 var ODDS_ENABLED = true;
 var ODDS_DT = 1 / 30;          // 后台模拟步长：实测 1/30 与 1/60 胜率差 ≤ 5 个百分点（40 局样本内）
@@ -356,7 +356,7 @@ function oddsComplete() {
   oddsEachFx(function (fx) {
     if (fx && fx.sim && fx.sim.n < ODDS_MIN_N) fx.sim.st = 'off';
   });
-  tourLog('后台模拟完成：' + count + ' 场 · 每场 ' + target + ' 局（' + ODDS_DT.toFixed(3) + 's 步长）');
+  tourLog('赔率模拟完成 · ' + count + ' 场');
   oddsRepaint();
 }
 

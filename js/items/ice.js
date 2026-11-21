@@ -7,7 +7,7 @@ TYPES.ice = {
   // 基础移速 300 → 240：比长矛的 216 仍快约 11%，但比原来慢 20%（明显放缓，仍能追近战）。
   // 落冰按"每 30px 一块（或最多 0.14s 一块）"执行，240 px/s 下 30px 仅需 0.125s，
   // 仍由距离触发、轨迹连续（冰面半径 48 ≫ 间距 30），不会出现断档。
-  r: 26, maxHp: 660, baseSpeed: 240, atk: 1.0,
+  r: 26, maxHp: 640, baseSpeed: 240, atk: 1.0,
   body: '#6fd3e8', light: '#d8f7ff', dark: '#1f6f88', glow: '#9beeff',
   // 主动技能：沿"当前运动方向"突刺，noTurn 保证不改 ang（不追踪敌人）
   skill: {
@@ -21,15 +21,15 @@ TYPES.ice = {
   },
   passive: {
     name: '冰霜侵蚀',
-    text: '敌人踩上冰面时移速 ×0.55，并在冰面上每秒受到 32 点伤害；自身 HP 低于 50% 时每 5 秒刷新 16 点护盾'
+    text: '敌人踩上冰面时移速 ×0.55，并在冰面上每秒受到 30 点伤害；自身 HP 低于 50% 时每 5 秒刷新 16 点护盾'
   },
   shieldMax: 16,   // 护盾条的分母（残血时每 5 秒刷新 16，护盾不叠加、不超时消失）
   // 冰面参数：半径 / 落点间距 / 存活(hold) + 淡出(fade) / 减速与持续伤害节奏
   iceTrail: {
-    r: 56, spacing: 24, interval: 0.12,
+    r: 54, spacing: 24, interval: 0.12,
     hold: 5.0, fade: 1.0,
     // slowMul 是冰块专属的减速系数（比青金石光环的 0.6 更强），只作用于踩冰的敌人
-    dot: 32, dotInterval: 1.0, slowTime: 0.25, slowMul: 0.55
+    dot: 30, dotInterval: 1.0, slowTime: 0.25, slowMul: 0.55
   },
   createState: function () {
     return { shield: 0, shieldT: 0, shieldCd: 5, iceCd: 0, lastX: 0, lastY: 0 };

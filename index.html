@@ -4,7 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>MC 方块对决 · 组合作战</title>
-<link rel="stylesheet" href="css/style.css?v=20261121c" />
+<link rel="stylesheet" href="css/fonts.css?v=20261121a" />
+<link rel="stylesheet" href="css/style.css?v=20261121d" />
 <link rel="stylesheet" href="css/mobile.css?v=20261116i" media="(max-width: 980px), (max-height: 480px), (pointer: coarse)" />
 <link rel="stylesheet" href="css/mobi.css?v=20261121a" />
 </head>
@@ -69,39 +70,74 @@
     <div class="home-shell">
       <section class="home-hero">
         <div class="home-brand">
-          <span class="home-kicker">MC · 方块对决</span>
-          <h2>赛博斗蛐蛐</h2>
-          <div class="home-ver" id="homeVer">v26.11.16b</div>
-          <p class="home-desc">台球式匀速直线运动 · 角色池组合作战</p>
+          <span class="home-kicker"><i class="hk-dot"></i>MC · VOXEL DUEL</span>
+          <h2 class="home-title"><span class="ht-out">赛博斗蛐蛐</span><span class="ht-in">赛博斗蛐蛐</span></h2>
+          <div class="home-subline">
+            <span class="home-ver" id="homeVer">v26.11.16b</span>
+            <span class="home-tag">1v1 → 6v6</span>
+            <span class="home-tag dim">台球式物理</span>
+          </div>
+          <p class="home-desc">匀速直线运动 · 只有技能与撞墙才转向 · 角色池组合作战</p>
         </div>
         <div class="home-stats">
-          <div class="hs"><i>金币</i><b id="homeCoins">1000</b></div>
-          <div class="hs"><i>赛季</i><b id="homeSeason">S1</b></div>
+          <div class="hs"><i>COINS</i><b id="homeCoins">1000</b><span>金币</span></div>
+          <div class="hs"><i>SEASON</i><b id="homeSeason">S1</b><span>赛季</span></div>
         </div>
         <div class="home-roster" id="homeRoster"></div>
-        <div class="home-by">by YT_XG</div>
+        <div class="home-by">by YT_XG <em>·</em> MC BLOCK DUEL</div>
+        <div class="home-voxel" aria-hidden="true">
+          <svg viewBox="0 0 360 360">
+            <ellipse cx="150" cy="300" rx="132" ry="26" fill="rgba(0,0,0,.42)"/>
+            <ellipse cx="228" cy="166" rx="62" ry="13" fill="rgba(0,0,0,.35)"/>
+            <g class="vx" style="--t:#ffa48d;--l:#e03a26;--r:#8f1c12" transform="translate(34,152)">
+              <path class="t" d="M0 34 L60 0 L120 34 L60 68 Z"/>
+              <path class="l" d="M0 34 L60 68 L60 136 L0 102 Z"/>
+              <path class="r" d="M120 34 L60 68 L60 136 L120 102 Z"/>
+            </g>
+            <g class="vx" style="--t:#a9c8ff;--l:#3f6ee0;--r:#1d3d9c" transform="translate(188,66) scale(.62)">
+              <path class="t" d="M0 34 L60 0 L120 34 L60 68 Z"/>
+              <path class="l" d="M0 34 L60 68 L60 136 L0 102 Z"/>
+              <path class="r" d="M120 34 L60 68 L60 136 L120 102 Z"/>
+            </g>
+            <g class="vx" style="--t:#ffd98a;--l:#e0a13a;--r:#8f5c12" transform="translate(244,224) scale(.34)">
+              <path class="t" d="M0 34 L60 0 L120 34 L60 68 Z"/>
+              <path class="l" d="M0 34 L60 68 L60 136 L0 102 Z"/>
+              <path class="r" d="M120 34 L60 68 L60 136 L120 102 Z"/>
+            </g>
+          </svg>
+        </div>
       </section>
 
       <section class="home-actions">
-        <button class="home-big" type="button" data-go="solo">
-          <b>单机模式</b>
-          <span>1–6 人 · 同时上场 / 接力 · 预测胜率</span>
-          <em>进入 →</em>
-        </button>
-        <button class="home-big dim" type="button" data-go="online">
-          <b>联机模式</b>
-          <span>探索中，先用单机 / 赛事模式</span>
-          <em>敬请期待</em>
-        </button>
-        <button class="home-big tour" type="button" data-go="tour">
-          <b><i id="homeSeasonBtn">S1</i> 赛事模式</b>
-          <span>8 / 16 人 · 平衡抽签 · 双败淘汰</span>
-          <em>进入 →</em>
-        </button>
+        <div class="ha-head"><b>选择模式</b><span>SELECT MODE</span></div>
+        <div class="ha-grid">
+          <button class="home-big" type="button" data-go="solo">
+            <i class="hb-no">01</i>
+            <span class="hb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="2.5" y="3.5" width="8" height="8" rx="1.6"/><rect x="13.5" y="12.5" width="8" height="8" rx="1.6"/><path d="M10.5 14.5h3M10.5 9.5h3" stroke-dasharray="2 3"/></svg></span>
+            <b>单机模式</b>
+            <span class="hb-desc">1–6 人 · 同时 / 接力上场</span>
+            <em>进入<i>→</i></em>
+          </button>
+          <button class="home-big dim" type="button" data-go="online">
+            <i class="hb-no">02</i>
+            <span class="hb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="5" cy="12" r="2.4"/><circle cx="19" cy="5.5" r="2.4"/><circle cx="19" cy="18.5" r="2.4"/><path d="M7.2 11 16.8 6.2M7.2 13 16.8 17.8"/></svg></span>
+            <b>联机模式</b>
+            <span class="hb-desc">探索中，先用单机 / 赛事模式</span>
+            <em>敬请期待</em>
+          </button>
+          <button class="home-big tour" type="button" data-go="tour">
+            <i class="hb-no">03</i>
+            <span class="hb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 5H4.4v2A4 4 0 0 0 8 11M17 5h2.6v2A4 4 0 0 1 16 11"/><path d="M12 14v4M8.5 20h7"/></svg></span>
+            <b><i id="homeSeasonBtn">S1</i> 赛事模式</b>
+            <span class="hb-desc">8 / 16 人 · 平衡抽签 · 双败淘汰</span>
+            <em>进入<i>→</i></em>
+          </button>
+        </div>
         <button class="home-daily" type="button" data-go="daily">
+          <span class="hd-tag">TODAY</span>
           <b>每日挑战</b>
           <span id="dailyHint">固定种子 · 2v2 · 2 分钟</span>
-          <em>开战 →</em>
+          <em>开战<i>→</i></em>
         </button>
 
         <div class="home-round">
@@ -113,6 +149,11 @@
           <div><b>赛事</b>8 / 16 人 · 小组赛 BO2 → 双败 → BO5</div>
         </div>
       </section>
+
+      <div class="home-build">
+        <span>SYS · 26.11</span><span>CANVAS 2D</span><span>ZERO DEPENDENCY</span>
+        <span class="hb-right">红青组合算 1 个整体</span>
+      </div>
     </div>
   </div>
 
@@ -218,28 +259,28 @@
   </div>
 </div>
 
-    <script src="js/00-base.js?v=20261121l"></script>
-    <script src="js/05-wallet.js?v=20261121l"></script>
-    <script src="js/items/red.js?v=20261121l"></script>
-    <script src="js/items/lapis.js?v=20261121l"></script>
-    <script src="js/items/spear.js?v=20261121l"></script>
-    <script src="js/items/bow.js?v=20261121l"></script>
-    <script src="js/items/ice.js?v=20261121l"></script>
-    <script src="js/items/dog.js?v=20261121l"></script>
-    <script src="js/items/grass.js?v=20261121l"></script>
-    <script src="js/items/anvil.js?v=20261121l"></script>
-    <script src="js/items/milk.js?v=20261121l"></script>
-    <script src="js/items/bucket.js?v=20261121l"></script>
-    <script src="js/items/pool.js?v=20261121l"></script>
-    <script src="js/10-core.js?v=20261121l"></script>
-    <script src="js/20-menu.js?v=20261121l"></script>
-    <script src="js/30-sim.js?v=20261121l"></script>
-    <script src="js/40-render.js?v=20261121l"></script>
-    <script src="js/45-icons.js?v=20261121l"></script>
-    <script src="js/50-ui.js?v=20261121l"></script>
-    <script src="js/60-tournament.js?v=20261121l"></script>
-    <script src="js/70-tour-odds.js?v=20261121l"></script>
-    <script src="js/80-mobi.js?v=20261121l"></script>
+    <script src="js/00-base.js?v=20261121m"></script>
+    <script src="js/05-wallet.js?v=20261121m"></script>
+    <script src="js/items/red.js?v=20261121m"></script>
+    <script src="js/items/lapis.js?v=20261121m"></script>
+    <script src="js/items/spear.js?v=20261121m"></script>
+    <script src="js/items/bow.js?v=20261121m"></script>
+    <script src="js/items/ice.js?v=20261121m"></script>
+    <script src="js/items/dog.js?v=20261121m"></script>
+    <script src="js/items/grass.js?v=20261121m"></script>
+    <script src="js/items/anvil.js?v=20261121m"></script>
+    <script src="js/items/milk.js?v=20261121m"></script>
+    <script src="js/items/bucket.js?v=20261121m"></script>
+    <script src="js/items/pool.js?v=20261121m"></script>
+    <script src="js/10-core.js?v=20261121m"></script>
+    <script src="js/20-menu.js?v=20261121m"></script>
+    <script src="js/30-sim.js?v=20261121m"></script>
+    <script src="js/40-render.js?v=20261121m"></script>
+    <script src="js/45-icons.js?v=20261121m"></script>
+    <script src="js/50-ui.js?v=20261121m"></script>
+    <script src="js/60-tournament.js?v=20261121m"></script>
+    <script src="js/70-tour-odds.js?v=20261121m"></script>
+    <script src="js/80-mobi.js?v=20261121m"></script>
 </body>
 </html>
 

@@ -52,6 +52,10 @@ function floater(x, y, text, color, size) {
 function hurt(u, amount, src, opt) {
   var pct = !!(opt && opt.pct);
   var dot = !!(opt && opt.dot);
+  // 1v1 单挑修正：按「出手方」缩放全部非百分比伤害（含箭矢 / 激光等固定伤害技能）
+  // 百分比伤害（狗奶 / 缺氧 / 决杀）不缩放，避免二次放大
+  if (!pct && src && soloMode()) amount *= (BALANCE.solo.dmgMul[src.key] || 1);
+  if (pct && src && soloMode()) amount *= (BALANCE.solo.pctMul[src.key] || 1);
   if (!pct) amount *= BALANCE.dmgScale;
   if (!u.alive || amount <= 0) return;
   if (!dot && typeof sfxPlay === 'function') sfxPlay('hit');
@@ -114,6 +118,14 @@ function hurt(u, amount, src, opt) {
     floater(u.x, u.y - 8, u.name + ' 倒下', '#ffffff', 14);
     onUnitDeath(u);
   }
+}
+
+/* 多目标收益衰减：同一次范围效果命中 N 个目标时，每个目标只吃 aoeFalloff^(N-1)。
+   N=1 时返回 1（1v1 / 单目标完全保持原值）；2v2 / 3v3 里避免范围效果线性翻倍。 */
+function aoeScale(n) {
+  var k = BALANCE.aoeFalloff;
+  if (n <= 1) return 1;
+  return Math.pow(k, n - 1);
 }
 
 function nearestEnemy(u) {
@@ -251,16 +263,19 @@ function isMilkChannel(u) {
 
 // 每次引导满 1 秒结算一次：敌方单位走 hurt()，敌方种子直接扣血（种子没有护盾 / 无敌）
 function milkDrain(u, D) {
-  var i;
+  var i, n = 0;
+  for (i = 0; i < units.length; i++) if (units[i].alive && units[i].team !== u.team) n++;
+  for (i = 0; i < seeds.length; i++) if (seeds[i].team !== u.team) n++;
+  var mul = aoeScale(n);
   for (i = 0; i < units.length; i++) {
     var v = units[i];
     if (!v.alive || v.team === u.team) continue;
-    hurt(v, v.maxHp * D.pctPerSec, u, { pct: 1, dot: 1 });
+    hurt(v, v.maxHp * D.pctPerSec * mul, u, { pct: 1, dot: 1 });
   }
   for (i = seeds.length - 1; i >= 0; i--) {
     var s = seeds[i];
     if (s.team === u.team) continue;
-    hurtSeed(s, s.maxHp * D.pctPerSec, u, { pct: 1, dot: 1 });
+    hurtSeed(s, s.maxHp * D.pctPerSec * mul, u, { pct: 1, dot: 1 });
     if (s.hp <= 0) destroySeed(i, '种子枯萎');
   }
 }
@@ -477,6 +492,32 @@ function updateIcePatches(dt) {
     if (icePatches[i].life <= 0) icePatches.splice(i, 1);
   }
 
+  // 多目标衰减：先数当前踩在敌方冰面上的目标数（单位 + 种子），
+  // 同一块地面效果不再按人数线性翻倍（1 个目标时保持原值）
+  var iced = 0;
+  for (i = 0; i < units.length; i++) {
+    var iu = units[i];
+    if (!iu.alive) continue;
+    for (j = 0; j < icePatches.length; j++) {
+      var ip = icePatches[j];
+      if (ip.team === iu.team) continue;
+      var idx2 = iu.x - ip.x, idy2 = iu.y - ip.y;
+      var irr2 = ip.r + iu.r * 0.35;
+      if (idx2 * idx2 + idy2 * idy2 <= irr2 * irr2) { iced++; break; }
+    }
+  }
+  for (i = 0; i < seeds.length; i++) {
+    var isd = seeds[i];
+    for (j = 0; j < icePatches.length; j++) {
+      var ip2 = icePatches[j];
+      if (ip2.team === isd.team) continue;
+      var sdx2 = isd.x - ip2.x, sdy2 = isd.y - ip2.y;
+      var srr2 = ip2.r + isd.r * 0.35;
+      if (sdx2 * sdx2 + sdy2 * sdy2 <= srr2 * srr2) { iced++; break; }
+    }
+  }
+  var iceMul = aoeScale(iced);
+
   for (i = 0; i < units.length; i++) {
     var v = units[i];
     if (!v.alive) continue;
@@ -500,7 +541,7 @@ function updateIcePatches(dt) {
       v.iceTick += dt;
       if (v.iceTick >= C.dotInterval) {
         v.iceTick -= C.dotInterval;   // 每 dotInterval 秒一次
-        hurt(v, C.dot, src, { dot: 1 });
+        hurt(v, C.dot * iceMul, src, { dot: 1 });
       }
     } else if (v.iceTick > 0) {
       // 离开冰面后缓慢恢复，避免"很久以前踩过一次，回来一下就掉血"
@@ -523,7 +564,7 @@ function updateIcePatches(dt) {
       sd.iceTick -= dt;
       if (sd.iceTick <= 0) {
         sd.iceTick += C.dotInterval;
-        hurtSeed(sd, C.dot, sdSrc, { dot: 1 });
+        hurtSeed(sd, C.dot * iceMul, sdSrc, { dot: 1 });
       }
     } else if (sd.iceTick < C.dotInterval) {
       sd.iceTick = Math.min(C.dotInterval, sd.iceTick + dt);
@@ -573,6 +614,22 @@ function updateWaters(dt) {
     if (w.age >= C.hold + C.fade) waters.splice(i, 1);
   }
 
+  // 1b) 多目标衰减：先数当前站在任意敌方水面上的敌方单位数
+  //     （1 个目标 = 原值；2 个目标每人 72%，合计 144%，不再线性翻倍）
+  var wetFoes = 0;
+  for (i = 0; i < units.length; i++) {
+    var wu = units[i];
+    if (!wu.alive) continue;
+    for (j = 0; j < waters.length; j++) {
+      var wp = waters[j];
+      if (wp.team === wu.team) continue;
+      var wrad = waterRadius(wp);
+      var wd = Math.hypot(wu.x - wp.x, wu.y - wp.y);
+      if (wd <= wrad + wu.r * 0.35) { wetFoes++; break; }
+    }
+  }
+  var wetMul = aoeScale(wetFoes);
+
   // 2) 逐个敌方单位：找脚下的敌方水面（重叠只取最近圆心的一滩） → 引力 + 浸水
   for (i = 0; i < units.length; i++) {
     var u = units[i];
@@ -598,7 +655,7 @@ function updateWaters(dt) {
 
     // 2a) 引力：边缘接近 0，越靠圆心越大。无敌抖动 / 狗奶引导视为固定桩，不被拖拽
     if (!isShaking(u) && !isMilkChannel(u) && bestD > 0.5) {
-      var g = C.gravity * Math.max(0, 1 - bestD / Math.max(1, rr));
+      var g = C.gravity * Math.max(0, 1 - bestD / Math.max(1, rr)) * wetMul;
       if (g > 0) {
         u.x += (src.x - u.x) / bestD * g * dt;
         u.y += (src.y - u.y) / bestD * g * dt;
@@ -614,7 +671,7 @@ function updateWaters(dt) {
       u.waterAcc -= dt;
       while (u.waterAcc <= 0 && u.alive) {
         u.waterAcc += C.dotInterval;
-        hurt(u, u.maxHp * C.dotPct, src.owner, { pct: 1, dot: 1 });
+        hurt(u, u.maxHp * C.dotPct * wetMul, src.owner, { pct: 1, dot: 1 });
       }
     } else {
       u.waterAcc = C.dotInterval;
@@ -699,23 +756,27 @@ function updateSeeds(dt) {
     }
     if (s.hp <= 0) { destroySeed(i, '种子被击碎'); continue; }
 
-    // 2) 治疗光环：每满 1 秒给 healRadius 内「除自己以外」的友方单位回 8 HP
+    // 2) 治疗光环：每满 1 秒给 healRadius 内「除自己以外」的友方单位回血
+    //    多目标衰减：同时治疗 2 个友军时，每人只吃 aoeFalloff 倍的回复（不线性翻倍）
     s.healAcc += dt;
     if (s.healAcc >= 1.0) {
       s.healAcc -= 1.0;
-      var healed = false;
+      var targets = [];
       for (var k = 0; k < units.length; k++) {
         var a = units[k];
         if (!a.alive || a.team !== s.team) continue;
         if (a.hp >= a.maxHp) continue;
         var hx = a.x - s.x, hy = a.y - s.y;
         if (hx * hx + hy * hy > S.healRadius * S.healRadius) continue;
-        a.hp = Math.min(a.maxHp, a.hp + S.healPerSec);
-        healed = true;
+        targets.push(a);
       }
-      if (healed) {
+      var healMul = aoeScale(targets.length);
+      for (var m = 0; m < targets.length; m++) {
+        targets[m].hp = Math.min(targets[m].maxHp, targets[m].hp + S.healPerSec * healMul);
+      }
+      if (targets.length) {
         ring(s.x, s.y, s.r, S.healRadius, 0.5, 'rgba(140,224,106,.55)');
-        floater(s.x, s.y - s.r - 30, '回春 +' + S.healPerSec, '#8ce06a', 12);
+        floater(s.x, s.y - s.r - 30, '回春 +' + Math.round(S.healPerSec * healMul), '#8ce06a', 12);
       }
     }
   }
@@ -870,19 +931,29 @@ function updateShrink(dt) {
 function laserStrike(u, L) {
   var ex = u.x + Math.cos(u.st.laserAng) * L.len;
   var ey = u.y + Math.sin(u.st.laserAng) * L.len;
+  var hitUnits = [], hitSeeds = [];
   for (var i = 0; i < units.length; i++) {
     var v = units[i];
     if (!v.alive || v.team === u.team) continue;
     if (segDist(v.x, v.y, u.x, u.y, ex, ey) > L.width * 0.5 + v.r) continue;
-    hurt(v, L.dmg, u, { dot: 1 });
+    hitUnits.push(v);
   }
-  // 敌方种子同样被光束扫到：每段（0.1s）扣段伤 3，口径与单位一致
-  for (var j = seeds.length - 1; j >= 0; j--) {
+  for (var j = 0; j < seeds.length; j++) {
     var sd = seeds[j];
     if (sd.team === u.team) continue;
     if (segDist(sd.x, sd.y, u.x, u.y, ex, ey) > L.width * 0.5 + sd.r) continue;
-    hurtSeed(sd, L.dmg, u, { dot: 1 });
-    if (sd.hp <= 0) destroySeed(j, '种子被激光烧毁');
+    hitSeeds.push(sd);
+  }
+  // 多目标衰减：一道光束同时扫到多个目标时，每段伤害不再线性翻倍
+  var mul = aoeScale(hitUnits.length + hitSeeds.length);
+  for (var k = 0; k < hitUnits.length; k++) hurt(hitUnits[k], L.dmg * mul, u, { dot: 1 });
+  for (var q = hitSeeds.length - 1; q >= 0; q--) {
+    var s2 = hitSeeds[q];
+    hurtSeed(s2, L.dmg * mul, u, { dot: 1 });
+    if (s2.hp <= 0) {
+      var at = seeds.indexOf(s2);
+      if (at >= 0) destroySeed(at, '种子被激光烧毁');
+    }
   }
 }
 

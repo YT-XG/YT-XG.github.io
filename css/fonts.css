@@ -1,0 +1,29 @@
+/* ============================================================
+   fonts.css —— 本地开源字体（离线双击也能用，不联网、不依赖 CDN）
+   ------------------------------------------------------------
+   Chakra Petch · SIL Open Font License 1.1
+   Copyright (c) Cadson Demak. 仅用于数字 / 英文标签 / HUD 读数。
+   中文继续用系统字体（PingFang SC / 微软雅黑），不额外下载大字体。
+   ============================================================ */
+
+@font-face{
+  font-family:"Chakra Petch";
+  src:url("../assets/fonts/ChakraPetch-Regular.ttf") format("truetype");
+  font-weight:400;
+  font-style:normal;
+  font-display:swap;
+}
+@font-face{
+  font-family:"Chakra Petch";
+  src:url("../assets/fonts/ChakraPetch-SemiBold.ttf") format("truetype");
+  font-weight:600;
+  font-style:normal;
+  font-display:swap;
+}
+@font-face{
+  font-family:"Chakra Petch";
+  src:url("../assets/fonts/ChakraPetch-Bold.ttf") format("truetype");
+  font-weight:700;
+  font-style:normal;
+  font-display:swap;
+}

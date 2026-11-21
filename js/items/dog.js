@@ -10,12 +10,12 @@
 
 TYPES.dog = {
   key: 'dog', name: '大狗', role: '远程 / 压制',
-  r: 28, maxHp: 540, baseSpeed: 205, atk: 1.0,
+  r: 28, maxHp: 640, baseSpeed: 205, atk: 1.0,
   body: '#b5723a', light: '#f2cf9a', dark: '#5a3216', glow: '#ffb765',
 
   skill: {
-    name: '咆哮激光', cd: 7.0, noTurn: true, dashTime: 0, dashSpeed: 0, dmgMult: 1,
-    text: '朝最近敌人射出一道超长激光：方向锁定，持续 4 秒、每 0.1 秒一段（7 伤害/段，共 40 段）；激光放完才开始计 7 秒冷却'
+    name: '咆哮激光', cd: 6.5, noTurn: true, dashTime: 0, dashSpeed: 0, dmgMult: 1,
+    text: '朝最近敌人射出一道超长激光：方向锁定，持续 4 秒、每 0.1 秒一段（8.5 伤害/段，共 40 段）；激光放完才开始计 6.5 秒冷却'
   },
   ultimate: {
     name: '三重咆哮', cd: 18.0, noTurn: true,
@@ -23,10 +23,10 @@ TYPES.dog = {
   },
   passive: {
     name: '厚皮',
-    text: '受到的伤害 ×0.85（体型大、皮厚），靠激光在远距离持续压制'
+    text: '受到的伤害 ×0.82（体型大、皮厚），靠激光在远距离持续压制'
   },
   // 激光参数：持续 / 段数 / 每段伤害 / 长度 / 判定宽度
-  laser: { dur: 4.0, ticks: 40, dmg: 7, len: 900, width: 18, trackRate: 1.2 },
+  laser: { dur: 4.0, ticks: 40, dmg: 8.5, len: 900, width: 20, trackRate: 1.2 },
 
   createState: function () { return { laserT: 0, laserAng: 0, laserTick: 0 }; },
 

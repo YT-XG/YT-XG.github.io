@@ -9,9 +9,9 @@ TYPES.lapis = {
   impact: true,
   body: '#2d5bd6', light: '#7ba2ff', dark: '#152a6b', glow: '#4a7bf0',
   skill: {
-    name: '附魔折射', cd: 4.4,
-    dashSpeed: 560, dashTime: 0.30, dmgMult: 1.15,
-    text: '转向冲刺，撞击倍率 ×1.15'
+    name: '附魔折射', cd: 4.8,
+    dashSpeed: 560, dashTime: 0.30, dmgMult: 0.9,
+    text: '转向冲刺，撞击倍率 ×0.9'
   },
   ultimate: {
     name: '折光爆裂', cd: 18.0,
@@ -27,12 +27,12 @@ TYPES.lapis = {
     speedMul: 3,
     speedRampPerSec: 0.15,   // 与红石相同的速度递增
     speedMulCap: 6,
-    dmgPerSec: 10,
-    dmgCap: 100,       // 狂暴撞击的额外伤害上限（每秒 +10，最多累到 +100）
+    dmgPerSec: 8,
+    dmgCap: 60,        // 狂暴撞击的额外伤害上限（每秒 +8，最多累到 +60）
     ramp: true,
     hitCd: 5.0,        // 狂暴撞击的冷却：CD 没好时撞上去不掉血
     shield: { amount: 30, interval: 3.0 },   // 狂暴期间每 3 秒刷新 30 点护盾
-    status: '移速 ×3 起 · 越跑越快 · 撞击伤害随秒数增加（每 5 秒一次，上限 +100） · 每 3 秒刷新护盾'
+    status: '移速 ×3 起 · 越跑越快 · 撞击伤害随秒数增加（每 5 秒一次，上限 +60） · 每 3 秒刷新护盾'
   },
   createState: function () { return { shield: 0, shieldT: 0, shieldCd: 0, rageHitCd: 0 }; },
   // 常规模式只有技能冲刺期间有撞击伤害；狂暴后撞击伤害随时间递增，

@@ -4,14 +4,14 @@
 
 TYPES.spear = {
   key: 'spear', name: '长矛', role: '爆发 / 单点',
-  r: 30, maxHp: 580, baseSpeed: 216, atk: 1.30,
+  r: 30, maxHp: 730, baseSpeed: 216, atk: 1.4,
   /* 撞击本身就是长矛的技能：只有它在碰撞时按撞击强度结算伤害 */
   impact: true,
   body: '#b9c4d4', light: '#f4f8ff', dark: '#5b6678', glow: '#cfe0ff',
   skill: {
-    name: '贯穿突刺', cd: 3.4,
-    dashSpeed: 880, dashTime: 0.42, dmgMult: 1.55,
-    text: '高速突刺（约 370px），撞击倍率 ×1.55'
+    name: '贯穿突刺', cd: 2.8,
+    dashSpeed: 880, dashTime: 0.42, dmgMult: 1.95,
+    text: '高速突刺（约 370px），撞击倍率 ×1.95'
   },
   ultimate: {
     name: '五连贯穿', cd: 15.0,
@@ -19,7 +19,7 @@ TYPES.spear = {
   },
   passive: {
     name: '冲刺减伤',
-    text: '冲刺期间承受伤害 ×0.6'
+    text: '冲刺期间承受伤害 ×0.55'
   },
   createState: function () { return {}; },
   onAttack: function (u, dmg) { return u.dashT > 0 ? dmg : 0; },

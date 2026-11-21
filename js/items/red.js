@@ -9,9 +9,9 @@ TYPES.red = {
   impact: true,
   body: '#c8342b', light: '#ff7a6a', dark: '#6d140e', glow: '#ff5a44',
   skill: {
-    name: '红石脉冲', cd: 3.6,
-    dashSpeed: 650, dashTime: 0.36, dmgMult: 1.7,
-    text: '转向冲刺，撞击倍率 ×1.7'
+    name: '红石脉冲', cd: 4.0,
+    dashSpeed: 650, dashTime: 0.36, dmgMult: 1.25,
+    text: '转向冲刺，撞击倍率 ×1.25'
   },
   ultimate: {
     name: '红石陨星', cd: 16.0,
@@ -19,7 +19,7 @@ TYPES.red = {
   },
   passive: {
     name: '红石溅射',
-    text: '技能冲刺撞击时对 96px 内敌人（含目标）造成 9 点溅射'
+    text: '技能冲刺撞击时对 96px 内敌人（含目标）造成 4 点溅射'
   },
   // 羁绊：青金石阵亡后，红石块原地无敌抖动 3 秒，随后狂暴
   rage: {
@@ -32,7 +32,7 @@ TYPES.red = {
       interval: 0.4,          // 初始投弹间隔
       intervalRamp: 0.02,     // 每秒缩短的间隔
       intervalMin: 0.20,      // 最短投弹间隔
-      fuse: 2.0, radius: 100, dmg: 20
+      fuse: 2.0, radius: 84, dmg: 11
     }
   },
   createState: function () { return { bombCd: 0 }; },

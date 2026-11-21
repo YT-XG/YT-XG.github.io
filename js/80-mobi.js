@@ -547,13 +547,12 @@ function mobiTourSetupHtml() {
     '<button type="button" class="m-ghost m-mini2" data-act="exitTour">退出赛事</button>' +
     '</div>';
 
-  /* 物品（A / B 档） */
+  /* 物品（不分档，9 个角色同权） */
   h += '<section class="m-panel m-items"><h3>物品</h3><div class="m-items-grid">';
   for (var i = 0; i < POOL.length; i++) {
     var c = POOL[i];
-    var band = (typeof tourBandOf === 'function') ? tourBandOf(c.key) : '?';
     h += '<div class="m-item"><div class="m-item-ico">' + mobiIco(c.key, 46) +
-      '<i class="m-band ' + (band === 'A' ? 'a' : (band === 'B' ? 'b' : '')) + '">' + band + '</i></div>' +
+      '</div>' +
       '<b>' + mobiEsc(c.short) + '</b><small>' + mobiEsc(c.role) + '</small></div>';
   }
   h += '</div></section>';
