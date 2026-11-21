@@ -137,6 +137,7 @@ function mobiFallbackBoard() {
 function mobiOnHome() {
   if (!mobiIsMobile()) return;
   mobi.tourIntent = false;
+  bossMode = false;   // 回主菜单即退出 BOSS 模式（与桌面 openMenu 同口径）
   /* 赛事打到一半回主菜单：把未完成的场次取消，避免下次进赛事卡在空战场上 */
   if (typeof tour !== 'undefined' && tour && tour.cur) {
     tour.cur = null;
@@ -156,49 +157,22 @@ function mobiOnBattleStart() {
   mobiHide();
 }
 
-/* 竖屏：收起 1024×512 手机画布，交还给桌面 DOM（首页/选人页纵向堆叠 + 战场竖屏镜头） */
-function mobiExitForPortrait() {
-  var wasScreen = mobi.screen;
-  var inTour = mobi.tourIntent;
-  mobi.on = false;
-  var root = mobiRoot();
-  if (root) root.classList.remove('on');
-  document.body.classList.remove('mobi-mode', 'mobi-battle');
-  document.body.classList.add('portrait');
-  mobiDisarmCarousel();
+/* 竖屏：不再提供纵向布局 / 竖屏镜头，直接盖「请使用横屏游玩」提示层。
+   只清掉旧的 portrait 纵向状态与竖屏镜头；横屏回来时由 mobiOnResize 恢复界面。 */
+function mobiSyncOrientation() {
+  var tip = document.getElementById('rotateTip');
+  var p = mobiIsPortrait();
+  if (tip) tip.style.display = p ? 'flex' : 'none';
+  document.body.classList.remove('portrait');
   portraitCam = 0;
   if (cv) cv.style.transform = '';
-
-  if (phase === 'menu') {
-    if (inTour && typeof tour !== 'undefined' && tour) {
-      if (el.home) el.home.classList.remove('show');
-      el.menu.classList.remove('show');
-      el.stage.classList.add('menu-open');
-      document.body.classList.add('menu-open');
-      el.btns.classList.add('hidden');
-      if (el.tourBoard) el.tourBoard.classList.add('show');
-      if (typeof tourRender === 'function') tourRender();
-    } else if (wasScreen === 'solo') {
-      enterPick(teamSize);
-    } else {
-      el.menu.classList.remove('show');
-      if (el.home) el.home.classList.add('show');
-      el.stage.classList.add('menu-open');
-      document.body.classList.add('menu-open');
-      el.btns.classList.add('hidden');
-      if (typeof deskSyncChrome === 'function') deskSyncChrome();
-    }
-  } else {
-    if (el.home) el.home.classList.remove('show');
-    el.menu.classList.remove('show');
-    if (el.tourBoard) el.tourBoard.classList.remove('show');
-    el.stage.classList.remove('menu-open');
-    document.body.classList.remove('menu-open');
-    el.btns.classList.remove('hidden');
+  if (p) {
+    mobi.on = false;
+    var root = mobiRoot();
+    if (root) root.classList.remove('on');
+    document.body.classList.remove('mobi-mode', 'mobi-battle');
+    mobiDisarmCarousel();
   }
-  setTimeout(function () {
-    if (typeof fitCanvas === 'function') fitCanvas();
-  }, 60);
 }
 
 /* 赛事每次重渲染后调用：把手机端拉到对应页面（或回落到旧棋盘） */
@@ -339,6 +313,7 @@ function mobiHomeHtml() {
       '<button type="button" data-act="solo">单机模式</button>' +
       '<button type="button" class="dim" data-act="online">联机模式（探索中）</button>' +
       '<button type="button" data-act="tour">S' + seasonGet() + '　赛事模式</button>' +
+      '<button type="button" class="bossmode" data-act="boss">BOSS 战 · 5v1</button>' +
       '<button type="button" class="daily" data-act="daily">' +
         (typeof dailyDoneToday === 'function' && dailyDoneToday() ? '每日挑战 · 已完成' : '每日挑战') +
       '</button>' +
@@ -374,6 +349,22 @@ function mobiSoloPct() {
 function mobiTeamPane(team) {
   var keys = pick[team] || [];
   var n = Math.max(1, teamSize);
+
+  /* BOSS 模式：蓝方是固定 BOSS，只铺一块不可更换的 BOSS 牌（对齐桌面 renderBossCard） */
+  if (team === 'B' && bossMode) {
+    var B = bossConfig();
+    var bico = (typeof iconSvg === 'function') ? iconSvg('duo') : '';
+    return '<div class="m-team b"><div class="m-team-head"><span>BOSS</span>' +
+      '<button type="button" disabled>固定</button></div>' +
+      '<div class="m-slots boss-card">' +
+      '<div class="m-slot boss fixed">' +
+        (bico ? '<span class="mi-ico boss-ico">' + bico + '</span>'
+          : '<span class="mi-ico" style="background:#b478ff;box-shadow:0 0 12px #b478ff"></span>') +
+        '<div class="m-slot-tx"><b>' + mobiEsc(B.name) + '</b>' +
+        '<em>' + mobiEsc(B.role) + '</em></div>' +
+      '</div></div></div>';
+  }
+
   /* 阵容格按人数自适应：1–2 人一行一个（大卡），3 人以上两列；行高把 212px 的
      可用高度铺满，不再留「—」占位格浪费屏幕（第 92 条） */
   var cols = n <= 2 ? 1 : 2;
@@ -412,13 +403,19 @@ function mobiSoloHtml() {
   var h = '<div class="m-screen m-solo">' +
     '<button type="button" class="m-mini m-home-btn" data-act="home">主菜单</button>';
 
-  /* 左栏只保留人数：上场方式 / 时长 / 随机双方都收进「设置」抽屉，避免重复 */
-  h += '<div class="m-sizebar">' +
-    '<div class="m-cap">人数（最多 6v6）</div>' +
-    '<div class="m-size"><button type="button" class="m-sq" data-act="sizeDown">−</button>' +
-    '<b>' + teamSize + ' v ' + teamSize + '</b>' +
-    '<button type="button" class="m-sq" data-act="sizeUp">＋</button></div>' +
-    '</div>';
+  /* 左栏只保留人数：上场方式 / 时长 / 随机双方都收进「设置」抽屉，避免重复。
+     BOSS 战固定 5v1，人数 / 方式 / 时长都不可改，只给静态标注 */
+  if (bossMode) {
+    h += '<div class="m-sizebar"><div class="m-cap">对阵</div>' +
+      '<div class="m-size"><b>5 v 1</b><small class="m-boss-tag">BOSS 讨伐</small></div></div>';
+  } else {
+    h += '<div class="m-sizebar">' +
+      '<div class="m-cap">人数（最多 6v6）</div>' +
+      '<div class="m-size"><button type="button" class="m-sq" data-act="sizeDown">−</button>' +
+      '<b>' + teamSize + ' v ' + teamSize + '</b>' +
+      '<button type="button" class="m-sq" data-act="sizeUp">＋</button></div>' +
+      '</div>';
+  }
 
   if (draftMode) {
     var df = draftFilledCount(), dt = draftOrder.length;
@@ -426,19 +423,22 @@ function mobiSoloHtml() {
       (df < dt ? SIDE_LABEL[activeTeam] + ' 选择中' : '选人完成') + '</div>';
   }
 
-  /* 中间：双方 6 格阵容 */
-  h += '<div class="m-arena">' + mobiTeamPane('A') +
-    '<div class="m-vs">VS</div>' + mobiTeamPane('B') + '</div>';
+  /* 中间：双方 6 格阵容（BOSS 战蓝方为固定 BOSS 牌） */
+  h += '<div class="m-arena' + (bossMode ? ' boss' : '') + '">' + mobiTeamPane('A') +
+    '<div class="m-vs">' + (bossMode ? 'VS' : 'VS') + '</div>' + mobiTeamPane('B') + '</div>';
 
-  /* 预测胜率 / 开始（单机不再押注，也不显示金币：金币只服务于赛事） */
-  h += '<div class="m-odds' + (known ? '' : ' pending') + '">' +
-    '<span>' + (known ? ('预测胜率 · AI ' + (typeof previewSampleOf === 'function'
-      ? previewSampleOf((pick.A || []).slice(0, teamSize), (pick.B || []).slice(0, teamSize)) : '') + ' 局') : '模拟中…') + '</span>' +
-    '<div>' + (known
-      ? '<b class="ra">' + pct + '%</b><i>:</i><b class="rb">' + (100 - pct) + '%</b>'
-      : '<b class="ra">—</b><i>:</i><b class="rb">—</b>') + '</div>' +
-    '</div>';
-  h += '<button type="button" class="m-start" data-act="start">开始对战</button>';
+  /* 预测胜率：BOSS 战没有对位预测，整块隐藏；其余按真实样本显示 */
+  if (!bossMode) {
+    h += '<div class="m-odds' + (known ? '' : ' pending') + '">' +
+      '<span>' + (known ? ('预测胜率 · AI ' + (typeof previewSampleOf === 'function'
+        ? previewSampleOf((pick.A || []).slice(0, teamSize), (pick.B || []).slice(0, teamSize)) : '') + ' 局') : '模拟中…') + '</span>' +
+      '<div>' + (known
+        ? '<b class="ra">' + pct + '%</b><i>:</i><b class="rb">' + (100 - pct) + '%</b>'
+        : '<b class="ra">—</b><i>:</i><b class="rb">—</b>') + '</div>' +
+      '</div>';
+  }
+  h += '<button type="button" class="m-start' + (bossMode ? ' boss' : '') + '" data-act="start">' +
+    (bossMode ? '开始讨伐' : '开始对战') + '</button>';
 
   /* 两侧滑出条 */
   h += '<button type="button" class="m-tab l" data-act="drawerL">设置</button>';
@@ -448,6 +448,19 @@ function mobiSoloHtml() {
 
 /* 左侧设置抽屉 */
 function mobiSettingsHtml() {
+  /* BOSS 战：人数 / 上场方式 / 征召 / 时长全部固定，只给说明，不展示可改项 */
+  if (bossMode) {
+    var Bd = BALANCE.boss.duration;
+    return '<div class="m-drawer-h"><b>设置</b>' +
+      '<button type="button" data-act="closeDrawer">×</button></div>' +
+      '<div class="m-drawer-b">' +
+      '<div class="m-set-row"><span>对阵</span><b class="m-static">5 v 1 · 讨伐 BOSS</b></div>' +
+      '<div class="m-set-row"><span>上场方式</span><b class="m-static">同时上场（固定）</b></div>' +
+      '<div class="m-set-row"><span>对局时长</span><b class="m-static">' + (Bd / 60) + ' 分钟（固定）</b></div>' +
+      '<div class="m-set-row"><span>选人模式</span><b class="m-static">自由选人（固定）</b></div>' +
+      '<button type="button" class="m-wide m-ghost" data-act="home">返回主界面</button>' +
+      '</div>';
+  }
   return '<div class="m-drawer-h"><b>设置</b>' +
     '<button type="button" data-act="closeDrawer">×</button></div>' +
     '<div class="m-drawer-b">' +
@@ -479,8 +492,9 @@ function mobiSettingsHtml() {
 
 /* 右侧角色池抽屉 */
 function mobiPoolHtml() {
+  var sideTag = bossMode ? '挑战者 · 红方' : (SIDE_LABEL[mobi.activeTeam] + ' · ' + (mobi.activeSlot + 1) + ' 号位');
   var h = '<div class="m-drawer-h"><b>角色池</b>' +
-    '<span>' + SIDE_LABEL[mobi.activeTeam] + ' · ' + (mobi.activeSlot + 1) + ' 号位</span>' +
+    '<span>' + sideTag + '</span>' +
     '<button type="button" data-act="closeDrawer">×</button></div>' +
     '<div class="m-pool">';
   for (var i = 0; i < POOL.length; i++) {
@@ -493,7 +507,8 @@ function mobiPoolHtml() {
       '<small>' + (owner ? SIDE_LABEL[owner] + '已选' : mobiEsc(c.role)) + '</small></button>';
   }
   h += '</div><div class="m-drawer-f">' +
-    '<button type="button" class="m-wide m-ghost" data-act="randSel">随机这一方</button>' +
+    '<button type="button" class="m-wide m-ghost" data-act="randSel">' +
+    (bossMode ? '随机红方' : '随机这一方') + '</button>' +
     '<button type="button" class="m-wide m-primary" data-act="closeDrawer">完成</button></div>';
   return h;
 }
@@ -963,6 +978,7 @@ function mobiClick(e) {
   /* ---- 主菜单 / 页面切换 ---- */
   if (act === 'home') { mobiOnHome(); return; }
   if (act === 'solo') { mobiEnterSolo(); return; }
+  if (act === 'boss') { mobiEnterBoss(); return; }
   if (act === 'daily') { startDaily(); return; }
   if (act === 'online') { mobiToast('联机模式正在探索中，先用单机 / 赛事模式'); return; }
   if (act === 'tour') { mobiOpenTour(); return; }
@@ -1074,6 +1090,37 @@ function mobiEnterSolo() {
   mobiShowScreen('solo');
 }
 
+/* BOSS 战入口（手机横屏独立界面）：复刻桌面 enterBossPick 的全局状态，
+   不操作被隐藏的桌面 #menu DOM，然后切到手机选人页（蓝方为固定 BOSS 牌）。 */
+function mobiEnterBoss() {
+  bossMode = true;
+  bossMerged = false;
+  modeKind = 'vs';
+  teamSize = 5;
+  draftMode = false;
+  if (bossRoleKey !== 'duo' && !BOSS_ROLES[bossRoleKey]) bossRoleKey = 'duo';
+  pick.B = [bossRoleKey];
+  seriesBest = 1;
+  seriesWins = { A: 0, B: 0 };
+  seriesGame = 1;
+  var preset = ['spear', 'bow', 'ice', 'grass', 'anvil'];
+  var arr = [];
+  for (var i = 0; i < (pick.A || []).length && arr.length < 5; i++) {
+    if (POOL_BY_KEY[pick.A[i]] && arr.indexOf(pick.A[i]) < 0) arr.push(pick.A[i]);
+  }
+  for (var p = 0; p < preset.length && arr.length < 5; p++) {
+    if (arr.indexOf(preset[p]) < 0) arr.push(preset[p]);
+  }
+  pick.A = arr;
+  mobi.activeTeam = 'A';
+  mobi.activeSlot = 0;
+  activeTeam = 'A'; activeSlot = 0;
+  mobi.drawer = '';
+  if (typeof buildModePick === 'function') buildModePick();
+  if (typeof syncPick === 'function') syncPick();
+  mobiShowScreen('solo');
+}
+
 function mobiSetSize(n) {
   n = Math.max(1, Math.min(6, n | 0));
   setSize(n);
@@ -1124,14 +1171,11 @@ function mobiPickRole(key) {
 }
 
 function mobiStart() {
-  for (var t = 0; t < 2; t++) {
-    var team = t === 0 ? 'A' : 'B';
-    for (var i = 0; i < teamSize; i++) {
-      if (!POOL_BY_KEY[(pick[team] || [])[i]]) {
-        mobiToast(SIDE_LABEL[team] + ' 还有空位，先从右侧角色池选人');
-        return;
-      }
-    }
+  /* 校验口径与桌面 startBattle / lineupsComplete 一致：
+     BOSS 模式只校验挑战者红方 5 人，蓝方固定 BOSS 不再走角色池校验 */
+  if (typeof lineupsComplete === 'function' ? !lineupsComplete() : false) {
+    mobiToast(bossMode ? '请先给红方选满 5 个角色' : '双方阵容还没选满，先从右侧角色池选人');
+    return;
   }
   mobi.drawer = '';
   startBattle();
@@ -1225,10 +1269,7 @@ function mobiOnResize() {
   var wasPortrait = document.body.classList.contains('portrait');
 
   if (mobiIsPortrait()) {
-    if (!wasPortrait) {
-      document.body.classList.add('portrait');
-      mobiExitForPortrait();
-    }
+    mobiSyncOrientation();
     setTimeout(function () {
       if (typeof fitCanvas === 'function') fitCanvas();
     }, 60);
@@ -1298,8 +1339,7 @@ function mobiInit() {
     var root = mobiRoot();
     if (root) root.classList.remove('on');
     if (mobiIsPortrait()) {
-      document.body.classList.add('portrait');
-      mobiExitForPortrait();
+      mobiSyncOrientation();
     }
     // 桌面端：把 80 加载后的金币/赛季状态刷到首页与选人页
     if (typeof deskSyncChrome === 'function') deskSyncChrome();
