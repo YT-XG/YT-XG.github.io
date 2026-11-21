@@ -1,62 +1,77 @@
 /* 冰块：控场 / 续航，无羁绊
-   从 index.html 的 TYPES 字面量中拆出；新增/修改该物品只动这个文件。 */
+   从 index.html 的 TYPES 字面量中拆出；新增/修改该物品只动这个文件。
+   2026-11-22 迁移到新体系：2000 HP / 100 攻击 / 135 防御，终结技由能量条驱动。
+   三个技能槽：
+     · 普攻（3s）   自身 150 半径寒冰脉冲：90 伤害 + 1.5s 减速，每命中 1 人回能 3（单次封顶 6）
+     · 技能（5s）   0.3s@900 突进，命中 160%，落点留下冰面，释放回能 12
+     · 终结技       420 半径内冻结 2.2s + 300 伤害 + 自身 120 护盾
+   被动仍是「移动落冰」+「残血刷新护盾」。 */
 'use strict';
+
+var ICE_BASIC = { cd: 3.0, radius: 150, dmg: 90, slow: 1.5, energy: 3, energyCap: 6 };
+var ICE_SKILL = { cd: 5.0, dashTime: 0.30, dashSpeed: 900, pct: 1.6, energy: 12 };
+var ICE_ULT = { radius: 420, freeze: 2.0, dmg: 220, shield: 120 };
 
 TYPES.ice = {
   key: 'ice', name: '冰块', role: '控制 / 续航',
-  // 基础移速 300 → 240：比长矛的 216 仍快约 11%，但比原来慢 20%（明显放缓，仍能追近战）。
-  // 落冰按"每 30px 一块（或最多 0.14s 一块）"执行，240 px/s 下 30px 仅需 0.125s，
-  // 仍由距离触发、轨迹连续（冰面半径 48 ≫ 间距 30），不会出现断档。
-  r: 26, maxHp: 640, baseSpeed: 240, atk: 1.0,
+  r: 26, maxHp: 2000, baseSpeed: 240, atk: 100, def: 135,
+  energyMax: 100, energyRegen: 2.0,
+  /* 数值已按 2000 HP 口径校准：伤害不再乘 dmgScale */
+  calibrated: true,
+  impact: true,   // 只有突进期间有撞击伤害（onAttack），平时碰撞为 0
   body: '#6fd3e8', light: '#d8f7ff', dark: '#1f6f88', glow: '#9beeff',
-  // 主动技能：沿"当前运动方向"突刺，noTurn 保证不改 ang（不追踪敌人）
+  basic: ICE_BASIC,
+  // 主动技能：朝最近敌人突刺 0.3 秒，命中 160% 攻击力
   skill: {
-    name: '冰霜突进', cd: 5.0, noTurn: true,
-    dashSpeed: 900, dashTime: 0.3, dmgMult: 1,
-    text: '每 5 秒沿当前运动方向突刺 0.3 秒（900 px/s，约 270px），不改变移动方向'
+    name: '冰霜突进', cd: ICE_SKILL.cd,
+    dashSpeed: ICE_SKILL.dashSpeed, dashTime: ICE_SKILL.dashTime, dmgMult: 1,
+    text: '每 5 秒突刺 0.3 秒（900 px/s），撞到敌人造成 160% 攻击力并留下冰面（回能 12）'
   },
   ultimate: {
-    name: '极寒领域', cd: 20.0, noTurn: true,
-    text: '冻结 400px 内所有敌人 2.2 秒并造成 45 伤害，同时在自身周围铺开一圈冰面'
+    name: '极寒领域',
+    text: '能量充满后冻结 420px 内所有敌人 2.2 秒、造成 300 伤害，并给自身 120 点护盾'
   },
   passive: {
     name: '冰霜侵蚀',
-    text: '敌人踩上冰面时移速 ×0.55，并在冰面上每秒受到 30 点伤害；自身 HP 低于 50% 时每 5 秒刷新 16 点护盾'
+    text: '敌人踩上冰面时移速 ×0.55，并在冰面上每秒受到 45 点伤害；自身 HP 低于 50% 时每 5 秒刷新 90 点护盾（上限 120）'
   },
-  shieldMax: 16,   // 护盾条的分母（残血时每 5 秒刷新 16，护盾不叠加、不超时消失）
+  shieldMax: 120,   // 护盾条分母
+  shieldAdd: 90,    // 残血被动每次刷新的护盾值
   // 冰面参数：半径 / 落点间距 / 存活(hold) + 淡出(fade) / 减速与持续伤害节奏
   iceTrail: {
     r: 54, spacing: 24, interval: 0.12,
     hold: 5.0, fade: 1.0,
     // slowMul 是冰块专属的减速系数（比青金石光环的 0.6 更强），只作用于踩冰的敌人
-    dot: 30, dotInterval: 1.0, slowTime: 0.25, slowMul: 0.55
+    dot: 45, dotInterval: 1.0, slowTime: 0.25, slowMul: 0.55
   },
   createState: function () {
-    return { shield: 0, shieldT: 0, shieldCd: 5, iceCd: 0, lastX: 0, lastY: 0 };
+    return { shield: 0, shieldT: 0, shieldCd: 5, iceCd: 0, lastX: 0, lastY: 0, basicCd: 1.4 };
   },
-  // 常规模式普通撞击伤害为 0：伤害只来自冰面
-  onAttack: function () { return 0; },
+  // 只有突进期间按 160% 攻击力结算；平时碰撞伤害为 0
+  onAttack: function (u) {
+    return u.dashT > 0 ? u.atk * ICE_SKILL.pct : 0;
+  },
   onCast: function (u) {
-    // 只做表现：突进本身由 cast() 统一设置 dashT / dashSpeed，方向不变
+    // 突进本身由 cast() 统一设置 dashT / dashSpeed；这里补表现与落冰
+    gainEnergy(u, ICE_SKILL.energy);
+    dropIcePatch(u, u.x, u.y);
     ring(u.x, u.y, u.r, 148, 0.38, '#9beeff');
     burst(u.x, u.y, 16, '#c8f6ff', 260);
     floater(u.x, u.y - u.r - 18, '冰霜突进', '#9beeff', 13);
   },
-  // 终结技：范围冻结 + 一圈冰面（不改朝向，仍沿原方向滑行）
+  // 终结技：范围冻结 + 伤害 + 自身护盾（不改朝向，仍沿原方向滑行）
   onUlt: function (u) {
-    var R = 400;
+    var R = ICE_ULT.radius;
     for (var i = 0; i < units.length; i++) {
       var v = units[i];
       if (!v.alive || v.team === u.team) continue;
       if (Math.hypot(v.x - u.x, v.y - u.y) > R + v.r) continue;
-      hurt(v, 45, u);
-      if (!v.boss) v.bindT = Math.max(v.bindT, 2.2);   // 定身：speedOf 归零，方向不变（BOSS 免疫）
+      hurt(v, ICE_ULT.dmg, u);
+      if (!v.boss) v.bindT = Math.max(v.bindT, ICE_ULT.freeze);   // 定身：speedOf 归零（BOSS 免疫）
       ring(v.x, v.y, v.r, v.r + 46, 0.4, '#c8f6ff');
     }
-    for (var k = 0; k < 12; k++) {
-      var a = k / 12 * TAU;
-      dropIcePatch(u, u.x + Math.cos(a) * 150, u.y + Math.sin(a) * 150);
-    }
+    u.st.shield = Math.min(TYPES.ice.shieldMax, (u.st.shield || 0) + ICE_ULT.shield);
+    u.st.shieldT = 0;   // 不按时间消失，只被伤害打掉
     ring(u.x, u.y, u.r, R, 0.75, '#d8f7ff');
     burst(u.x, u.y, 32, '#c8f6ff', 360);
     shake = Math.max(shake, 4);
@@ -64,18 +79,15 @@ TYPES.ice = {
   onTick: function (u, dt) {
     var C = TYPES.ice.iceTrail;
 
-    // 1) 残血护盾：只在 HP < 50% 最大生命时才推进 5 秒刷新计时；
-    //    HP 回到 50% 以上就暂停（计时保留，重新跌破半血后继续倒数）。
-    //    刷新是覆盖为 shieldMax（不叠加）；不设置 shieldT，所以不会被时间清空，
-    //    只能由 hurt() 吸收伤害时消耗（见 hurt()）。
+    // 1) 残血护盾：HP < 50% 时每 5 秒刷新 90 点（上限 120，不叠加、不过期）
     if (u.hp < u.maxHp * 0.5) {
       u.st.shieldCd -= dt;
       if (u.st.shieldCd <= 0) {
         u.st.shieldCd += 5.0;
-        u.st.shield = TYPES.ice.shieldMax;
+        u.st.shield = Math.min(TYPES.ice.shieldMax, (u.st.shield || 0) + TYPES.ice.shieldAdd);
         ring(u.x, u.y, u.r, 112, 0.4, '#9beeff');
         burst(u.x, u.y, 10, '#bff4ff', 150);
-        floater(u.x, u.y - u.r - 14, '护盾 ' + TYPES.ice.shieldMax, '#9beeff', 12);
+        floater(u.x, u.y - u.r - 14, '护盾 ' + Math.round(u.st.shield), '#9beeff', 12);
       }
     }
 
@@ -87,6 +99,28 @@ TYPES.ice = {
       u.st.lastX = u.x; u.st.lastY = u.y;
       dropIcePatch(u, u.x, u.y);
     }
+
+    // 3) 普攻：每 3 秒一次身周寒冰脉冲（伤害 + 短减速，命中回能，单次封顶）
+    u.st.basicCd = Math.max(0, u.st.basicCd - dt);
+    if (u.st.basicCd > 0) return;
+    var B = TYPES.ice.basic;
+    var hits = 0;
+    for (var i = 0; i < units.length; i++) {
+      var v = units[i];
+      if (!v.alive || v.team === u.team) continue;
+      if (Math.hypot(v.x - u.x, v.y - u.y) > B.radius + v.r) continue;
+      hurt(v, B.dmg, u);
+      if (!v.boss) {
+        v.slowT = Math.max(v.slowT, B.slow);
+        v.slowMul = Math.min(v.slowMul || 1, C.slowMul);
+      }
+      hits++;
+    }
+    if (!hits) return;   // 没人吃到就等下一轮再放，避免空放脉冲刷屏
+    u.st.basicCd = B.cd;
+    gainEnergy(u, Math.min(B.energyCap, B.energy * hits));
+    ring(u.x, u.y, u.r, B.radius, 0.32, '#bfeeff');
+    burst(u.x, u.y, 12, '#c8f6ff', 210);
   },
   draw: function (u) { drawIce(u); }
 };

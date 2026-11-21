@@ -1772,13 +1772,14 @@ function drawUnit(u) {
   var UT = TYPES[u.key] && TYPES[u.key].ultimate;
   if (UT) {
     var ur = cr + 6;
-    var uk = clamp(1 - (u.ultCd || 0) / UT.cd, 0, 1);
+    var ready = u.energyMax ? u.energy >= u.energyMax : (u.ultCd || 0) <= 0;
+    var uk = u.energyMax ? clamp(u.energy / u.energyMax, 0, 1) : clamp(1 - (u.ultCd || 0) / UT.cd, 0, 1);
     ctx.strokeStyle = 'rgba(255,214,122,.12)';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(u.x, u.y, ur, 0, TAU);
     ctx.stroke();
-    if (u.ultCd > 0) {
+    if (!ready) {
       ctx.strokeStyle = 'rgba(255,214,122,.55)';
       ctx.beginPath();
       ctx.arc(u.x, u.y, ur, -Math.PI / 2, -Math.PI / 2 + TAU * uk);
@@ -1816,6 +1817,83 @@ function drawUnit(u) {
     ctx.fillText(label, u.x, labelY);
     ctx.textAlign = 'left';
   }
+}
+
+/* 单位状态挂件：把附魔 / 护盾 / 控制效果画在单位旁边
+   ------------------------------------------------------------
+   青金石的 5 种附魔是可叠加的隐性收益，这里统一做成小胶囊：
+     攻 +30%   红石普攻增伤（青金石 1 号附魔）
+     攻 +20%   青金石自身普攻增伤（5 号）
+     血 +240   生命上限（2 号）
+     速 +18%   移速（4 号）
+     盾 200    护盾（3 号 / 冰块周期护盾）
+     缓/缚/毒  减速 / 定身 / 中毒
+   挂在单位右侧（贴近右边界时自动翻到左侧），最多 6 条。 */
+function drawUnitStatus(u) {
+  if (!u || !u.alive) return;
+  // 虚弱：紫晶核心终末震荡留下的紫色虚线环
+  if (u.weakT > 0) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(199,155,255,' + (0.35 + 0.25 * Math.sin(t * 8)) + ')';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 5]);
+    ctx.beginPath();
+    ctx.arc(u.x, u.y, u.r + 7, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
+  var st = u.st || {};
+  var rows = [];
+  if (st.enchantAtk > 0) rows.push(['攻', '+' + Math.round(st.enchantAtk * 10) + '%', '#ffd166']);
+  if (st.eAtk > 0) rows.push(['攻', '+' + Math.round(st.eAtk * 10) + '%', '#ffc46b']);
+  if (st.eHp > 0) rows.push(['血', '+' + (st.eHp * 80), '#8fe08a']);
+  if (st.eSpeed > 0) rows.push(['速', '+' + Math.round(st.eSpeed * 6) + '%', '#8ce0ff']);
+  var smax = TYPES[u.key] && TYPES[u.key].shieldMax;
+  if (smax && st.shield > 0) rows.push(['盾', String(Math.round(st.shield)), '#8fc4ff']);
+  if (u.slowT > 0) rows.push(['缓', '减速', '#8cbaff']);
+  if (u.weakT > 0) rows.push(['弱', '伤害 -20%', '#c79bff']);
+  if (u.bindT > 0) rows.push(['缚', '定身', '#a6e27a']);
+  if (u.poisonT > 0) rows.push(['毒', '中毒', '#96eb78']);
+  if (!rows.length) return;
+  if (rows.length > 6) rows.length = 6;
+
+  ctx.save();
+  ctx.font = '600 9px "PingFang SC","Microsoft YaHei",sans-serif';
+  ctx.textBaseline = 'middle';
+  var CH = 15, GAP = 3, PAD = 6, ICO = 11, maxW = 0;
+  for (var i = 0; i < rows.length; i++) {
+    var tw = ctx.measureText(rows[i][1]).width;
+    rows[i].w = ICO + PAD * 2 + 3 + tw;
+    if (rows[i].w > maxW) maxW = rows[i].w;
+  }
+  var h = rows.length * CH + (rows.length - 1) * GAP;
+  var right = u.x + u.r + 12 + maxW < W - 4;
+  var x = right ? u.x + u.r + 12 : u.x - u.r - 12 - maxW;
+  var y0 = clamp(Math.max(u.y - h / 2, u.y - u.r + 4), 6, H - h - 6);
+
+  for (var j = 0; j < rows.length; j++) {
+    var row = rows[j], y = y0 + j * (CH + GAP);
+    ctx.fillStyle = 'rgba(8,8,10,.66)';
+    roundRect(x, y, maxW, CH, 4);
+    ctx.fill();
+    ctx.strokeStyle = rgba(row[2], 0.5);
+    ctx.lineWidth = 1;
+    roundRect(x + 0.5, y + 0.5, maxW - 1, CH - 1, 4);
+    ctx.stroke();
+
+    ctx.fillStyle = row[2];
+    ctx.beginPath();
+    ctx.arc(x + PAD + ICO / 2 - 1, y + CH / 2, 5, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#131316';
+    ctx.textAlign = 'center';
+    ctx.fillText(row[0], x + PAD + ICO / 2 - 1, y + CH / 2 + 0.5);
+
+    ctx.fillStyle = '#f4f4f6';
+    ctx.textAlign = 'left';
+    ctx.fillText(row[1], x + PAD + ICO + 2, y + CH / 2 + 0.5);
+  }
+  ctx.restore();
 }
 
 function drawBombs() {
@@ -1970,6 +2048,33 @@ function render() {
     ctx.scale(tourFx.zoom, tourFx.zoom);
     ctx.translate(-tf.x, -tf.y);
   }
+  /* 终末震荡演出：先聚焦 BOSS，随冲击波扩散逐渐拉远到全场。
+     0～0.3s 定在 BOSS 身上（1.55×）；0.3～2.0s 平滑拉远到 0.82×并回到场地中心；
+     2.0～2.5s 保持全景；最后 0.4s 回到 1×。模拟时间在 50-ui 同步降到 0.3×。 */
+  if (typeof bossCine !== 'undefined' && bossCine) {
+    var bc = bossCine;
+    var acx = ARENA.x + ARENA.w / 2, acy = ARENA.y + ARENA.h / 2;
+    var ox = bc.origin.x, oy = bc.origin.y;
+    var fx = acx, fy = acy, bz = 1;
+    if (bc.t < 0.3) {
+      bz = 1.55; fx = ox; fy = oy;
+    } else if (bc.t < 2.0) {
+      var bp = (bc.t - 0.3) / 1.7;
+      bp = bp * bp * (3 - 2 * bp);
+      bz = 1.55 + (0.82 - 1.55) * bp;
+      fx = ox + (acx - ox) * bp;
+      fy = oy + (acy - oy) * bp;
+    } else if (bc.t < 2.5) {
+      bz = 0.82; fx = acx; fy = acy;
+    } else {
+      var bq = Math.min(1, (bc.t - 2.5) / 0.4);
+      bq = bq * bq * (3 - 2 * bq);
+      bz = 0.82 + 0.18 * bq; fx = acx; fy = acy;
+    }
+    ctx.translate(acx, acy);
+    ctx.scale(bz, bz);
+    ctx.translate(-fx, -fy);
+  }
 
   drawArena();
   drawDamagePanels();  // 场地左右留白里的「总伤害」信息条（每帧实时读取）
@@ -1993,6 +2098,10 @@ function render() {
   drawVines();        // 藤蔓压在最上层
   drawBossCharge();   // 合体前的停顿蓄能 + 核心血条充能
   drawBossMerge();    // BOSS 合体演出（残影 / 白闪 / 紫环，最上层）
+  drawBossNuke();     // 终末震荡大招演出（白闪 / 冲击波 / 光柱 / 碎晶，最上层）
+
+  // 状态挂件：附魔 / 护盾 / 控制效果，画在所有战斗元素之上
+  for (var si = 0; si < sorted.length; si++) drawUnitStatus(sorted[si]);
 
   ctx.restore();
 
@@ -2167,6 +2276,167 @@ function drawBossMerge() {
     ctx.beginPath();
     ctx.arc(x, y, 18 + rp * 280, 0, TAU);
     ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+/* ============================================================
+   终末震荡大招演出（紫晶核心 · 一次性全屏震）
+   ------------------------------------------------------------
+   纯表现层：bossNukeFx 由 coreNuke() 初始化、fx() 推进寿命。
+   分段：白闪 → 中心爆光 → 多层冲击波 → 冲天光柱 → 放射裂纹 → 飞散碎晶 → 标题。
+   与 bossCine 慢动作镜头叠加，伤害 / 判定在 coreNuke 当帧已结算。
+   ============================================================ */
+function drawBossNuke() {
+  if (typeof bossNukeFx === 'undefined' || !bossNukeFx) return;
+  var f = bossNukeFx;
+  var x = f.x, y = f.y;
+  var A = ARENA;
+  var acx = A.x + A.w / 2, acy = A.y + A.h / 2;
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+
+  /* 1) 全屏白闪：核心处径向白紫爆光，0.18s 内快速回落 */
+  var flash = Math.max(0, 1 - f.t / 0.18);
+  if (flash > 0) {
+    var fg = ctx.createRadialGradient(x, y, 0, x, y, Math.max(A.w, A.h) * 0.7);
+    fg.addColorStop(0, 'rgba(255,255,255,' + (0.85 * flash).toFixed(3) + ')');
+    fg.addColorStop(0.35, 'rgba(216,180,255,' + (0.45 * flash).toFixed(3) + ')');
+    fg.addColorStop(1, 'rgba(120,60,220,0)');
+    ctx.fillStyle = fg;
+    ctx.fillRect(A.x, A.y, A.w, A.h);
+  }
+
+  /* 2) 中心爆光球：0.5s 内由小扩到大并淡出 */
+  var coreP = Math.min(1, f.t / 0.5);
+  if (coreP < 1) {
+    var cr = 24 + 150 * coreP;
+    var ca = 0.9 * (1 - coreP);
+    var cg = ctx.createRadialGradient(x, y, 0, x, y, cr);
+    cg.addColorStop(0, 'rgba(255,255,255,' + ca.toFixed(3) + ')');
+    cg.addColorStop(0.4, 'rgba(199,155,255,' + (ca * 0.7).toFixed(3) + ')');
+    cg.addColorStop(1, 'rgba(122,63,191,0)');
+    ctx.fillStyle = cg;
+    ctx.beginPath();
+    ctx.arc(x, y, cr, 0, TAU);
+    ctx.fill();
+  }
+
+  /* 3) 多层冲击波：半透明能量盘 + 描边环，逐层延迟外扩 */
+  var waves = [
+    { at: 0.00, max: 760, color: '#ffffff', w: 10, fill: '230,212,255' },
+    { at: 0.08, max: 700, color: '#c79bff', w: 8,  fill: '154,92,255' },
+    { at: 0.18, max: 560, color: '#9a5cff', w: 6,  fill: '122,63,191' },
+    { at: 0.30, max: 420, color: '#e6d4ff', w: 5,  fill: '199,155,255' }
+  ];
+  for (var w = 0; w < waves.length; w++) {
+    var wv = waves[w];
+    if (f.t < wv.at) continue;
+    var wp = Math.min(1, (f.t - wv.at) / 0.7);
+    var we = 1 - Math.pow(1 - wp, 3);
+    var rad = 24 + (wv.max - 24) * we;
+    var wa = Math.max(0, 1 - wp);
+    ctx.globalAlpha = wa * 0.16;
+    ctx.fillStyle = 'rgba(' + wv.fill + ',1)';
+    ctx.beginPath();
+    ctx.arc(x, y, rad, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = wa;
+    ctx.strokeStyle = wv.color;
+    ctx.lineWidth = wv.w * (1 - wp) + 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, rad, 0, TAU);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  /* 4) 冲天光柱：0.8s 内先扩后收，向上贯穿场地，向下留短柱 */
+  if (f.t < 0.8) {
+    var lp = f.t / 0.8;
+    var lw = 26 + 70 * Math.sin(Math.min(1, lp) * Math.PI);
+    var lh = A.h * 0.9;
+    var lg = ctx.createLinearGradient(x, y - lh, x, y + 20);
+    lg.addColorStop(0, 'rgba(199,155,255,0)');
+    lg.addColorStop(0.5, 'rgba(216,180,255,' + (0.5 * (1 - lp)).toFixed(3) + ')');
+    lg.addColorStop(1, 'rgba(255,255,255,' + (0.7 * (1 - lp)).toFixed(3) + ')');
+    ctx.fillStyle = lg;
+    ctx.fillRect(x - lw / 2, y - lh, lw, lh);
+    var lg2 = ctx.createLinearGradient(x, y - 20, x, y + 90);
+    lg2.addColorStop(0, 'rgba(255,255,255,' + (0.5 * (1 - lp)).toFixed(3) + ')');
+    lg2.addColorStop(1, 'rgba(154,92,255,0)');
+    ctx.fillStyle = lg2;
+    ctx.fillRect(x - lw / 3, y - 20, lw * 2 / 3, 110);
+  }
+
+  /* 5) 放射裂纹：0.6s 内 12 条折线从中心向外生长 */
+  if (f.t < 0.6) {
+    var cp = f.t / 0.6;
+    ctx.globalAlpha = Math.max(0, 1 - cp) * 0.55;
+    ctx.strokeStyle = '#e6d4ff';
+    ctx.lineWidth = 1.6;
+    for (var ci = 0; ci < 12; ci++) {
+      var ca2 = ci / 12 * TAU + 0.26;
+      var clen = 120 + 260 * cp;
+      var mx = x + Math.cos(ca2 + 0.08) * clen * 0.55;
+      var my = y + Math.sin(ca2 + 0.08) * clen * 0.55;
+      var ex = x + Math.cos(ca2) * clen;
+      var ey = y + Math.sin(ca2) * clen;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(ca2) * 20, y + Math.sin(ca2) * 20);
+      ctx.lineTo(mx, my);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* 6) 飞散紫晶碎块：旋转菱形，带重力与阻尼，随寿命淡出 */
+  for (var sh = 0; sh < f.shards.length; sh++) {
+    var s = f.shards[sh];
+    var sa2 = clamp(s.life / s.max, 0, 1);
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(s.rot);
+    ctx.globalAlpha = sa2;
+    ctx.fillStyle = s.color;
+    var sz = s.size;
+    ctx.beginPath();
+    ctx.moveTo(0, -sz);
+    ctx.lineTo(sz * 0.7, 0);
+    ctx.lineTo(0, sz);
+    ctx.lineTo(-sz * 0.7, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.globalCompositeOperation = 'source-over';
+
+  /* 7) 标题大字：辉光描边，先放大淡入、后淡出 */
+  var tp = (f.t - 0.12) / 1.2;
+  if (tp > 0 && tp < 1) {
+    var ta = tp < 0.2 ? tp / 0.2 : 1 - Math.max(0, (tp - 0.6) / 0.4);
+    var ts = 1.25 - 0.25 * Math.min(1, tp / 0.2);
+    ctx.save();
+    ctx.globalAlpha = clamp(ta, 0, 1);
+    ctx.translate(acx, acy - 20);
+    ctx.scale(ts, ts);
+    ctx.textAlign = 'center';
+    ctx.font = '700 34px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.shadowColor = 'rgba(199,155,255,0.9)';
+    ctx.shadowBlur = 22;
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = 'rgba(58,22,104,0.8)';
+    ctx.strokeText('终末震荡', 0, 0);
+    ctx.fillStyle = '#ffe9ff';
+    ctx.fillText('终末震荡', 0, 0);
+    ctx.shadowBlur = 0;
+    ctx.font = '500 14px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillStyle = 'rgba(230,212,255,0.9)';
+    ctx.fillText('全场生命震颤 · 敌方陷入虚弱', 0, 26);
+    ctx.restore();
   }
 
   ctx.restore();

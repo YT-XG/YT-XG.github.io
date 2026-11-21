@@ -1,96 +1,126 @@
 /* 红石块：莽夫 / 先手，羁绊伙伴 lapis
-   从 index.html 的 TYPES 字面量中拆出；新增/修改该物品只动这个文件。 */
+   2026-11-22 重做：2000 HP / 100 攻击 / 100 防御，
+   普攻改为身周环形炸弹，技能为长距突进，终结技由能量条驱动。 */
 'use strict';
+
+var RED_BASIC = {
+  cd: 3.0,          // 普攻间隔（狂暴后读 rage.basicCd）
+  count: 5,         // 身周一圈炸弹数
+  ring: 70,         // 炸弹生成半径
+  radius: 95,       // 爆炸半径（贴脸命中更稳，避免炸弹只是"地上装饰"）
+  fuse: 2.0,        // 引信：落地 2 秒后爆炸，给双方留出躲避/走位窗口
+  pct: 0.35,        // 每颗 35% 攻击力
+  energy: 3,        // 每命中 1 个敌人回 3 能量
+  energyCap: 6      // 每次普攻最多回 6 点（5 颗全中也不超额）
+};
 
 TYPES.red = {
   key: 'red', name: '红石块', role: '莽夫 / 先手', bond: 'lapis',
-  r: 24, maxHp: 320, baseSpeed: 200, atk: 1.0,
-  /* 撞击是技能：只有红石脉冲（冲刺）期间才按撞击强度结算伤害 */
+  r: 24, maxHp: 2000, baseSpeed: 210, atk: 100, def: 100,
+  energyMax: 100,
+  /* 数值已按 2000 HP 口径校准：伤害不再乘 dmgScale（旧角色没有这个标记） */
+  calibrated: true,
+  /* 保留撞击判定，但伤害由 onAttack 改写：只有突进期间才结算 */
   impact: true,
   body: '#c8342b', light: '#ff7a6a', dark: '#6d140e', glow: '#ff5a44',
+  basic: RED_BASIC,
   skill: {
-    name: '红石脉冲', cd: 4.0,
-    dashSpeed: 650, dashTime: 0.36, dmgMult: 1.25,
-    text: '转向冲刺，撞击倍率 ×1.25'
+    name: '红石突进', cd: 8.0,
+    dashSpeed: 640, dashTime: 0.35, dmgMult: 1,
+    pct: 1.8, energy: 18,
+    text: '每 8 秒长距离突进，撞到敌人造成 180% 攻击力伤害（技能伤害，命中回能 18）'
   },
   ultimate: {
-    name: '红石陨星', cd: 16.0,
-    text: '在敌人周围空投 6 颗强化炸弹：半径 120px、每颗 70 伤害、1.3 秒引信'
+    name: '锁敌轰炸',
+    text: '能量充满后锁定一名敌人，4 秒内落下 20 发炸弹：前 10 发各 35% / 11-19 发各 55% / 末发 250% 攻击力',
+    bomb: { count: 20, interval: 0.2, fuse: 0.3, radius: 70, pct: 0.35, pctLate: 0.55, last: 20, pctLast: 2.5 }
   },
   passive: {
-    name: '红石溅射',
-    text: '技能冲刺撞击时对 96px 内敌人（含目标）造成 4 点溅射'
+    name: '炸弹回收',
+    text: '普攻炸弹命中回能，每轮普攻最多回 6 点，避免 5 颗全中时充能翻倍'
   },
-  // 羁绊：青金石阵亡后，红石块原地无敌抖动 3 秒，随后狂暴
+  // 羁绊：青金石阵亡后先无敌抖动 3 秒，随后提速 + 普攻提速
   rage: {
-    speedMul: 3,
-    speedRampPerSec: 0.15,   // 狂暴后每秒额外 +0.15 倍基础速度
-    speedMulCap: 6,          // 移速倍率上限
-    passThrough: true,       // 狂暴期间可穿透敌方
-    status: '移速 ×3 起 · 越跑越快 · 可穿透敌方 · 沿途投掷炸弹',
-    bomb: {
-      interval: 0.4,          // 初始投弹间隔
-      intervalRamp: 0.02,     // 每秒缩短的间隔
-      intervalMin: 0.20,      // 最短投弹间隔
-      fuse: 2.0, radius: 84, dmg: 11
-    }
+    speedMul: 1.5,
+    basicCd: 1.2,
+    skillCd: 6.0,
+    status: '移速 ×1.5 · 普攻 3s → 1.2s · 突进 8s → 6s'
   },
-  createState: function () { return { bombCd: 0 }; },
-  // 常规模式只有技能冲刺期间有撞击伤害；狂暴后撞击伤害为 0（只靠炸弹）
-  onAttack: function (u, dmg) {
-    if (u.st.rage) return 0;
-    return u.dashT > 0 ? dmg : 0;
+  rageCasts: true,
+  createState: function () {
+    return { bombCd: 1.2, energyOnHit: false, bombRain: null, enchantAtk: 0 };
+  },
+  // 只有突进期间按 180% 攻击力结算；平时碰撞伤害为 0
+  onAttack: function (u) {
+    return u.dashT > 0 ? u.atk * TYPES.red.skill.pct : 0;
   },
   onCast: function (u) {
+    u.cd = u.st.rage ? TYPES.red.rage.skillCd : TYPES.red.skill.cd;
+    u.st.energyOnHit = true;
     ring(u.x, u.y, 12, 96, 0.34, '#ff6b52');
     burst(u.x, u.y, 16, '#ff7a5f', 250);
-    floater(u.x, u.y - u.r - 20, '红石脉冲', '#ff9c85', 12);
+    floater(u.x, u.y - u.r - 20, '红石突进', '#ff9c85', 12);
     shake = Math.max(shake, 3.5);
   },
-  // 终结技：围绕敌人空投一圈强化炸弹（落点固定，不跟随）
-  onUlt: function (u) {
-    var e = nearestEnemy(u);
-    var cx = e ? e.x : u.x, cy = e ? e.y : u.y;
-    var A = ARENA;
-    for (var i = 0; i < 6; i++) {
-      var a = i / 6 * TAU + t * 0.7;
-      bombs.push({
-        x: clamp(cx + Math.cos(a) * 92, A.x + 26, A.x + A.w - 26),
-        y: clamp(cy + Math.sin(a) * 92, A.y + 26, A.y + A.h - 26),
-        fuse: 1.3, max: 1.3,
-        radius: 120, dmg: 70,
-        team: u.team, owner: u, spin: rand(0, TAU)
-      });
-    }
-    ring(cx, cy, 12, 170, 0.55, '#ffb14d');
-    burst(cx, cy, 22, '#ffd166', 280);
-    shake = Math.max(shake, 5);
-  },
   onHit: function (u) {
-    if (u.st.rage || u.dashT <= 0) return;   // 常规模式只有技能冲刺撞击才触发；狂暴后改为炸弹
-    var cfg = BALANCE.redSplash;
-    for (var k = 0; k < units.length; k++) {
-      var v = units[k];
-      if (!v.alive || v.team === u.team) continue;
-      if (Math.hypot(v.x - u.x, v.y - u.y) < cfg.radius) hurt(v, cfg.dmg, u);
-    }
+    if (!u.st.energyOnHit) return;
+    u.st.energyOnHit = false;
+    gainEnergy(u, TYPES.red.skill.energy);
+  },
+  // 终结技：锁定一名对手，持续向目标空投炸弹
+  onUlt: function (u) {
+    u.st.bombRain = { target: nearestEnemy(u), left: TYPES.red.ultimate.bomb.count, n: 0, gap: 0 };
+    var e = u.st.bombRain.target;
+    if (e) ring(e.x, e.y, 30, 170, 0.55, '#ffb14d');
+    ring(u.x, u.y, u.r, 150, 0.45, '#ffb14d');
+    burst(u.x, u.y, 22, '#ffd166', 280);
   },
   onTick: function (u, dt) {
-    var R = u.st.rage;
-    if (!R || R.phase !== 'rage') return;
-    var B = TYPES.red.rage.bomb;
-    var interval = Math.max(B.intervalMin, B.interval - (t - R.since) * B.intervalRamp);
+    // 狂暴前的 3 秒无敌抖动：原地不动也不出手
+    if (u.st.rage && u.st.rage.phase === 'shake') return;
+    // 冲刺结束后清掉回能标记，避免下一次无关碰撞白送能量
+    if (u.dashT <= 0 && u.st.energyOnHit) u.st.energyOnHit = false;
+
+    // 普攻：每 3 秒（狂暴 1.2 秒）在身周放一圈炸弹
+    var B = TYPES.red.basic;
+    var interval = u.st.rage ? TYPES.red.rage.basicCd : B.cd;
     u.st.bombCd -= dt;
     if (u.st.bombCd <= 0) {
       u.st.bombCd += interval;
-      dropBomb(u);
+      var budget = { left: B.energyCap };
+      // 青金石 1 号附魔：红石普攻伤害 +10%/层
+      var dmg = u.atk * B.pct * (1 + 0.10 * (u.st.enchantAtk || 0));
+      for (var i = 0; i < B.count; i++) {
+        var a = i / B.count * TAU + t * 0.4;
+        spawnBomb(u, u.x + Math.cos(a) * B.ring, u.y + Math.sin(a) * B.ring, {
+          fuse: B.fuse, radius: B.radius, dmg: dmg, energy: B.energy, budget: budget
+        });
+      }
+      ring(u.x, u.y, 12, B.ring, 0.22, '#ffb14d');
+      burst(u.x, u.y, 6, '#ffd166', 120);
     }
+
+    // 终结技：持续向锁定的目标投弹
+    var R = u.st.bombRain;
+    if (!R || R.left <= 0) return;
+    if (!R.target || !R.target.alive) R.target = nearestEnemy(u);
+    R.gap -= dt;
+    if (R.gap > 0) return;
+    var C = TYPES.red.ultimate.bomb;
+    R.gap += C.interval;
+    R.n += 1;
+    R.left -= 1;
+    if (!R.target) return;
+    var pct = R.n >= C.last ? C.pctLast : (R.n > 10 ? C.pctLate : C.pct);
+    spawnBomb(u, R.target.x + rand(-28, 28), R.target.y + rand(-28, 28), {
+      fuse: C.fuse, radius: C.radius, dmg: u.atk * pct
+    });
   },
   onRageStart: function (u) {
-    u.st.bombCd = 0.18;
+    u.st.bombCd = Math.min(u.st.bombCd, 0.3);
     ring(u.x, u.y, u.r, 150, 0.4, '#ffb14d');
     burst(u.x, u.y, 12, '#ffd166', 220);
-    floater(u.x, u.y - u.r - 24, '开始投掷炸弹', '#ffd166', 12);
+    floater(u.x, u.y - u.r - 24, '狂暴 · 投弹提速', '#ffd166', 12);
   },
   draw: function (u) { drawBlock(u); }
 };

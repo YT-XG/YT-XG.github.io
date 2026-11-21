@@ -23,6 +23,13 @@ function frame(now) {
 
   if (!paused && !oddsBusy) {
     var sdt = dt * speedMul;
+    /* 终末震荡演出：镜头按真实时间推进；期间模拟时间降到 0.3×（全程慢动作），
+       慢动作只影响表现，不影响伤害结算与胜负判定。 */
+    if (typeof bossCine !== 'undefined' && bossCine) {
+      if (bossCine.slow) sdt *= bossCine.slow;
+      bossCine.t += dt;
+      if (bossCine.t >= bossCine.dur) bossCine = null;
+    }
     // 命中顿帧只做视觉冲击（render 里的轻微放大），不改变模拟时间，
     // 这样普通局分享出去的幽灵链接也能逐 tick 复现
     if (hitStop > 0) hitStop -= dt;

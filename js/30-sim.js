@@ -39,6 +39,17 @@ function floater(x, y, text, color, size) {
   trimFx(floaters, FX_FLOATER_MAX);
 }
 
+/* 能量：红青组合的终结技由能量条驱动。
+   旧角色 energyMax=0，仍然走 ultCd 冷却，行为完全不变。 */
+function ultReady(u) {
+  if (!u || !u.alive) return false;
+  return u.energyMax ? u.energy >= u.energyMax : (u.ultCd || 0) <= 0;
+}
+function gainEnergy(u, amt) {
+  if (!u || !u.alive || !u.energyMax || amt <= 0) return;
+  u.energy = Math.min(u.energyMax, (u.energy || 0) + amt);
+}
+
 /* ============================================================
    伤害
    ============================================================ */
@@ -52,14 +63,23 @@ function floater(x, y, text, color, size) {
 function hurt(u, amount, src, opt) {
   var pct = !!(opt && opt.pct);
   var dot = !!(opt && opt.dot);
+  /* 新数值体系（红青组合）标记 calibrated：伤害已按 2000 HP 口径校准，
+     不再乘 dmgScale；旧角色没有这个标记，行为完全不变。 */
+  var cal = !!(src && TYPES[src.key] && TYPES[src.key].calibrated);
+  /* 虚弱（终末震荡）：出手方 10 秒内普攻 / 技能 / 终结技伤害 -20% */
+  if (src && src.weakT > 0) amount *= (src.weakMul || 0.8);
+  /* 防御减伤：比值式 DEF/(DEF+defK)，边际递减、永远不为负。def=0 的旧角色跳过。 */
+  if (u.def > 0) amount *= BALANCE.defK / (BALANCE.defK + u.def);
   // 1v1 单挑修正：按「出手方」缩放全部非百分比伤害（含箭矢 / 激光等固定伤害技能）
   // 百分比伤害（狗奶 / 缺氧 / 决杀）不缩放，避免二次放大
   if (!pct && src && soloMode()) amount *= (BALANCE.solo.dmgMul[src.key] || 1);
   if (pct && src && soloMode()) amount *= (BALANCE.solo.pctMul[src.key] || 1);
   /* BOSS 出手的整体倍率：挑战者不做任何血量加成（沿用常规数值），
-     对局时长完全靠压低 BOSS 输出来换，新增角色时无需再补数值。 */
-  if (!pct && src && src.boss && bossMode && BALANCE.boss.dmgMul) amount *= BALANCE.boss.dmgMul;
-  if (!pct) amount *= BALANCE.dmgScale;
+     对局时长完全靠压低 BOSS 输出来换，新增角色时无需再补数值。
+     已标记 calibrated 的 BOSS（新体系）数值已在自身配置里算好，不再走这层。 */
+  if (!pct && src && src.boss && bossMode && BALANCE.boss.dmgMul &&
+      !(TYPES[src.key] && TYPES[src.key].calibrated)) amount *= BALANCE.boss.dmgMul;
+  if (!pct && !cal) amount *= BALANCE.dmgScale;
   /* BOSS 硬壳：非百分比伤害再乘一层 dmgTakeMul。
      8 倍血量的 BOSS 如果按常规 DPS 结算，5 个玩家 35 秒就能把它打到合体；
      这一层把 TTK 拉长到 1 分钟左右（百分比伤害不受影响）。 */
@@ -236,22 +256,16 @@ function updateRage(u, dt) {
 
 /* 炸弹唯一生成入口：{x,y,fuse,max,radius,dmg,team,owner,spin}
    ------------------------------------------------------------
-   红石狂暴 / 红石终结技 / BOSS 的三类投弹都走这里，参数由 cfg 提供：
-   { fuse, radius, dmg }（BOSS 的 cfg 还会带 interval / count / intervalMin 等，多出的字段被忽略） */
+   红石普攻 / 红石终结技 / BOSS 的投弹都走这里：
+   { fuse, radius, dmg }，可选 { energy, budget } 用于命中回能 */
 function spawnBomb(owner, x, y, cfg) {
   bombs.push({
     x: x, y: y,
     fuse: cfg.fuse, max: cfg.fuse,
     radius: cfg.radius, dmg: cfg.dmg,
+    energy: cfg.energy || 0, budget: cfg.budget || null,
     team: owner.team, owner: owner, spin: rand(0, TAU)
   });
-}
-
-function dropBomb(u) {
-  var cfg = TYPES.red.rage.bomb;
-  spawnBomb(u, u.x, u.y, cfg);
-  ring(u.x, u.y, 3, 24, 0.18, '#ffb14d');
-  burst(u.x, u.y, 3, '#ffd166', 90);
 }
 
 /* ============================================================
@@ -316,7 +330,7 @@ function updateBossMerge(dt) {
 }
 
 /* 阶段 2：原地合体 —— 残影 + 白光 + 紫环炸开，然后紫晶核心登场；
-   核心初始只有 1 HP，靠 mergeFill 把血条「从 1 涨到 800」（期间免伤）。 */
+   核心初始只有 1 HP，靠 mergeFill 把血条「从 1 涨到 4300」（期间免伤）。 */
 function completeBossMerge() {
   var m = bossMergeAct;
   var cfg = bossConfig();
@@ -374,12 +388,24 @@ function updateBombs(dt) {
     shake = Math.min(15, shake + 3.5);
     hitStop = Math.max(hitStop, 0.025);
 
+    var hits = 0;
     for (var k = 0; k < units.length; k++) {
       var v = units[k];
       if (!v.alive || v.team === b.team) continue;
       if (Math.hypot(v.x - b.x, v.y - b.y) < b.radius + v.r) {
         hurt(v, b.dmg, b.owner);
+        hits++;
       }
+    }
+    /* 普攻炸弹回能：按命中数给，但同一轮普攻共享 budget，
+       避免 5 颗炸弹全中时充能速度翻倍 */
+    if (hits > 0 && b.energy > 0 && b.owner) {
+      var gain = b.energy * hits;
+      if (b.budget) {
+        gain = Math.min(gain, Math.max(0, b.budget.left));
+        b.budget.left -= gain;
+      }
+      gainEnergy(b.owner, gain);
     }
 
     // 敌方种子同样被炸弹波及（半径 + 种子身位）
@@ -444,11 +470,15 @@ function interruptMilk(u) {
    · 伤害统一走 hurt()（护盾可吸收 / 无敌抖动免疫），与炸弹一致
    · 不推人、不改 ang，只做伤害与表现，符合匀速直线运动红线
    ============================================================ */
-function spawnAnvilMark(owner, x, y) {
+// cfg 可选：{ r, delay, dmg }，普攻 / 技能 / 终结技可以各用一套落点参数
+function spawnAnvilMark(owner, x, y, cfg) {
   var C = TYPES.anvil.anvil;
+  var r = (cfg && cfg.r) || C.markR;
+  var delay = (cfg && cfg.delay) || C.delay;
   anvilMarks.push({
-    x: x, y: y, r: C.markR,
-    t: C.delay, max: C.delay,
+    x: x, y: y, r: r,
+    t: delay, max: delay,
+    dmg: (cfg && cfg.dmg) || C.dmg,
     team: owner.team, owner: owner
   });
   if (anvilMarks.length > ANVIL_MARK_MAX) {
@@ -472,6 +502,8 @@ function updateAnvilMarks(dt) {
     hitStop = Math.max(hitStop, 0.03);
 
     // 圆内敌人：最近的一个承受全额，其余只吃 splashMul（避免一次落点同时清场）
+    // 伤害优先读该落点自己的 dmg（普攻 / 技能 / 终结技各不相同）
+    var markDmg = m.dmg == null ? C.dmg : m.dmg;
     var hits = [];
     for (var k = 0; k < units.length; k++) {
       var v = units[k];
@@ -482,7 +514,7 @@ function updateAnvilMarks(dt) {
     }
     hits.sort(function (a, b) { return a.d - b.d; });
     for (var h = 0; h < hits.length; h++) {
-      var dmg = C.dmg;
+      var dmg = markDmg;
       if (hits[h].d > m.r * C.coreRatio) dmg *= C.edgeMul;   // 边缘区减伤
       if (h > 0) dmg *= C.splashMul;                          // 非最近目标只吃溅射
       hurt(hits[h].v, dmg, m.owner);
@@ -494,7 +526,7 @@ function updateAnvilMarks(dt) {
       if (sd.team === m.team) continue;
       var sdD = Math.hypot(sd.x - m.x, sd.y - m.y);
       if (sdD > m.r + sd.r * 0.5) continue;
-      var sdDmg = C.dmg * C.splashMul;
+      var sdDmg = markDmg * C.splashMul;
       if (sdD > m.r * C.coreRatio) sdDmg *= C.edgeMul;
       hurtSeed(sd, sdDmg, m.owner);
       if (sd.hp <= 0) destroySeed(q, '种子被砸碎');
@@ -839,7 +871,8 @@ function updateWaters(dt) {
 // 种子受伤：统一入口。种子不参与 dealt 排行以外的单位结算，但伤害仍计入攻击方 dealt
 // opt 口径与 hurt() 一致：{pct:1} 百分比不缩放；{dot:1} 持续伤害不逐跳飘字 / 爆粒子
 function hurtSeed(s, amount, src, opt) {
-  if (!(opt && opt.pct)) amount *= BALANCE.dmgScale;
+  var cal = !!(src && TYPES[src.key] && TYPES[src.key].calibrated);
+  if (!(opt && opt.pct) && !cal) amount *= BALANCE.dmgScale;
   if (!s || s.hp <= 0 || amount <= 0) return;
   var dot = !!(opt && opt.dot);
   s.hp -= amount;
@@ -946,6 +979,7 @@ function tryVine(u, V) {
   if (!best.boss) best.bindT = V.root;   // BOSS 免疫定身；中毒照常
   best.poisonT = V.poisonTime;
   best.poisonAcc = 1.0;      // 1 秒后第一次掉血
+  best.poisonDps = V.poisonDps;
   best.poisonSrc = u;
 
   ring(best.x, best.y, best.r, 118, 0.45, '#8ce06a');
@@ -1280,7 +1314,8 @@ function castUltimate(u) {
   var U = T.ultimate;
   if (!U) return;
   var aim = u.ultAim;
-  u.ultCd = U.cd;
+  /* 能量型终结技：放完清空能量；旧角色仍然重置 CD */
+  if (u.energyMax) u.energy = 0; else u.ultCd = U.cd;
   u.ultT = 0;
   u.ultAim = null;
   if (typeof sfxPlay === 'function') sfxPlay('ult');
@@ -1348,7 +1383,7 @@ function think(u, dt) {
   // 终结技优先：与普通技能 CD 互不影响，有目标且充满就进入金色蓄力
   // 被定身时不开始蓄力，避免蓄力→被中断→下一帧再蓄力的视觉刷屏
   var U = T.ultimate;
-  if (U && u.ultCd <= 0 && u.bindT <= 0 && !(T.ultBlocked && T.ultBlocked(u))) {
+  if (U && ultReady(u) && u.bindT <= 0 && !(T.ultBlocked && T.ultBlocked(u))) {
     var uw = U.windup == null ? 0.4 : U.windup;
     u.ultT = Math.max(0.001, uw);
     u.ultCastMax = u.ultT;
@@ -1720,6 +1755,10 @@ function checkOver() {
 function tick(dt) {
   t += dt;
 
+  // 终末震荡镜头只允许在战斗中播放（计时由 50-ui 的 frame() 按真实时间推进）
+  if (bossCine && phase !== 'fight') bossCine = null;
+  if (typeof bossNukeFx !== 'undefined' && bossNukeFx && phase !== 'fight') bossNukeFx = null;
+
   // 倒计时归零 → 进入决杀阶段；之后不再按剩余时间判定
   if (!suddenDeath) {
     roundTime = Math.max(0, roundTime - dt);
@@ -1753,15 +1792,18 @@ function tick(dt) {
     }
     // 捆绑：定身计时（速度由 speedOf 归零，方向不变）
     if (u.bindT > 0) u.bindT = Math.max(0, u.bindT - dt);
+    // 虚弱：终末震荡留下的伤害减免计时
+    if (u.weakT > 0) u.weakT = Math.max(0, u.weakT - dt);
     // 中毒：每满 1 秒结算一次，伤害走 hurt()（护盾可吸收）
+    // 每秒伤害优先读该单位自己的 poisonDps（普攻 / 终结技 / 藤蔓各不相同）
     if (u.poisonT > 0 && u.alive) {
       u.poisonT = Math.max(0, u.poisonT - dt);
       u.poisonAcc -= dt;
       while (u.poisonAcc <= 0 && u.alive) {
         u.poisonAcc += 1.0;
-        hurt(u, TYPES.grass.vine.poisonDps, u.poisonSrc, { dot: 1 });
+        hurt(u, u.poisonDps || TYPES.grass.vine.poisonDps, u.poisonSrc, { dot: 1 });
       }
-      if (u.poisonT <= 0) u.poisonSrc = null;
+      if (u.poisonT <= 0) { u.poisonSrc = null; u.poisonDps = 0; }
     }
     /* 持续伤害汇总：冰面 / 中毒 / 浸水 / 狗奶引导 / 激光段伤都只累加不逐跳表现，
        每满 1 秒把这一秒的合计显示成一条小飘字（不爆粒子、不播音效），
@@ -1788,6 +1830,8 @@ function tick(dt) {
     var pu = units[p];
     if (!pu.alive) continue;
     var PT = TYPES[pu.key];
+    /* 被动回能：新体系角色按 energyRegen 每秒攒能量（旧角色没有这个字段，完全不受影响） */
+    if (PT.energyRegen) gainEnergy(pu, PT.energyRegen * dt);
     if (PT.onTick) PT.onTick(pu, dt);
   }
 
@@ -1842,6 +1886,22 @@ function fx(dt) {
     if (f.life <= 0) { floaters.splice(i, 1); continue; }
     f.y += f.vy * dt;
     f.vy *= Math.exp(-1.6 * dt);
+  }
+  // 终末震荡大招演出：推进碎片与总时长
+  if (typeof bossNukeFx !== 'undefined' && bossNukeFx) {
+    bossNukeFx.t += dt;
+    for (i = bossNukeFx.shards.length - 1; i >= 0; i--) {
+      var sh = bossNukeFx.shards[i];
+      sh.life -= dt;
+      if (sh.life <= 0) { bossNukeFx.shards.splice(i, 1); continue; }
+      sh.vy += 260 * dt;
+      sh.vx *= Math.exp(-1.8 * dt);
+      sh.vy *= Math.exp(-0.6 * dt);
+      sh.x += sh.vx * dt;
+      sh.y += sh.vy * dt;
+      sh.rot += sh.vr * dt;
+    }
+    if (bossNukeFx.t >= bossNukeFx.dur) bossNukeFx = null;
   }
   shake *= Math.exp(-7 * dt);
   if (shake < 0.05) shake = 0;

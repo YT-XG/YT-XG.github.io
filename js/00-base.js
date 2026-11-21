@@ -160,6 +160,9 @@ var BALANCE = {
   dmgBase: 2.2,           // 伤害基数
   dmgPerImpact: 0.05,     // 每 1 px/s 撞击速度换算的伤害
   hitCd: 0.34,            // 同一单位两次伤害结算的最小间隔（s）
+  /* 防御常数：减伤 = DEF / (DEF + defK)，比值式永远为正、边际递减。
+     def=0 的旧角色完全不受影响；红青组合按 100 / 120 防御参与计算。 */
+  defK: 400,
   slowSpeedMul: 0.6,      // 被减速时的速度系数
   spearDashDR: 0.55,      // 长矛冲刺期间承受伤害的系数
   /* 多目标收益衰减（2026-11-21 平衡重构）
@@ -180,9 +183,9 @@ var BALANCE = {
      hpMul 只乘 maxHp（在 addUnit 里），dmgMul 只乘撞击伤害（在 dmgOf 里），
      两者都不影响百分比 DoT 与技能固定伤害的口径。 */
   solo: {
-    hpMul: { grass: 2.1, ice: 1.35, milk: 1.25, anvil: 1.2 },
-    dmgMul: { spear: 0.74, dog: 0.8, bow: 0.86 },
-    pctMul: { bucket: 0.78, milk: 0.8 }
+    hpMul: {},
+    dmgMul: {},
+    pctMul: {}
   },
   /* BOSS 模式（5v1，2026-11-21 第 98 条）
      ------------------------------------------------------------
@@ -201,24 +204,25 @@ var BALANCE = {
        · dmgTakeMul —— BOSS 受到的固定伤害倍率（拉长 TTK）
        · pctTakeMul —— BOSS 受到的百分比伤害倍率（狗奶 / 缺氧，防止"引导秒杀"）
        · dmgMul     —— BOSS 出手的整体倍率（挑战者不加血，靠压 BOSS 输出来拉长对局） */
-    dmgTakeMul: 0.60,
+    dmgTakeMul: 0.79,
     pctTakeMul: 0.20,
-    /* 0.62：二阶段紫晶核心降到 800 HP、一阶段锁血后停手（第 99 条），
-       都削弱了 BOSS 的输出窗口；这里从 0.47 上调，预设阵容实测两个种子
-       37.5% / 50.0%（均值 43.8% → BOSS 56.2%） */
+    /* 0.62：一阶段锁血后停手、二阶段核心登场有免伤充能窗口，
+       BOSS 的实际输出窗口小于纯 DPS 计算；保留这个倍率只影响未标记
+       calibrated 的旧 BOSS，新体系 BOSS 的伤害已在自身配置里写死。 */
     dmgMul: 0.62,
-    redBomb: { interval: 5.0, count: 2, fuse: 1.4, radius: 100, dmg: 12 },
-    lapis: { auraR: 170, shield: 90, shieldInterval: 6.0 },
+    redBomb: { interval: 5.0, count: 2, fuse: 1.4, radius: 100, dmg: 90 },
+    lapis: { auraR: 170, shield: 150, shieldInterval: 6.0 },
     /* core：紫晶核心（二阶段）
        · shockR / shockDmg / shockInterval —— 每 7 秒一圈「紫晶冲击」
        · nukeDelay —— 合体后多少秒还没被打死就放「终末震荡」（一次性全屏震）
        · nukePct   —— 终末震荡对每个存活敌方单位扣的最大生命比例（百分比伤害）
        · nukeWarn  —— 释放前的播报 / 状态栏倒计时窗口（s） */
-    core: { shockR: 360, shockDmg: 30, shockInterval: 7.0, nukeDelay: 24, nukePct: 0.50, nukeWarn: 8 },
+    core: { shockR: 360, shockDmg: 95, shockInterval: 7.0, nukeDelay: 32, nukePct: 0.60, nukeWarn: 8,
+            weakDur: 10, weakMul: 0.80 },
     /* 合体演出（纯表现 + 免伤窗口，不影响平衡）：
        · mergePause —— 两只锁到 1 血后原地「停手」的时长（s）：只亮环、不动
        · mergeSlide —— 停手结束后两只滑向中点的时长（s）
-       · mergeFill  —— 紫晶核心登场后血条从 1 涨到满（800）的时长（s），期间免伤且不动 */
+       · mergeFill  —— 紫晶核心登场后血条从 1 涨到满（4300）的时长（s），期间免伤且不动 */
     mergePause: 0.55,
     mergeSlide: 0.45,
     mergeFill: 1.2

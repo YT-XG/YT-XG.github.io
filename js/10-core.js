@@ -13,6 +13,7 @@
 function speedOf(u) {
   if (!u || !u.alive) return 0;
   if (u.st.mergeFill > 0) return 0;        // 紫晶核心血条充能中：原地涨血
+  if (u.st.nukeCast > 0) return 0;         // 终末震荡演出：BOSS 原地停止
   if (bossMergeAct && (bossMergeAct.a === u || bossMergeAct.b === u)) return 0;  // 合体前停顿
   /* 一阶段锁血：某一只被打到 1 HP 后立刻「停手」——原地不动、不攻击（仍在场等另一只）。
      合体条件不变：两只都到 1 HP 才会进入合体流程。 */
@@ -33,6 +34,8 @@ function speedOf(u) {
   } else {
     sp = u.dashT > 0 ? u.dashSpeed : u.baseSpeed;
   }
+  // 附魔移速（青金石 4 号附魔）：叠加式乘区，只放大常速与冲刺，不改变直线运动规则
+  if (u.st && u.st.speedAdd) sp *= 1 + u.st.speedAdd;
   // slowMul 允许不同来源使用不同减速系数（青金石 0.6 / 冰块 0.4），默认取全局值
   return u.slowT > 0 ? sp * (u.slowMul || BALANCE.slowSpeedMul) : sp;
 }
@@ -88,6 +91,11 @@ var t = 0, roundTime = 180, phase = 'menu', winner = null;
 var simAcc = 0;
 /* 竖屏战场镜头：按存活单位重心横向平移，单位是 CSS 像素 */
 var portraitCam = 0;
+/* 终末震荡镜头：{t, per, outro, origin, targets:[{x,y}], dur}
+   渲染层只读，不参与模拟；t 由 tick 推进。 */
+var bossCine = null;
+/* 终末震荡大招演出：{t, dur, x, y, shards:[...]}，纯表现层，fx() 推进寿命 */
+var bossNukeFx = null;
 /* 可复现对局：pendingSeed 由每日挑战 / 幽灵码写入；source 只用于赛后文案 */
 var pendingSeed = 0, hasPendingSeed = false;
 var matchSource = '';       // '' | 'daily' | 'ghost'
@@ -308,12 +316,16 @@ function addUnit(key, x, y, team) {
     key: key, name: d.name, team: team,
     r: d.r, maxHp: maxHp, hp: maxHp,
     baseSpeed: d.baseSpeed, atk: d.atk, dmgMult: 1,
+    // 新数值体系：防御参与减伤；energyMax>0 的单位用能量条驱动终结技
+    def: d.def || 0, energyMax: d.energyMax || 0, energy: 0,
+    // 虚弱：受到终末震荡后，普攻 / 技能 / 终结技伤害按 weakMul 结算
+    weakT: 0, weakMul: 0.8,
     body: d.body, light: d.light, dark: d.dark, glow: d.glow,
     boss: !!d.boss, bossImmune: !!d.bossImmune,
     skillName: d.skill.name,
 
     ultName: d.ultimate ? d.ultimate.name : '',
-    ultCd: d.ultimate ? srand(5.0, 9.0) : 0,   // 终结技初始充能：错开各单位的大招节奏
+    ultCd: d.ultimate ? (d.energyMax ? 0 : srand(5.0, 9.0)) : 0,   // 能量型终结技从 0 能量开始
     ultT: 0, ultCastMax: 0, ultAim: null,
     x: x, y: y, ang: 0, vx: 0, vy: 0,
     alive: true, flash: 0,
@@ -322,7 +334,7 @@ function addUnit(key, x, y, team) {
     castT: 0, castMax: 0, castAim: null,
     slowT: 0, slowMul: BALANCE.slowSpeedMul, iceTick: 0, dealt: 0, taken: 0,
     waterT: 0, waterAcc: 1.0,   // 浸水累计时长 / 满 1 秒结算一次的累加器（水桶的水面）
-    bindT: 0, poisonT: 0, poisonAcc: 1.0, poisonSrc: null,
+    bindT: 0, poisonT: 0, poisonAcc: 1.0, poisonSrc: null, poisonDps: 0,
     dotAmt: 0, dotT: 0,         // DoT 汇总：这一秒累计的持续伤害 / 距离下次飘字的剩余时间
     revives: 0,   // 已经靠种子复活过几次（草最多 2 次）
     st: d.createState ? d.createState() : {},
@@ -435,6 +447,8 @@ function reset() {
   bossMerged = false;
   bossMergeFx = null;
   bossMergeAct = null;
+  bossCine = null;
+  bossNukeFx = null;
   suddenDeath = false; deathAcc = 0; suddenStart = 0;
   shake = 0; hitStop = 0;
   lineupIndex = { A: 0, B: 0 };

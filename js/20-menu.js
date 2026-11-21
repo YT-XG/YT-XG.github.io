@@ -37,8 +37,11 @@ function roleTags(keys) {
 function rageSummary(key) {
   var R = TYPES[key].rage;
   if (!R) return '';
-  var parts = ['移速 ×' + R.speedMul + ' 起，每秒 +' + R.speedRampPerSec + ' 倍，上限 ×' + R.speedMulCap];
+  var parts = ['移速 ×' + R.speedMul];
+  if (R.speedRampPerSec) parts.push('每秒 +' + R.speedRampPerSec + ' 倍，上限 ×' + R.speedMulCap);
   if (R.passThrough) parts.push('可穿透敌方');
+  if (R.basicCd) parts.push('普攻间隔 ' + R.basicCd + 's');
+  if (R.skillCd) parts.push('技能 CD ' + R.skillCd + 's');
   if (R.bomb) {
     parts.push('撞击伤害 0，只靠炸弹');
     parts.push('投弹 ' + R.bomb.interval + 's/颗 → 最快 ' + R.bomb.intervalMin + 's/颗，' +
@@ -111,8 +114,8 @@ function detailHtml(team) {
   }
 
   html += '<div class="d-more">';
-  html += '<div class="d-hint">伤害数值为基准值：实战统一按 ×' + (BALANCE.dmgScale || 1).toFixed(2) +
-    ' 结算（与生命上限同口径；狗奶 / 浸水 / 决杀等百分比机制不受影响）</div>';
+  html += '<div class="d-hint">红青组合按面板数值直接结算（含防御减伤）；其余角色仍为基准值 ×' +
+    (BALANCE.dmgScale || 1).toFixed(2) + '（百分比机制不受影响）</div>';
   for (var i = 0; i < keys.length; i++) {
     var c = POOL_BY_KEY[keys[i]];
     if (!c) continue;
@@ -123,7 +126,9 @@ function detailHtml(team) {
       html += '<div class="d-stats">' +
         '<span class="hp">' + d.maxHp + ' HP</span>' +
         '<span>' + d.baseSpeed + ' px/s</span>' +
-        '<span>攻击 ×' + d.atk.toFixed(2) + '</span>' +
+        (d.def
+          ? '<span>攻击 ' + d.atk + '</span><span>防御 ' + d.def + '</span>'
+          : '<span>攻击 ×' + d.atk.toFixed(2) + '</span>') +
         (TYPES[c.units[j]].shieldMax ? '<span>护盾 ' + TYPES[c.units[j]].shieldMax + '</span>' : '') +
         '</div>' +
         '<p class="d-row"><em class="k skill">技能</em>' + d.skill.name + '：' + d.skill.text + '</p>' +
