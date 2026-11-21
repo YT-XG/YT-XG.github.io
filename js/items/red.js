@@ -5,11 +5,13 @@
 TYPES.red = {
   key: 'red', name: '红石块', role: '莽夫 / 先手', bond: 'lapis',
   r: 24, maxHp: 320, baseSpeed: 200, atk: 1.0,
+  /* 撞击是技能：只有红石脉冲（冲刺）期间才按撞击强度结算伤害 */
+  impact: true,
   body: '#c8342b', light: '#ff7a6a', dark: '#6d140e', glow: '#ff5a44',
   skill: {
     name: '红石脉冲', cd: 3.6,
-    dashSpeed: 650, dashTime: 0.36, dmgMult: 1.9,
-    text: '转向冲刺，撞击倍率 ×1.9'
+    dashSpeed: 650, dashTime: 0.36, dmgMult: 1.7,
+    text: '转向冲刺，撞击倍率 ×1.7'
   },
   ultimate: {
     name: '红石陨星', cd: 16.0,
@@ -29,8 +31,8 @@ TYPES.red = {
     bomb: {
       interval: 0.4,          // 初始投弹间隔
       intervalRamp: 0.02,     // 每秒缩短的间隔
-      intervalMin: 0.14,      // 最短投弹间隔
-      fuse: 2.0, radius: 100, dmg: 26
+      intervalMin: 0.20,      // 最短投弹间隔
+      fuse: 2.0, radius: 100, dmg: 20
     }
   },
   createState: function () { return { bombCd: 0 }; },

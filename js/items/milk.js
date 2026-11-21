@@ -3,25 +3,30 @@
    · 野性哺育（主动技能，cd 8s，从「引导结束 / 被打断」才开始计）
      原地引导 15 秒：引导期间完全不可移动（speedOf 直接返回 0）且免疫伤害；
      场上所有敌方单位与召唤物每秒损失 6.6% 最大生命，15 秒合计 99%。
-   · 80 点打断护盾：引导期间任何走 hurt() 的伤害先扣护盾（不掉血），
+   · 160 点打断护盾：引导期间任何走 hurt() 的伤害先扣护盾（不掉血），
      护盾打空立即打断，CD 从 0 重新计（= 完整 8 秒），不进入新的引导。
-   · 百分比扣血统一走 hurt()：会被护盾吸收、计入 dealt / taken、能触发死亡与羁绊；
-     普通撞击伤害恒为 0，输出全部来自引导。
+   · 百分比扣血统一走 hurt()：会被护盾吸收、计入 dealt / taken、能触发死亡与羁绊。
+   · 撞击是技能：只有引导结束后的「收汁冲撞」（0.55s、撞击倍率 ×1.3）才有撞击伤害，
+     其余时间贴上去不掉血。
    ------------------------------------------------------------
-   不冲刺、不转向（skill.noTurn），引导只是"原地站桩"，符合匀速直线运动红线。 */
+   技能本身不冲刺、不转向（noTurn），引导只是"原地站桩"；
+   收汁冲撞只加速、不改朝向，符合匀速直线运动红线。 */
 'use strict';
 
 TYPES.milk = {
   key: 'milk', name: '野生狗奶', role: '全域压制 / 引导',
   r: 26, maxHp: 560, baseSpeed: 200, atk: 1.0,
+  /* 撞击是技能：只有在「引导结束的收汁冲撞」冲刺期间才有撞击伤害 */
+  impact: true,
   body: '#e6cfa8', light: '#fff4de', dark: '#8a6a44', glow: '#ffe0a0',
 
   skill: {
     name: '野性哺育', cd: 8.0, noTurn: true,
     // 非冲刺型技能：不加速、不转向，只进入引导状态
     dashTime: 0, dashSpeed: 0, dmgMult: 1,
-    text: '原地引导 15 秒：自身不可移动、免疫伤害，并显示 80 点打断护盾（受击先扣护盾，打空立即打断）；' +
-      '场上所有敌方单位与召唤物每秒损失 6.6% 最大生命（15 秒合计 99%）。引导结束或被打断后才开始计 8 秒冷却'
+    text: '原地引导 15 秒：自身不可移动、免疫伤害，并显示 160 点打断护盾（受击先扣护盾，打空立即打断）；' +
+      '场上所有敌方单位与召唤物每秒损失 6.6% 最大生命（15 秒合计 99%）。引导结束或被打断后才开始计 8 秒冷却；' +
+      '引导结束时会沿当前方向收汁冲撞 0.55 秒（撞击倍率 ×1.3）'
   },
   ultimate: {
     name: '野性反哺', cd: 24.0, noTurn: true,
@@ -29,7 +34,7 @@ TYPES.milk = {
   },
   passive: {
     name: '野奶之躯',
-    text: '普通撞击伤害恒为 0；引导的百分比扣血走 hurt()，可被护盾吸收，并计入造成伤害'
+    text: '引导期间普通撞击伤害为 0；引导结束时沿当前方向「收汁冲撞」0.55 秒（撞击倍率 ×1.3），用来收割被扣到残血的目标'
   },
 
   /* 引导参数（唯一可调入口）
@@ -37,15 +42,15 @@ TYPES.milk = {
      · dur       引导时长（秒）
      · shieldMax 引导期间的打断护盾（打空即打断，同时用作护盾条分母） */
   drain: { pctPerSec: 0.066, dur: 15.0 },
-  shieldMax: 80,
+  shieldMax: 160,
 
   createState: function () { return { milkT: 0, milkAcc: 1.0 }; },
 
   // 引导期间不再重复施放（think() 不会消耗 CD）
   canCast: function (u) { return !(u.st.milkT > 0); },
 
-  // 普通撞击不产生伤害：与弓箭 / 冰块 / 铁砧一致，所有输出都来自技能
-  onAttack: function () { return 0; },
+  // 撞击只在「收汁冲撞」期间生效：其它时候贴上去不掉血
+  onAttack: function (u, dmg) { return u.dashT > 0 ? dmg : 0; },
 
   onCast: function (u) {
     var D = TYPES.milk.drain;
@@ -68,13 +73,13 @@ TYPES.milk = {
     for (i = 0; i < units.length; i++) {
       var v = units[i];
       if (!v.alive || v.team === u.team) continue;
-      hurt(v, v.maxHp * 0.20, u);
+      hurt(v, v.maxHp * 0.20, u, { pct: 1 });
       ring(v.x, v.y, v.r, v.r + 40, 0.4, '#ffe0a0');
     }
     for (i = seeds.length - 1; i >= 0; i--) {
       var sd = seeds[i];
       if (sd.team === u.team) continue;
-      hurtSeed(sd, sd.maxHp * 0.5, u);
+      hurtSeed(sd, sd.maxHp * 0.5, u, { pct: 1 });
       if (sd.hp <= 0) destroySeed(i, '种子被汲取');
     }
     var heal = u.maxHp * 0.25;
@@ -98,8 +103,12 @@ TYPES.milk = {
       u.st.milkT = 0;
       u.st.shield = 0;           // 护盾属于本次引导，结束后一并清空
       u.cd = TYPES.milk.skill.cd;
+      // 收汁冲撞：沿当前运动方向冲 0.55 秒，不改朝向（noTurn 红线）
+      u.dashT = 0.55;
+      u.dashSpeed = 820;
+      u.dmgMult = 1.3;
       ring(u.x, u.y, u.r, u.r + 70, 0.5, '#bfe2ff');
-      floater(u.x, u.y - u.r - 22, '引导结束', '#bfe2ff', 13);
+      floater(u.x, u.y - u.r - 22, '收汁冲撞', '#ffe9b0', 13);
     }
   },
 

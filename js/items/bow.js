@@ -19,12 +19,12 @@ TYPES.bow = {
   },
   passive: {
     name: '强化箭',
-    text: '每第 3 支箭强化：箭速 880（普通 640）、可穿透、伤害 66（普通 48）'
+    text: '每第 3 支箭强化：箭速 880（普通 640）、可穿透、伤害 80（普通 56）'
   },
   // 箭矢参数：普通箭命中即消失；强化箭对每个敌人只结算一次并继续飞行
   arrow: {
-    normal: { speed: 640, dmg: 48, life: 0.95, hitR: 4 },
-    power: { speed: 880, dmg: 66, life: 0.95, hitR: 5 },
+    normal: { speed: 640, dmg: 56, life: 0.95, hitR: 5 },
+    power: { speed: 880, dmg: 80, life: 0.95, hitR: 6 },
     cycle: 3, powerAt: 2
   },
   createState: function () { return { shots: 0 }; },

@@ -15,7 +15,7 @@ TYPES.anvil = {
     name: '天降铁砧', cd: 3.0, noTurn: true,
     // 非冲刺型技能：不加速、不转向，只标记落点
     dashTime: 0, dashSpeed: 0, dmgMult: 1,
-    text: '在敌人当前位置锁定半径 200px 的落点圆，3 秒后铁砧砸落：圆内最近目标 210 伤害（边缘 126），其余目标减半'
+    text: '在敌人当前位置锁定半径 200px 的落点圆，3 秒后铁砧砸落：圆内最近目标 160 伤害（边缘 96），其余目标减半'
   },
   ultimate: {
     name: '铁砧风暴', cd: 16.0, noTurn: true,
@@ -33,7 +33,7 @@ TYPES.anvil = {
      · edgeMul   外圈（coreRatio ~ 1.0）伤害系数
      · splashMul 圆内除「最近目标」外的其余敌人只吃这个系数（避免一次砸落同时
                  清掉红青两块，也防止 2v2 / 3v3 里一发清场） */
-  anvil: { markR: 200, delay: 3.0, coreRatio: 0.55, dmg: 210, edgeMul: 0.6, splashMul: 0.5 },
+  anvil: { markR: 200, delay: 3.0, coreRatio: 0.55, dmg: 160, edgeMul: 0.6, splashMul: 0.5 },
   createState: function () { return {}; },
   // 普通撞击不产生伤害：与弓箭 / 冰块一致，所有输出都来自技能
   onAttack: function () { return 0; },

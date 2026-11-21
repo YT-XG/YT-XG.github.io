@@ -8,14 +8,14 @@
 'use strict';
 
 /* 界面显示用版本号：桌面首页与手机首页共用同一个常量 */
-var APP_VERSION = 'v26.11.21c';
+var APP_VERSION = 'v26.11.21l';
 
 /* ============================================================
    运动模型
    ------------------------------------------------------------
    所有单位「匀速直线」运动：
      · 平时以各自的 baseSpeed 沿固定角度滑行，不做任何转向 / 加速
-     · 撞到墙壁 → 镜面反射，速度大小不变
+     · 撞到墙壁 → 随机取一个朝场内的角度（wallBounceAngle），速度大小不变
      · 释放技能 → 重新瞄准并进入短暂冲刺，冲刺结束回到常速
      · 与敌方相撞 → 弹性碰撞，交换法线分量后各自继续直线前进
    ============================================================ */
@@ -49,6 +49,9 @@ function fitCanvas() {
   cv.width = bw;
   cv.height = bh;
   ctx.setTransform(bw / W, 0, 0, bh / H, 0, 0);
+  // 改 cv.width/height 会清空整张位图：菜单期画面是静止的（见 40-render 的 renderDirty），
+  // 必须补画一帧，否则会留下白屏
+  if (typeof markRenderDirty === 'function') markRenderDirty();
 }
 fitCanvas();
 window.addEventListener('resize', fitCanvas);
@@ -142,6 +145,15 @@ function roundRect(x, y, w, h, r) {
      2. 在 POOL 里加一个角色，把 key 写进单位的 units 数组（主页面会自动生成卡片）
    ============================================================ */
 var BALANCE = {
+  /* 固定伤害全局倍率（唯一口径）
+     ------------------------------------------------------------
+     生命上限整体调整（如本轮全体 ×1.6）必须同步作用于「绝对值伤害」，
+     否则固定伤害角色会被相对削弱，而百分比机制（狗奶 6.6%/s、水桶 8%/s、
+     决杀 5%/s）自动跟随生命上限、被动变强。
+     实现位置：hurt() / hurtSeed() —— 默认所有伤害都乘这个系数；
+     传 {pct:true} 的百分比伤害（按目标 maxHp 计算）不乘，避免二次放大。
+     改生命上限时只改这一个常数，不用再翻 9 个物品文件。 */
+  dmgScale: 1.6,
   // 撞击伤害公式：dmg = (dmgBase + min(impact, impactCap) * dmgPerImpact) * 攻击方 atk * 攻击方 dmgMult
   impactMin: 30,          // 撞击速度低于此值不结算伤害（px/s）
   impactCap: 620,         // 撞击速度截断上限（px/s），防止冲刺对撞秒杀
@@ -151,7 +163,7 @@ var BALANCE = {
   slowSpeedMul: 0.6,      // 被减速时的速度系数
   spearDashDR: 0.6,       // 长矛冲刺期间承受伤害的系数
   bondShake: 3.0,         // 羁绊：一方阵亡后，幸存者原地无敌抖动的时长（s）
-  redSplash: { dmg: 9, radius: 96 },          // 红石被动：撞击时对周围敌人溅射
+  redSplash: { dmg: 6, radius: 96 },          // 红石被动：撞击时对周围敌人溅射
   lapisAura: { radius: 110, slowTime: 0.35 }  // 青金石被动：光环内敌人减速
 };
 

@@ -21,15 +21,15 @@ TYPES.ice = {
   },
   passive: {
     name: '冰霜侵蚀',
-    text: '敌人踩上冰面时移速 ×0.55，并在冰面上每秒受到 15 点伤害；自身 HP 低于 50% 时每 5 秒刷新 10 点护盾'
+    text: '敌人踩上冰面时移速 ×0.55，并在冰面上每秒受到 32 点伤害；自身 HP 低于 50% 时每 5 秒刷新 16 点护盾'
   },
-  shieldMax: 10,   // 护盾条的分母（残血时每 5 秒刷新 10，护盾不叠加、不超时消失）
+  shieldMax: 16,   // 护盾条的分母（残血时每 5 秒刷新 16，护盾不叠加、不超时消失）
   // 冰面参数：半径 / 落点间距 / 存活(hold) + 淡出(fade) / 减速与持续伤害节奏
   iceTrail: {
-    r: 48, spacing: 30, interval: 0.14,
+    r: 56, spacing: 24, interval: 0.12,
     hold: 5.0, fade: 1.0,
     // slowMul 是冰块专属的减速系数（比青金石光环的 0.6 更强），只作用于踩冰的敌人
-    dot: 15, dotInterval: 1.0, slowTime: 0.25, slowMul: 0.55
+    dot: 32, dotInterval: 1.0, slowTime: 0.25, slowMul: 0.55
   },
   createState: function () {
     return { shield: 0, shieldT: 0, shieldCd: 5, iceCd: 0, lastX: 0, lastY: 0 };

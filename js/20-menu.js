@@ -88,15 +88,29 @@ function detailHtml(team) {
 
   if (!keys.length) return html;
 
+  /* 收起状态也要能一眼看懂这套阵容「能干什么」：每个角色给一行「名字 · 技能名」，
+     而不是只留一堆定位标签，必须点开才知道技能。 */
+  html += '<div class="d-briefs">';
+  for (var b2 = 0; b2 < keys.length; b2++) {
+    var bc = POOL_BY_KEY[keys[b2]];
+    if (!bc) continue;
+    var bt = TYPES[bc.units[0]];
+    html += '<div class="d-brief"><b>' + deskEsc(bc.name) + '</b>' +
+      '<span>' + deskEsc(bt.skill.name) + (bt.ultimate ? ' · ' + deskEsc(bt.ultimate.name) : '') + '</span></div>';
+  }
+  html += '</div>';
+
   var open = !!detailOpen[team];
   html += '<button type="button" class="d-toggle" data-detail-toggle="' + team + '">' +
     (open ? '收起数值明细 ▴' : '展开数值明细 ▾') + '</button>';
   if (!open) {
-    html += '<div class="d-hint">默认只显示定位与总血量，点开再看技能 / 终结技 / 被动 / 狂暴数值</div>';
+    html += '<div class="d-hint">点开看技能 / 终结技 / 被动 / 狂暴的完整数值</div>';
     return html;
   }
 
   html += '<div class="d-more">';
+  html += '<div class="d-hint">伤害数值为基准值：实战统一按 ×' + (BALANCE.dmgScale || 1).toFixed(2) +
+    ' 结算（与生命上限同口径；狗奶 / 浸水 / 决杀等百分比机制不受影响）</div>';
   for (var i = 0; i < keys.length; i++) {
     var c = POOL_BY_KEY[keys[i]];
     if (!c) continue;
@@ -104,11 +118,16 @@ function detailHtml(team) {
       '<span>' + c.role + ' · ' + c.units.length + ' 个单位</span>';
     for (var j = 0; j < c.units.length; j++) {
       var d = TYPES[c.units[j]];
-      html += '<p><em>' + d.name + '</em> ' + d.maxHp + ' HP · ' + d.baseSpeed + ' px/s · 攻击 ' + d.atk.toFixed(2) + '</p>' +
-        '<p><em>技能</em> ' + d.skill.name + '：' + d.skill.text + '</p>' +
-        (d.ultimate ? '<p><em>终结技</em> ' + d.ultimate.name + '：' + d.ultimate.text + '</p>' : '') +
-        '<p><em>被动</em> ' + d.passive.name + '：' + d.passive.text + '</p>' +
-        (d.rage ? '<p><em>狂暴</em> ' + rageSummary(d.key) + '</p>' : '');
+      html += '<div class="d-stats">' +
+        '<span class="hp">' + d.maxHp + ' HP</span>' +
+        '<span>' + d.baseSpeed + ' px/s</span>' +
+        '<span>攻击 ×' + d.atk.toFixed(2) + '</span>' +
+        (TYPES[c.units[j]].shieldMax ? '<span>护盾 ' + TYPES[c.units[j]].shieldMax + '</span>' : '') +
+        '</div>' +
+        '<p class="d-row"><em class="k skill">技能</em>' + d.skill.name + '：' + d.skill.text + '</p>' +
+        (d.ultimate ? '<p class="d-row"><em class="k ult">终结技</em>' + d.ultimate.name + '：' + d.ultimate.text + '</p>' : '') +
+        '<p class="d-row"><em class="k pas">被动</em>' + d.passive.name + '：' + d.passive.text + '</p>' +
+        (d.rage ? '<p class="d-row"><em class="k rage">狂暴</em>' + rageSummary(d.key) + '</p>' : '');
     }
     html += '</div>';
   }
@@ -479,15 +498,27 @@ function deskSyncChrome() {
   if (typeof syncDailyHint === 'function') syncDailyHint();
 }
 
-/* 单机不押注，只显示预测胜率（与手机端一致） */
+/* 单机不押注，只显示预测胜率（与手机端一致）；样本不足时显示「模拟中」占位 */
 function deskSyncOdds() {
   if (!el.oddsA) return;
-  var pct = (typeof mobiSoloPct === 'function') ? mobiSoloPct() : 50;
-  pct = Math.max(0, Math.min(100, Math.round(pct)));
-  el.oddsA.textContent = pct + '%';
-  el.oddsB.textContent = (100 - pct) + '%';
+  var raw = (typeof mobiSoloPct === 'function') ? mobiSoloPct() : null;
+  var known = raw !== null && raw !== undefined;
+  var pct = known ? Math.max(0, Math.min(100, Math.round(raw))) : 50;
+  el.oddsA.textContent = known ? (pct + '%') : '—';
+  el.oddsB.textContent = known ? ((100 - pct) + '%') : '—';
   if (el.oddsBarA) el.oddsBarA.style.width = pct + '%';
   if (el.oddsBarB) el.oddsBarB.style.width = (100 - pct) + '%';
+  var box = el.oddsA.parentNode;
+  if (box) {
+    if (known) box.classList.remove('pending');
+    else box.classList.add('pending');
+    var lab = box.querySelector ? box.querySelector('span') : null;
+    if (lab) {
+      var n = (known && typeof previewSampleOf === 'function' && typeof pick !== 'undefined')
+        ? previewSampleOf((pick.A || []).slice(0, teamSize), (pick.B || []).slice(0, teamSize)) : 0;
+      lab.textContent = known ? ('预测胜率 · AI ' + n + ' 局') : '预测胜率 · 模拟中';
+    }
+  }
 }
 
 /* 桌面赛事页的角色/物品图标（不依赖手机端 CSS） */
@@ -1041,6 +1072,7 @@ function enterPick(size) {
 function openMenu() {
   // 后台赔率模拟占着引擎全局：先停下并还原，再做主菜单的重置
   if (typeof tourOddsStop === 'function') tourOddsStop();
+  if (typeof previewStop === 'function') previewStop();
   phase = 'menu';
   winner = null;
   paused = false;
@@ -1052,6 +1084,8 @@ function openMenu() {
   t = 0; roundTime = roundDuration; shake = 0; hitStop = 0;
   simAcc = 0;
   suddenDeath = false; deathAcc = 0; suddenStart = 0;
+  // 回主菜单时补画一帧静态战场（之后 render 不再逐帧执行）
+  if (typeof markRenderDirty === 'function') markRenderDirty();
   seriesWins = { A: 0, B: 0 };
   seriesGame = 1;
   if (typeof rebuildRoster === 'function') rebuildRoster();

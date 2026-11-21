@@ -659,37 +659,50 @@ function drawArrows() {
 // 冰面残留：贴地椭圆；前 5 秒完全可见，最后 1 秒线性淡出
 function drawIcePatches() {
   var fade = TYPES.ice.iceTrail.fade;
-  // 大量冰面时降级：只画填充椭圆，省掉描边与裂纹（视觉效果接近，绘制量降到 1/3）
+  // 冰面贴着墙生成时会画到战斗区外，盖住两侧伤害条；统一裁到场地内
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(ARENA.x, ARENA.y, ARENA.w, ARENA.h);
+  ctx.clip();
+  // 大量冰面时降级：只画"空心冰盘"，省掉裂纹（绘制量降到 1/4）
   var heavy = icePatches.length > 48;
   for (var i = 0; i < icePatches.length; i++) {
     var p = icePatches[i];
     var a = clamp(p.life / fade, 0, 1);
+    var rx = p.r * 0.88, ry = p.r * 0.62;
 
-    ctx.globalAlpha = 0.40 * a;
-    ctx.fillStyle = '#bfefff';
+    // 冰面彼此大幅重叠（r56、间距 24），实心填充叠几层就是一条不透明白管子，
+    // 把网格和单位都糊掉。改成极淡的蓝色冰带：只有刚踩出来的几片有亮边，
+    // 老冰面只剩一层薄色，重叠处像水面反光而不是一坨白。
+    ctx.globalAlpha = 0.13 * a;
+    ctx.fillStyle = '#8fdcf8';
     ctx.beginPath();
-    ctx.ellipse(p.x, p.y, p.r, p.r * 0.72, 0, 0, TAU);
+    ctx.ellipse(p.x, p.y, rx, ry, 0, 0, TAU);
     ctx.fill();
+
+    var fresh = p.life > fade - 0.7;   // 刚留下的一片才描亮边
+    if (fresh) {
+      ctx.globalAlpha = (0.30 * a) * ((p.life - (fade - 0.7)) / 0.7);
+      ctx.strokeStyle = '#e6fbff';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, rx, ry, 0, 0, TAU);
+      ctx.stroke();
+    }
     if (heavy) continue;
 
-    ctx.globalAlpha = 0.55 * a;
-    ctx.strokeStyle = '#e6fbff';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.ellipse(p.x, p.y, p.r, p.r * 0.72, 0, 0, TAU);
-    ctx.stroke();
-
     // 两道冰裂纹，让残留看起来像"冰面"而不是普通圆点
-    ctx.globalAlpha = 0.30 * a;
+    ctx.globalAlpha = 0.16 * a;
     ctx.strokeStyle = '#ffffff';
     ctx.beginPath();
-    ctx.moveTo(p.x - p.r * 0.55, p.y);
-    ctx.lineTo(p.x + p.r * 0.35, p.y - p.r * 0.16);
-    ctx.moveTo(p.x - p.r * 0.10, p.y + p.r * 0.30);
-    ctx.lineTo(p.x + p.r * 0.55, p.y + p.r * 0.04);
+    ctx.moveTo(p.x - p.r * 0.5, p.y);
+    ctx.lineTo(p.x + p.r * 0.3, p.y - p.r * 0.12);
+    ctx.moveTo(p.x - p.r * 0.08, p.y + p.r * 0.22);
+    ctx.lineTo(p.x + p.r * 0.45, p.y + p.r * 0.03);
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 /* 水桶的水面：贴地椭圆（水体 + 扩散波纹 + 中心漩涡）
@@ -1378,6 +1391,42 @@ function drawTokenUnit(u, img) {
   ctx.drawImage(img, u.x - s / 2, u.y - s / 2, s, s);
 }
 
+/* 血条上方的「状态细条」统一画法：冰冻值 / 缺氧值共用同一套底框、轨迹、圆角与左端标记，
+   只靠颜色 + 标记形状区分（冰=四角霜花，水=水滴点），避免第三条细条各自一套观感。 */
+function drawOverBar(bx, bw, y, k, col, fullCol, kind) {
+  var h = 4;
+  ctx.fillStyle = 'rgba(0,0,0,.7)';
+  roundRect(bx - 3, y - 2, bw + 6, h + 4, 3);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(255,255,255,.10)';
+  roundRect(bx, y, bw, h, 2);
+  ctx.fill();
+
+  var kk = clamp(k, 0, 1);
+  ctx.fillStyle = kk >= 0.999 ? fullCol : col;
+  if (kk > 0) {
+    roundRect(bx, y, bw * kk, h, 2);
+    ctx.fill();
+  }
+
+  // 左端标记：霜花 / 水滴，形状差异在 4px 条上比颜色更可靠
+  ctx.fillStyle = kk >= 0.999 ? fullCol : col;
+  var mx = bx - 5, my = y + h / 2;
+  if (kind === 'ice') {
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(mx - 2.4, my); ctx.lineTo(mx + 2.4, my);
+    ctx.moveTo(mx, my - 2.4); ctx.lineTo(mx, my + 2.4);
+    ctx.strokeStyle = kk >= 0.999 ? fullCol : col;
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.arc(mx, my, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 function drawUnit(u) {
   if (!u.alive) return;
   var R = u.st.rage;
@@ -1532,25 +1581,18 @@ function drawUnit(u) {
   roundRect(bx, by, bw * hpRatio, bh, 2.5);
   ctx.fill();
 
-  // 缺氧值（水桶）：血条上方一条细条；充满后变琥珀色并脉动
+  /* 血条上方两条状态细条按统一栈位排：冰冻值最贴近血条（最影响近战判断），
+     缺氧值在它上面；两者同时存在时间距 7px，不会互相压字。stackTop 供狂暴文字让位。 */
+  var stackTop = by - 9;
+  if (u.iceTick > 0.004) {
+    drawOverBar(bx, bw, stackTop, u.iceTick, '#8ce0ff', '#ffffff', 'ice');
+    stackTop -= 7;
+  }
   if (u.waterT > 0) {
     var ox = TYPES.bucket.water;
-    var oxK = clamp(u.waterT / ox.wetThreshold, 0, 1);
-    var oy = by - 10, oh = 4;
-    var oxFull = oxK >= 1;
-
-    ctx.fillStyle = 'rgba(0,0,0,.65)';
-    roundRect(bx - 2, oy - 2, bw + 4, oh + 4, 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(127,216,255,.16)';
-    roundRect(bx, oy, bw, oh, 2);
-    ctx.fill();
-
-    ctx.fillStyle = oxFull
-      ? 'rgba(255,176,80,' + (0.6 + 0.4 * Math.abs(Math.sin(t * 8))).toFixed(3) + ')'
-      : '#6fd8ff';
-    roundRect(bx, oy, bw * oxK, oh, 2);
-    ctx.fill();
+    drawOverBar(bx, bw, stackTop, u.waterT / ox.wetThreshold,
+      '#6fd8ff', '#ffb050', 'water');
+    stackTop -= 7;
   }
 
   // 护盾条：统一画在血条下方（青金石狂暴护盾 / 冰块周期护盾都走这里）
@@ -1656,7 +1698,8 @@ function drawUnit(u) {
     ctx.stroke();
 
     var label = R.phase === 'shake' ? '无敌抖动' : '狂暴';
-    var labelY = by - 6 - (u.waterT > 0 ? 11 : 0);   // 有缺氧条时上移，避免叠字
+    // 让位给血条上方的状态细条：有几条就把文字抬高几层，避免互相压字
+    var labelY = Math.min(by - 6, stackTop - 2);
     ctx.font = '700 10px "PingFang SC","Microsoft YaHei",sans-serif';
     ctx.textAlign = 'center';
     ctx.lineWidth = 3;
@@ -1733,14 +1776,22 @@ function drawFx() {
   for (i = 0; i < floaters.length; i++) {
     var f = floaters[i];
     var fa = clamp(f.life / f.max, 0, 1);
+    /* 同一时机的多条飘字（6v6 的 DoT 汇总、连锁溅射）原来会完全叠在一起；
+       按「已有飘字里位置相近的个数」逐层上抬 11px，只影响绘制、不动数据。 */
+    var lift = 0;
+    for (var q = 0; q < i; q++) {
+      var g = floaters[q];
+      if (Math.abs(g.x - f.x) < 36 && Math.abs(g.y - f.y) < 18) lift++;
+    }
+    var fy2 = f.y - Math.min(4, lift) * 11;
     ctx.globalAlpha = Math.min(1, fa * 1.6);
     ctx.font = '600 ' + f.size + 'px "PingFang SC","Microsoft YaHei",sans-serif';
     ctx.textAlign = 'center';
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(0,0,0,.55)';
-    ctx.strokeText(f.text, f.x, f.y);
+    ctx.strokeText(f.text, f.x, fy2);
     ctx.fillStyle = f.color;
-    ctx.fillText(f.text, f.x, f.y);
+    ctx.fillText(f.text, f.x, fy2);
   }
   ctx.globalAlpha = 1;
   ctx.textAlign = 'left';
@@ -1770,10 +1821,28 @@ function syncHud() {
   if (typeof updateRoster === 'function') updateRoster(true);
 }
 
+/* 菜单 / 选人 / 结算期只在「需要时」重画一帧
+   ------------------------------------------------------------
+   这些阶段画面被全屏 DOM 覆盖层挡住（或只是静态战场背景），逐帧重绘纯属浪费：
+   一张全屏渐变 + 33 条网格线 + 两侧伤害条在手机上就是持续耗电。
+   markRenderDirty() 由切页 / 重开 / 画布尺寸变化 / 结算飘字调用。 */
+var renderDirty = true;
+var renderHadFx = false;
+function markRenderDirty() { renderDirty = true; }
+
 function render() {
   /* 后台赔率模拟（第 83 条）期间画布上显示的是赛事棋盘，这里停画：
      模拟状态和当前对局无关，绘制只会白白耗掉低端机的帧预算 */
   if (typeof oddsRunning !== 'undefined' && oddsRunning) return;
+
+  var hasFx = !!(particles.length || rings.length || floaters.length || ultBeams.length);
+  /* 非战斗阶段：只有在「脏」、还有特效 / 赛事击杀演出在播、或特效刚刚播完
+     需要补一帧干净画面时才画（否则最后一帧会残留半空中的粒子）。
+     结算横幅出现时死亡粒子与扩散环还没播完，这里让它们继续动完再停。 */
+  if (phase !== 'fight' && !renderDirty && !hasFx && !renderHadFx &&
+      !(typeof tourFx !== 'undefined' && tourFx && tourFx.zoom > 1.001)) return;
+  renderDirty = false;
+  renderHadFx = hasFx;
 
   ctx.save();
   if (shake > 0.1) {

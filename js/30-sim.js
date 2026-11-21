@@ -42,24 +42,36 @@ function floater(x, y, text, color, size) {
 /* ============================================================
    伤害
    ============================================================ */
-function hurt(u, amount, src) {
+/* 伤害统一入口
+   ------------------------------------------------------------
+   · opt = { pct: 1 }  —— 按目标最大生命算的百分比伤害，不乘全局倍率
+   · opt = { dot: 1 }  —— 持续伤害（冰面 / 中毒 / 浸水 / 狗奶引导 / 大狗每段激光）：
+                        不播音效、不爆粒子、不逐跳飘字，改为每满 1 秒汇总一条小飘字
+   · 其余（撞击 / 箭矢 / 落点 / 炸弹 / 终结技 / 种子被撞）都走绝对值口径，
+     统一乘 BALANCE.dmgScale —— 保证「生命上限整体上调」时所有固定伤害同步放大 */
+function hurt(u, amount, src, opt) {
+  var pct = !!(opt && opt.pct);
+  var dot = !!(opt && opt.dot);
+  if (!pct) amount *= BALANCE.dmgScale;
   if (!u.alive || amount <= 0) return;
-  if (typeof sfxPlay === 'function') sfxPlay('hit');
+  if (!dot && typeof sfxPlay === 'function') sfxPlay('hit');
 
-  // 野生狗奶：引导期间受击先扣「打断护盾」（80 点）；护盾存在时不掉血，打空立即打断
+  // 野生狗奶：引导期间受击先扣「打断护盾」（128 点）；护盾存在时不掉血，打空立即打断
   if (u.st && u.st.milkT > 0) {
     var absorbed = Math.min(u.st.shield, amount);
     u.st.shield -= absorbed;
     u.taken += amount;       // 承伤统计照常累加（含被护盾吸收的部分）
-    floater(u.x, u.y - u.r - 12, '护盾 ' + Math.ceil(Math.max(0, u.st.shield)), '#93b6ff', 12);
-    ring(u.x, u.y, u.r + 4, u.r + 30, 0.2, '#93b6ff');
+    if (!dot) {
+      floater(u.x, u.y - u.r - 12, '护盾 ' + Math.ceil(Math.max(0, u.st.shield)), '#93b6ff', 12);
+      ring(u.x, u.y, u.r + 4, u.r + 30, 0.2, '#93b6ff');
+    }
     if (u.st.shield <= 0.01) { u.st.shield = 0; interruptMilk(u); }
     return;
   }
 
   // 羁绊狂暴前的 3 秒：原地无敌
   if (u.st.rage && u.st.rage.phase === 'shake') {
-    floater(u.x, u.y - u.r - 14, '无敌', '#ffe08a', 12);
+    if (!dot) floater(u.x, u.y - u.r - 14, '无敌', '#ffe08a', 12);
     return;
   }
 
@@ -67,10 +79,10 @@ function hurt(u, amount, src) {
   u.taken = (u.taken || 0) + amount;
 
   if (u.st.shield > 0) {
-    var absorbed = Math.min(u.st.shield, amount);
-    u.st.shield -= absorbed;
-    amount -= absorbed;
-    if (absorbed > 0) floater(u.x, u.y - u.r - 12, '吸收 ' + Math.round(absorbed), '#93b6ff', 12);
+    var absorbed2 = Math.min(u.st.shield, amount);
+    u.st.shield -= absorbed2;
+    amount -= absorbed2;
+    if (absorbed2 > 0 && !dot) floater(u.x, u.y - u.r - 12, '吸收 ' + Math.round(absorbed2), '#93b6ff', 12);
     if (u.st.shield <= 0.01) {
       u.st.shield = 0; u.st.shieldT = 0;
       ring(u.x, u.y, u.r, 128, 0.45, '#8fb4ff');
@@ -81,9 +93,16 @@ function hurt(u, amount, src) {
   if (amount > 0) {
     u.hp -= amount;
     if (src) src.dealt += amount;
-    u.flash = 1;
-    floater(u.x + rand(-9, 9), u.y - u.r - 28, '-' + Math.round(amount), '#ffd166', 15);
-    burst(u.x, u.y, 7, '#ffb199', 170);
+    if (dot) {
+      // 持续伤害不逐跳表现：累加到 dotAmt，由 tick() 每秒合并成一条小飘字
+      u.dotAmt = (u.dotAmt || 0) + amount;
+      if (!(u.dotT > 0)) u.dotT = 1.0;
+      if (u.flash < 0.25) u.flash = 0.25;
+    } else {
+      u.flash = 1;
+      floater(u.x + rand(-9, 9), u.y - u.r - 28, '-' + Math.round(amount), '#ffd166', 15);
+      burst(u.x, u.y, 7, '#ffb199', 170);
+    }
   }
 
   if (u.hp <= 0) {
@@ -114,7 +133,7 @@ function nearestEnemy(u) {
    · 红石块 / 青金石块是一个整体：一方阵亡 → 另一方先原地无敌抖动 3 秒
    · 之后进入狂暴：
        红石块   → 移速 ×3 起并随时间加快；可穿透敌方；攻击方式改为沿途扔炸弹
-       青金石块 → 移速 ×3 起并随时间加快；不再释放技能；撞击伤害每秒 +10；每 3 秒刷新 50 护盾
+       青金石块 → 移速 ×3 起并随时间加快；不再释放技能；撞击伤害每秒 +10；每 3 秒刷新 30 护盾
    ============================================================ */
 function isShaking(u) {
   return !!(u && u.st && u.st.rage && u.st.rage.phase === 'shake');
@@ -236,17 +255,17 @@ function milkDrain(u, D) {
   for (i = 0; i < units.length; i++) {
     var v = units[i];
     if (!v.alive || v.team === u.team) continue;
-    hurt(v, v.maxHp * D.pctPerSec, u);
+    hurt(v, v.maxHp * D.pctPerSec, u, { pct: 1, dot: 1 });
   }
   for (i = seeds.length - 1; i >= 0; i--) {
     var s = seeds[i];
     if (s.team === u.team) continue;
-    hurtSeed(s, s.maxHp * D.pctPerSec, u);
+    hurtSeed(s, s.maxHp * D.pctPerSec, u, { pct: 1, dot: 1 });
     if (s.hp <= 0) destroySeed(i, '种子枯萎');
   }
 }
 
-// 打断护盾（80）打空：立即打断引导，CD 从 0 重新计（= 完整 8 秒），不进入新的引导
+// 打断护盾（128）打空：立即打断引导，CD 从 0 重新计（= 完整 8 秒），不进入新的引导
 function interruptMilk(u) {
   u.st.milkT = 0;
   u.st.milkAcc = 0;
@@ -475,16 +494,17 @@ function updateIcePatches(dt) {
     if (onIce) {
       v.slowT = Math.max(v.slowT, C.slowTime);
       v.slowMul = Math.min(v.slowMul || 1, C.slowMul);
-      // 冰霜累积：在冰面上的时间累计满 dotInterval（1 秒）结算一次，每个目标独立计时，
-      // 避免每帧重复扣血；高速单位单次穿过不足 1 秒，多次踩冰会累加。
-      v.iceTick -= dt;
-      if (v.iceTick <= 0) {
-        v.iceTick += C.dotInterval;   // 每 dotInterval 秒一次
-        hurt(v, C.dot, src);
+      // 冰冻值（0 → 1）：在冰面上单调累积，满 1 秒结算一次伤害并清空重来，
+      // 离开冰面按 dt 回落。这样 HUD 上的冰冻条是「一直往上长」的，
+      // 而不是每秒在满/空之间来回跳（旧写法 -dt 再 +=1 会闪，实战几乎看不见）。
+      v.iceTick += dt;
+      if (v.iceTick >= C.dotInterval) {
+        v.iceTick -= C.dotInterval;   // 每 dotInterval 秒一次
+        hurt(v, C.dot, src, { dot: 1 });
       }
-    } else if (v.iceTick < C.dotInterval) {
+    } else if (v.iceTick > 0) {
       // 离开冰面后缓慢恢复，避免"很久以前踩过一次，回来一下就掉血"
-      v.iceTick = Math.min(C.dotInterval, v.iceTick + dt);
+      v.iceTick = Math.max(0, v.iceTick - dt);
     }
   }
 
@@ -503,7 +523,7 @@ function updateIcePatches(dt) {
       sd.iceTick -= dt;
       if (sd.iceTick <= 0) {
         sd.iceTick += C.dotInterval;
-        hurtSeed(sd, C.dot, sdSrc);
+        hurtSeed(sd, C.dot, sdSrc, { dot: 1 });
       }
     } else if (sd.iceTick < C.dotInterval) {
       sd.iceTick = Math.min(C.dotInterval, sd.iceTick + dt);
@@ -594,7 +614,7 @@ function updateWaters(dt) {
       u.waterAcc -= dt;
       while (u.waterAcc <= 0 && u.alive) {
         u.waterAcc += C.dotInterval;
-        hurt(u, u.maxHp * C.dotPct, src.owner);
+        hurt(u, u.maxHp * C.dotPct, src.owner, { pct: 1, dot: 1 });
       }
     } else {
       u.waterAcc = C.dotInterval;
@@ -605,23 +625,28 @@ function updateWaters(dt) {
 /* ============================================================
    草：种子 / 藤蔓 / 在种子上复活
    ------------------------------------------------------------
-   · plantSeed   在当前位置种一颗种子（100 HP、不移动、不挡路）
+   · plantSeed   在当前位置种一颗种子（160 HP、不移动、不挡路）
    · hurtSeed    种子唯一的受击入口：没有护盾 / 无敌，血量归零才消失
    · updateSeeds 普通贴身接触不再掉血；敌方技能冲刺撞到才算攻击，
-                 同时每满 1 秒给 healRadius 内友军回复 5 HP（同队只留最新一颗，不叠加）
+                 同时每满 1 秒给 healRadius 内友军回复 8 HP（同队只留最新一颗，不叠加）
    · tryVine     向范围内最近的敌人伸藤蔓：定身 3s + 中毒 5s（每秒 12）
    · queueRevive 草阵亡时消耗一颗自己的种子，延迟 1s 原地复活
    ============================================================ */
 
 // 种子受伤：统一入口。种子不参与 dealt 排行以外的单位结算，但伤害仍计入攻击方 dealt
-function hurtSeed(s, amount, src) {
+// opt 口径与 hurt() 一致：{pct:1} 百分比不缩放；{dot:1} 持续伤害不逐跳飘字 / 爆粒子
+function hurtSeed(s, amount, src, opt) {
+  if (!(opt && opt.pct)) amount *= BALANCE.dmgScale;
   if (!s || s.hp <= 0 || amount <= 0) return;
+  var dot = !!(opt && opt.dot);
   s.hp -= amount;
   s.flash = 0.22;
   s.lastHit = t;
   if (src && typeof src.dealt === 'number') src.dealt += amount;
-  floater(s.x, s.y - s.r - 22, '-' + Math.round(amount), '#ffb1a0', 11);
-  burst(s.x, s.y, 4, '#c8f5b0', 120);
+  if (!dot) {
+    floater(s.x, s.y - s.r - 22, '-' + Math.round(amount), '#ffb1a0', 11);
+    burst(s.x, s.y, 4, '#c8f5b0', 120);
+  }
 }
 
 // 种子被摧毁（血量归零）：统一的表现 + 移除
@@ -674,7 +699,7 @@ function updateSeeds(dt) {
     }
     if (s.hp <= 0) { destroySeed(i, '种子被击碎'); continue; }
 
-    // 2) 治疗光环：每满 1 秒给 healRadius 内「除自己以外」的友方单位回 5 HP
+    // 2) 治疗光环：每满 1 秒给 healRadius 内「除自己以外」的友方单位回 8 HP
     s.healAcc += dt;
     if (s.healAcc >= 1.0) {
       s.healAcc -= 1.0;
@@ -849,14 +874,14 @@ function laserStrike(u, L) {
     var v = units[i];
     if (!v.alive || v.team === u.team) continue;
     if (segDist(v.x, v.y, u.x, u.y, ex, ey) > L.width * 0.5 + v.r) continue;
-    hurt(v, L.dmg, u);
+    hurt(v, L.dmg, u, { dot: 1 });
   }
   // 敌方种子同样被光束扫到：每段（0.1s）扣段伤 3，口径与单位一致
   for (var j = seeds.length - 1; j >= 0; j--) {
     var sd = seeds[j];
     if (sd.team === u.team) continue;
     if (segDist(sd.x, sd.y, u.x, u.y, ex, ey) > L.width * 0.5 + sd.r) continue;
-    hurtSeed(sd, L.dmg, u);
+    hurtSeed(sd, L.dmg, u, { dot: 1 });
     if (sd.hp <= 0) destroySeed(j, '种子被激光烧毁');
   }
 }
@@ -1229,15 +1254,20 @@ function collide() {
       a.hitCd = BALANCE.hitCd;
       b.hitCd = BALANCE.hitCd;
 
-      var col = impact > 320 ? '#fff1c9' : '#ffd8a8';
-      ring(mx, my, 4, 34 + impact * 0.08, 0.28, col);
-      burst(mx, my, 8, col, 200 + impact * 0.25);
-      shake = Math.min(15, shake + impact * 0.02);
-      hitStop = Math.max(hitStop, 0.045);
-
       // da 是 a 承受的伤害（乘 b 的攻击力与倍率）；db 同理
       var da = dmgOf(b, impact, a);
       var db = dmgOf(a, impact, b);
+
+      /* 先算伤害再决定表现：弓箭 / 冰块 / 铁砧 / 狗奶的普通撞击伤害恒为 0，
+         过去这种「零伤害碰撞」也会放全套震屏 + 顿帧 + 粒子，看着像打中了却不掉血，
+         而且双方每 0.34 秒落一次顿帧。只有真的结算出伤害才播打击特效。 */
+      if (da + db > 0.01) {
+        var col = impact > 320 ? '#fff1c9' : '#ffd8a8';
+        ring(mx, my, 4, 34 + impact * 0.08, 0.28, col);
+        burst(mx, my, 8, col, 200 + impact * 0.25);
+        shake = Math.min(15, shake + impact * 0.02);
+        hitStop = Math.max(hitStop, 0.045);
+      }
 
       hurt(a, da, b);
       hurt(b, db, a);
@@ -1358,7 +1388,7 @@ function deathStrike() {
     }
   }
 
-  // 决杀同样侵蚀种子：每秒扣 5% 最大生命（100 HP 的种子每秒 -5）
+  // 决杀同样侵蚀种子：每秒扣 5% 最大生命（160 HP 的种子每秒 -8）
   for (var s = seeds.length - 1; s >= 0; s--) {
     var sd = seeds[s];
     var sl = sd.maxHp * DEATH_DRAIN;
@@ -1445,9 +1475,20 @@ function tick(dt) {
       u.poisonAcc -= dt;
       while (u.poisonAcc <= 0 && u.alive) {
         u.poisonAcc += 1.0;
-        hurt(u, TYPES.grass.vine.poisonDps, u.poisonSrc);
+        hurt(u, TYPES.grass.vine.poisonDps, u.poisonSrc, { dot: 1 });
       }
       if (u.poisonT <= 0) u.poisonSrc = null;
+    }
+    /* 持续伤害汇总：冰面 / 中毒 / 浸水 / 狗奶引导 / 激光段伤都只累加不逐跳表现，
+       每满 1 秒把这一秒的合计显示成一条小飘字（不爆粒子、不播音效），
+       6v6 同时中多种 DoT 时也不会把特效池打满、挡住血条 */
+    if (u.dotT > 0) {
+      u.dotT -= dt;
+      if (u.dotT <= 0) {
+        if (u.dotAmt > 0) floater(u.x, u.y - u.r - 28, '-' + Math.round(u.dotAmt), '#ffb199', 12);
+        u.dotAmt = 0;
+        u.dotT = 0;
+      }
     }
     if (u.st.shieldT > 0) {
       u.st.shieldT -= dt;

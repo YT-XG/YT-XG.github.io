@@ -5,6 +5,8 @@
 TYPES.lapis = {
   key: 'lapis', name: '青金石块', role: '辅助 / 续航', bond: 'red',
   r: 24, maxHp: 320, baseSpeed: 200, atk: 1.0,
+  /* 撞击是技能：冲刺期间 / 狂暴期间按撞击强度结算伤害 */
+  impact: true,
   body: '#2d5bd6', light: '#7ba2ff', dark: '#152a6b', glow: '#4a7bf0',
   skill: {
     name: '附魔折射', cd: 4.4,
@@ -13,13 +15,13 @@ TYPES.lapis = {
   },
   ultimate: {
     name: '折光爆裂', cd: 18.0,
-    text: '以自身为中心爆发折光：380px 内敌人受到 90 伤害并减速 2.5 秒（×0.4），自身获得 40 护盾'
+    text: '以自身为中心爆发折光：380px 内敌人受到 90 伤害并减速 2.5 秒（×0.4），自身获得 64 护盾'
   },
   passive: {
     name: '冰冻光环',
     text: '110px 内敌人持续减速（×0.6）'
   },
-  shieldMax: 25,   // 护盾条的分母（狂暴期间每 3 秒刷新 25）
+  shieldMax: 30,   // 护盾条的分母（狂暴期间每 3 秒刷新 30）
   // 羁绊：红石块阵亡后，青金石原地无敌抖动 3 秒，随后狂暴
   rage: {
     speedMul: 3,
@@ -29,7 +31,7 @@ TYPES.lapis = {
     dmgCap: 100,       // 狂暴撞击的额外伤害上限（每秒 +10，最多累到 +100）
     ramp: true,
     hitCd: 5.0,        // 狂暴撞击的冷却：CD 没好时撞上去不掉血
-    shield: { amount: 25, interval: 3.0 },   // 狂暴期间每 3 秒刷新 25 点护盾
+    shield: { amount: 30, interval: 3.0 },   // 狂暴期间每 3 秒刷新 30 点护盾
     status: '移速 ×3 起 · 越跑越快 · 撞击伤害随秒数增加（每 5 秒一次，上限 +100） · 每 3 秒刷新护盾'
   },
   createState: function () { return { shield: 0, shieldT: 0, shieldCd: 0, rageHitCd: 0 }; },
@@ -61,7 +63,7 @@ TYPES.lapis = {
       v.slowT = Math.max(v.slowT, 2.5);
       v.slowMul = Math.min(v.slowMul || 1, 0.4);
     }
-    u.st.shield = Math.max(u.st.shield || 0, 40);
+    u.st.shield = Math.max(u.st.shield || 0, 64);
     u.st.shieldT = 0;
     ring(u.x, u.y, u.r, R, 0.7, '#9cc0ff');
     ring(u.x, u.y, u.r, R * 0.62, 0.5, '#dbe8ff');

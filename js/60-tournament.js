@@ -77,32 +77,31 @@ function tourEsc(s) {
 }
 
 /* 9 角色两两对位实测胜率（数值 = 行角色胜率 %）
-   ⚠️ 2026-11-7（第 82 条）用「全角色双向各 100 局、相邻档位 600 局」的最新矩阵整体替换；
-   2026-11-9（第 89 条）补入 water 桶行：bucket 用「双向各 24 局」的 1v1 实测，
-   其余 8 行与 bucket 的对位取补值（100 - bucket 行）。 */
+   ⚠️ 2026-11-7（第 82 条）首次用实测矩阵替换；2026-11-9（第 89 条）补入 bucket 行。
+   2026-11-21（第 96 条）「撞击技能化 + DoT 调参」后整体重跑：
+     node tools/sim.js --n 10 --dur 180 → 720 局，逐格填写实测值。
+   本表只服务「阵容期望强度 / 蛇形分组」，**不再参与赔率与单机预测**：
+   赛事赔率与选人页胜率都由真实引擎无渲染实时模拟得出（见 70-tour-odds.js）。 */
 var TOUR_MATCHUP = {
-  duo:   { spear: 30.0, bow: 53.5, ice: 51.2, grass: 20.0, dog: 31.5, anvil: 0.5,  milk: 1.0,  bucket: 21.0 },
-  spear: { duo: 70.0, bow: 80.5, ice: 70.5, grass: 47.0, dog: 76.0, anvil: 71.0, milk: 95.7, bucket: 87.0 },
-  bow:   { duo: 46.5, spear: 19.5, ice: 100.0, grass: 98.5, dog: 97.0, anvil: 64.3, milk: 45.5, bucket: 87.0 },
-  ice:   { duo: 48.8, spear: 29.5, bow: 0.0,  grass: 30.5, dog: 16.5, anvil: 2.5,  milk: 0.0,  bucket: 0.0 },
-  grass: { duo: 80.0, spear: 53.0, bow: 1.5,  ice: 69.5,   dog: 28.2, anvil: 7.5,  milk: 0.0,  bucket: 37.0 },
-  dog:   { duo: 68.5, spear: 24.0, bow: 3.0,  ice: 83.5,   grass: 71.8, anvil: 34.0, milk: 0.0,  bucket: 46.0 },
-  anvil: { duo: 99.5, spear: 29.0, bow: 35.7, ice: 97.5,   grass: 92.5, dog: 66.0, milk: 57.5, bucket: 54.0 },
-  milk:  { duo: 99.0, spear: 4.3, bow: 54.5, ice: 100.0,  grass: 100.0, dog: 100.0, anvil: 42.5, bucket: 100.0 },
-  bucket:{ duo: 79.0, spear: 13.0, bow: 13.0, ice: 100.0,  grass: 63.0, dog: 54.0, anvil: 46.0, milk: 0.0 }
+  duo:   { spear: 85.0, bow: 45.0, ice: 25.0, grass: 50.0, dog: 90.0, anvil: 50.0, milk: 95.0, bucket: 50.0 },
+  spear: { duo: 15.0, bow: 50.0, ice: 0.0,  grass: 55.0, dog: 55.0, anvil: 50.0, milk: 75.0, bucket: 65.0 },
+  bow:   { duo: 55.0, spear: 50.0, ice: 50.0, grass: 65.0, dog: 65.0, anvil: 70.0, milk: 50.0, bucket: 20.0 },
+  ice:   { duo: 75.0, spear: 100.0, bow: 50.0, grass: 50.0, dog: 30.0, anvil: 55.0, milk: 30.0, bucket: 10.0 },
+  grass: { duo: 50.0, spear: 45.0, bow: 35.0, ice: 50.0,   dog: 40.0, anvil: 20.0, milk: 35.0, bucket: 75.0 },
+  dog:   { duo: 10.0, spear: 45.0, bow: 35.0, ice: 70.0,   grass: 60.0, anvil: 50.0, milk: 85.0, bucket: 70.0 },
+  anvil: { duo: 50.0, spear: 50.0, bow: 30.0, ice: 45.0,   grass: 80.0, dog: 50.0, milk: 70.0, bucket: 55.0 },
+  milk:  { duo: 5.0,  spear: 25.0, bow: 50.0, ice: 70.0,  grass: 65.0, dog: 15.0, anvil: 30.0, bucket: 75.0 },
+  bucket:{ duo: 50.0, spear: 35.0, bow: 80.0, ice: 90.0,  grass: 25.0, dog: 30.0, anvil: 45.0, milk: 25.0 }
 };
 
-/* ---------- 抽签分档（第 82 条；2026-11-9 第 89 条补入 bucket） ----------
+/* ---------- 抽签分档（第 82 条；2026-11-21 第 96 条按新矩阵重排） ----------
    一强一弱：每人必得 1 个 A 档 + 1 个 B 档。
-   分档依据 = 上表总体胜率（A 档 67.6%~73.0%，B 档 18.3%~40.4%）；
-   bucket 的 1v1 总胜率约 46%（落在两档之间），2v2 位置模拟：
-     当 A 位（搭档弱 B，对手 A+B）43%、当 B 位（搭档强 A）65%，
-   低于现有 A 位均值 53%，因此划入 B 档（B 档共 5 人）。
-   ⚠️ 9 个角色时，8/16 人赛无法让每个角色被抽次数完全相同，抽签改为
-      「轮转配对 + 尽量均衡」，仍然保证每人 1A+1B、且组合不重复。 */
+   分档依据 = 上表 1v1 总胜率（A 档 53.1%~61.3%，B 档 41.9%~50.0%）；
+   旧分档（A：spear/milk/anvil/bow）在撞击技能化 + DoT 调参后已反转：
+   milk 变成最弱（41.9）、duo 变成最强（61.3），因此按实测重排。 */
 var TOUR_BANDS = {
-  A: ['spear', 'milk', 'anvil', 'bow'],
-  B: ['dog', 'grass', 'duo', 'ice', 'bucket']
+  A: ['duo', 'anvil', 'bow', 'dog'],
+  B: ['ice', 'bucket', 'spear', 'grass', 'milk']
 };
 
 function tourBandOf(key) {
@@ -158,28 +157,29 @@ function tourPredict(teamA, teamB) {
   return n ? Math.round(sum / n) : 50;
 }
 
-/* ---------- 赔率口径（第 83 条） ----------
-   有后台模拟样本（fx.sim.ok）就用模拟胜率，否则回落到静态矩阵。
-   fx.sim 由 js/70-tour-odds.js 维护：{ n 局数, w 玩家 a 的胜场(平局算 0.5), ok, st }
+/* ---------- 赔率口径（第 83 条 + 第 96 条） ----------
+   有后台模拟样本（fx.sim）就用模拟胜率；样本还没跑出来时按 50% 显示
+   （UI 会标「计算中」），不再回落静态矩阵 —— 预测一律来自真实引擎。
 
-   小样本用「静态矩阵当先验」做收缩：p = (w + k·p0) / (n + k)。
-   否则 4 局全胜就会给出 100% 胜率（赔率 1.05），既不可信也容易被压注套利。
-   n = 48 时先验只占 11%，最终仍以模拟结果为主。 */
+   小样本收缩：p = (w + k·p0) / (n + k)；k 默认 0（第 96 条去掉矩阵先验）。 */
 function tourFxPct(fx) {
   var s = fx && fx.sim;
-  if (s && s.ok && s.n > 0) {
+  if (s && s.n > 0) {
     var k = (typeof ODDS_PRIOR === 'number') ? ODDS_PRIOR : 0;
-    var base = tourPredict(fx.a, fx.b) / 100;
-    return Math.max(1, Math.min(99, Math.round((s.w + k * base) / (s.n + k) * 100)));
+    if (k > 0) {
+      var base = tourPredict(fx.a, fx.b) / 100;
+      return Math.max(1, Math.min(99, Math.round((s.w + k * base) / (s.n + k) * 100)));
+    }
+    return Math.max(1, Math.min(99, Math.round(s.w / s.n * 100)));
   }
-  return tourPredict(fx.a, fx.b);
+  return 50;
 }
 
-/* 赔率后面的状态小字：计算中 / AI n / 矩阵 */
+/* 赔率后面的状态小字：计算中 / AI n / 未算出 */
 function tourFxNote(fx) {
   var s = fx && fx.sim;
   if (!s) return '';
-  if (s.st === 'off') return ' · 矩阵';
+  if (s.st === 'off') return ' · 未算出';
   if (s.st === 'done') return ' · AI ' + s.n;
   if (s.ok) return ' · 计算中 ' + s.n;
   return ' · 计算中';

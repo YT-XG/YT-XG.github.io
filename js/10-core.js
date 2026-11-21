@@ -47,10 +47,12 @@ function sense(u) {
 }
 
 // 派生伤害：由撞击速度 + 攻击方数值实时算出，公式常量全部来自 BALANCE
+// ⚠️ 撞击在这里是「技能」而不是通用出伤：只有声明了 impact 的物品才会因碰撞掉血
 function dmgOf(attacker, impact, victim) {
+  var AT = TYPES[attacker.key];
+  if (!AT.impact) return 0;
   var base = BALANCE.dmgBase + Math.min(impact, BALANCE.impactCap) * BALANCE.dmgPerImpact;
   var dmg = base * attacker.atk * (attacker.dmgMult || 1);
-  var AT = TYPES[attacker.key];
   if (AT.onAttack) dmg = AT.onAttack(attacker, dmg);
   var T = victim && TYPES[victim.key];
   if (T && T.onDamaged) dmg = T.onDamaged(victim, dmg);
@@ -269,9 +271,10 @@ function addUnit(key, x, y, team) {
     cd: d.skill.passiveOnly ? 0 : srand(0.8, 1.8), hitCd: 0, wallCd: 0,
     dashT: 0, dashSpeed: 0,
     castT: 0, castMax: 0, castAim: null,
-    slowT: 0, slowMul: BALANCE.slowSpeedMul, iceTick: 1.0, dealt: 0, taken: 0,
+    slowT: 0, slowMul: BALANCE.slowSpeedMul, iceTick: 0, dealt: 0, taken: 0,
     waterT: 0, waterAcc: 1.0,   // 浸水累计时长 / 满 1 秒结算一次的累加器（水桶的水面）
     bindT: 0, poisonT: 0, poisonAcc: 1.0, poisonSrc: null,
+    dotAmt: 0, dotT: 0,         // DoT 汇总：这一秒累计的持续伤害 / 距离下次飘字的剩余时间
     revives: 0,   // 已经靠种子复活过几次（草最多 2 次）
     st: d.createState ? d.createState() : {},
     trail: [], seed: Math.random() * 1000
@@ -332,6 +335,10 @@ function faceInward(u) {
 }
 
 function reset() {
+  // 菜单期的实时预测还在跑的话先收摊：它会占用引擎全局状态
+  if (typeof previewStop === 'function') previewStop();
+  // reset 期间把 phase 标成 'reset'：syncPick() 里的预测钩子不会在这里抢引擎
+  phase = 'reset';
   // 先决定本局种子，再生成任何单位：出生点 / 初始 CD / 撞墙噪声都吃这串随机数
   if (hasPendingSeed) {
     seedSim(pendingSeed);
@@ -372,6 +379,8 @@ function reset() {
   el.banner.classList.remove('show');
   if (typeof hideResult === 'function') hideResult();
   if (typeof rebuildRoster === 'function') rebuildRoster();
+  // 新一局必须重画一帧（菜单期 render 不再逐帧执行）
+  if (typeof markRenderDirty === 'function') markRenderDirty();
 }
 
 

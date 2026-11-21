@@ -356,12 +356,19 @@ function mobiHomeHtml() {
 /* ============================================================
    ② 单机模式（图 3）
    ============================================================ */
+/* 返回 null = 样本还没跑够（界面显示「—」，不要假装 50% 是结论） */
 function mobiSoloPct() {
   try {
     var a = (pick.A || []).slice(0, teamSize).filter(function (k) { return !!POOL_BY_KEY[k]; });
     var b = (pick.B || []).slice(0, teamSize).filter(function (k) { return !!POOL_BY_KEY[k]; });
-    return tourPredict({ roles: a }, { roles: b });
-  } catch (e) { return 50; }
+    // 预测只来自真实引擎（70-tour-odds 的实时小样本），不再读静态对位矩阵
+    if (typeof previewKick === 'function') previewKick();
+    if (typeof previewPctOf === 'function') {
+      var pv = previewPctOf(a, b);
+      if (pv !== null) return pv;
+    }
+    return null;
+  } catch (e) { return null; }
 }
 
 function mobiTeamPane(team) {
@@ -401,6 +408,7 @@ function mobiTeamPane(team) {
 
 function mobiSoloHtml() {
   var pct = mobiSoloPct();
+  var known = pct !== null;
   var h = '<div class="m-screen m-solo">' +
     '<button type="button" class="m-mini m-home-btn" data-act="home">主菜单</button>';
 
@@ -423,9 +431,12 @@ function mobiSoloHtml() {
     '<div class="m-vs">VS</div>' + mobiTeamPane('B') + '</div>';
 
   /* 预测胜率 / 开始（单机不再押注，也不显示金币：金币只服务于赛事） */
-  h += '<div class="m-odds">' +
-    '<span>预测胜率</span>' +
-    '<div><b class="ra">' + pct + '%</b><i>:</i><b class="rb">' + (100 - pct) + '%</b></div>' +
+  h += '<div class="m-odds' + (known ? '' : ' pending') + '">' +
+    '<span>' + (known ? ('预测胜率 · AI ' + (typeof previewSampleOf === 'function'
+      ? previewSampleOf((pick.A || []).slice(0, teamSize), (pick.B || []).slice(0, teamSize)) : '') + ' 局') : '模拟中…') + '</span>' +
+    '<div>' + (known
+      ? '<b class="ra">' + pct + '%</b><i>:</i><b class="rb">' + (100 - pct) + '%</b>'
+      : '<b class="ra">—</b><i>:</i><b class="rb">—</b>') + '</div>' +
     '</div>';
   h += '<button type="button" class="m-start" data-act="start">开始对战</button>';
 

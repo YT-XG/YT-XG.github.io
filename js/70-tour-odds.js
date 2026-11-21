@@ -2,7 +2,7 @@
    70-tour-odds.js —— 赛事赔率：后台无渲染快速模拟（第 83 条）
    ------------------------------------------------------------
    目标：赔率跟着版本走 —— 分配完成后，用真实引擎无渲染地跑若干局
-        2v2，得到每一场的胜率，替代写死的 TOUR_MATCHUP。
+        2v2，得到每一场的胜率，不再依赖写死的 TOUR_MATCHUP。
 
    · 无渲染：把 burst / ring / floater 换成空函数，不调用 render()，
      只跑 tick()；粒子数组每局重建，不会累积
@@ -11,7 +11,7 @@
    · 轮转：先每场各跑 1 局，再每场各跑第 2 局 …… 任何时刻每张卡都有近似值
    · 换边：局数为奇数时交换红蓝阵营，抵消出生侧偏差（与 BO2 第 2 局换边同理）
    · 缓存：按「数值指纹」失效（见 oddsFingerprint），同阵容对局下次直接命中
-   · 降级：总计算时间超预算 → 没跑完的场次回落到 TOUR_MATCHUP
+   · 降级：总计算时间超预算 → 没跑完的场次显示 50%（UI 标「未算出」），仍不读静态矩阵
    ============================================================ */
 'use strict';
 
@@ -31,7 +31,7 @@ var ODDS_SLICE_MS = 7;         // 单个 rAF 片的计算上限，给渲染留�
 var ODDS_BUDGET_MS = 16000;    // 桌面总预算（纯计算时间，不含等待帧的墙钟时间）
 var ODDS_BUDGET_MOBILE_MS = 6000;  // 低端机预算：跑不满就回落静态矩阵
 var ODDS_MIN_N = 6;            // 少于 6 局不覆盖静态矩阵，避免抖动
-var ODDS_PRIOR = 6;            // 静态矩阵当先验的等价局数：小样本时把赔率往矩阵拉，避免 4 局全胜 → 100%
+var ODDS_PRIOR = 0;            // 不再用静态矩阵当先验：预测只来自真实引擎样本
 var ODDS_KEY = 'mcduel.odds.v1';
 
 /* 30-sim 的 finish() 读它：只记录胜负，不动 DOM / 不触发赛事演出 */
@@ -136,13 +136,16 @@ function oddsRestore() {
 
 /* 把纯表现原语静音（它们在每帧被 hurt / 死亡 / 技能调用，是最大的开销） */
 function oddsFxSilence() {
-  oddsFxSaved = { burst: burst, ring: ring, floater: floater };
+  oddsFxSaved = { burst: burst, ring: ring, floater: floater, sfx: sfxPlay };
   var noop = function () {};
   burst = noop; ring = noop; floater = noop;
+  // 无头模拟只借引擎：不能真的出声（否则后台跑 40 局会一直「咚咚咚」）
+  if (typeof sfxPlay === 'function') sfxPlay = noop;
 }
 function oddsFxRestore() {
   if (!oddsFxSaved) return;
   burst = oddsFxSaved.burst; ring = oddsFxSaved.ring; floater = oddsFxSaved.floater;
+  if (oddsFxSaved.sfx) sfxPlay = oddsFxSaved.sfx;
   oddsFxSaved = null;
 }
 
@@ -395,3 +398,172 @@ function tourOddsKick() {
 
 /* 页面卸载前把缓存落盘（localStorage 本来就是同步的，这里只是保险） */
 window.addEventListener('pagehide', function () { if (oddsRun) tourOddsStop(); });
+
+/* ============================================================
+   单机选人页：实时预测（第 96 条）
+   ------------------------------------------------------------
+   不再用 TOUR_MATCHUP 猜胜率：阵容一变，就用真实引擎无头跑同一人数
+   （1v1 / 2v2 / 3v3）的小样本，奇数局换边抵消出生侧偏差。
+   · 分片 3ms：菜单不会被卡住
+   · 结果留在 previewCache：来回切角色不重复算同一个阵容对
+   · 至少 4 局才显示数字，之前按 50% 处理（UI 视为"未知"）
+   ============================================================ */
+var PREVIEW_DT = 1 / 30;
+var PREVIEW_TARGET = 8;      // 手机 / 粗指针：8 局
+var PREVIEW_TARGET_DESK = 24; // 桌面：24 局（8 局的随机波动能到 ±12%，菜单里看着像乱跳）
+var PREVIEW_MIN_N = 4;
+var PREVIEW_SLICE_MS = 3;
+
+var previewRun = null;
+var previewCache = {};       // key -> { n 局数, w 规范键第一阵容的胜场 }
+
+/* 桌面多跑一倍样本；判定一次就缓存，别在热路径反复 matchMedia */
+var previewTargetCache = null;
+function previewTargetFor() {
+  if (previewTargetCache !== null) return previewTargetCache;
+  var coarse = false;
+  try { coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (e) { coarse = false; }
+  previewTargetCache = coarse ? PREVIEW_TARGET : PREVIEW_TARGET_DESK;
+  return previewTargetCache;
+}
+
+/* 缓存键必须带上「人数 + 上场方式」：同样的阵容，接力与同时上场是两种对局 */
+function previewKeyOf(aKeys, bKeys) {
+  var a = aKeys.join('+'), b = bKeys.join('+');
+  var pre = (typeof teamSize === 'number' ? teamSize : aKeys.length) +
+            (typeof modeKind === 'string' ? modeKind : '');
+  return pre + '|' + (a <= b ? (a + '~' + b) : (b + '~' + a));
+}
+
+/* 阵容键的稳定哈希：预测用固定种子序列，同一阵容对每次刷新都得同一个数，
+   而不是每次进菜单随机跑一遍、数字来回跳（用户会以为预测坏了）。 */
+function previewHash(str) {
+  var h = 2166136261;
+  for (var i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = (h * 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+
+function previewInit(aKeys, bKeys, size, mode, swap, seed) {
+  units = []; particles = []; rings = []; floaters = []; bombs = []; arrows = []; icePatches = [];
+  anvilMarks = []; seeds = []; vines = []; reviveQueue = []; waters = []; ultBeams = [];
+  resetArena();
+  t = 0; roundTime = roundDuration; winner = null;
+  suddenDeath = false; deathAcc = 0; suddenStart = 0;
+  shake = 0; hitStop = 0;
+  lineupIndex = { A: 0, B: 0 }; relayTimer = { A: 0, B: 0 };
+  pick = { A: (swap ? bKeys : aKeys).slice(), B: (swap ? aKeys : bKeys).slice() };
+  teamSize = size; modeKind = mode;
+  seedSim((seed >>> 0) || 1);
+  for (var i = 0; i < size; i++) { deployRole('A', i); deployRole('B', i); }
+  phase = 'fight';
+}
+
+function previewRecord(aw) {
+  var st = previewRun, c = previewCache[st.key];
+  if (!c) c = previewCache[st.key] = { n: 0, w: 0 };
+  // aw 是「红方」的胜场；换边后红方是另一个阵容，折算回规范键
+  var canonical = st.flip ? (1 - aw) : aw;
+  c.n++; c.w += canonical;
+  st.cur = null;
+  st.n = c.n;
+}
+
+function previewLoop() {
+  var st = previewRun;
+  var maxTicks = Math.ceil((roundDuration + 35) / PREVIEW_DT);
+  var t0 = oddsNow(), steps = 0;
+
+  while (st && st.n < previewTargetFor()) {
+    if (!st.cur) {
+      // 第 n 局的种子由「阵容键哈希 + 局号」确定，保证同一阵容对永远得到同一批样本
+      previewInit(st.a, st.b, st.size, st.mode, st.n % 2 === 1,
+        (st.base + (st.n + 1) * 2654435761) >>> 0);
+      st.cur = { ticks: 0 };
+    }
+    tick(PREVIEW_DT);
+    steps++;
+    if (phase === 'over') {
+      previewRecord(winner === 'draw' ? 0.5 : (winner === 'A' ? 1 : 0));
+    } else if (++st.cur.ticks > maxTicks) {
+      winner = 'draw'; phase = 'over';
+      previewRecord(0.5);
+    }
+    if ((steps & 63) === 0 && oddsNow() - t0 > PREVIEW_SLICE_MS) break;
+  }
+
+  if (st && st.n >= previewTargetFor()) { previewStop(); previewRepaint(); return; }
+  if (st) requestAnimationFrame(previewLoop);
+}
+
+function previewStop() {
+  if (!previewRun) return;
+  previewRun = null;
+  oddsRunning = false;
+  simHeadless = false;
+  oddsFxRestore();
+  oddsRestore();
+}
+
+/* 阵容变了就排队；已经算够的阵容对直接复用 */
+function previewKick() {
+  if (previewRun || oddsRun) return;
+  if (typeof phase === 'undefined' || (phase !== 'menu' && phase !== 'over')) return;
+  var a = [], b = [], size = teamSize;
+  var i;
+  for (i = 0; i < size; i++) {
+    var ka = (pick.A || [])[i], kb = (pick.B || [])[i];
+    if (!ka || !kb || !POOL_BY_KEY[ka] || !POOL_BY_KEY[kb]) return;   // 阵容没填满
+    a.push(ka); b.push(kb);
+  }
+  var key = previewKeyOf(a, b);
+  var c = previewCache[key];
+  if (c && c.n >= previewTargetFor()) return;
+
+  /* 同一套阵容对打（镜像）：跑多少局都该是 50%，直接记账，不必花帧去模拟 */
+  if (a.join('+') === b.join('+')) {
+    var tg = previewTargetFor();
+    previewCache[key] = { n: tg, w: tg / 2 };
+    previewRepaint();
+    return;
+  }
+
+  oddsSnapshot();
+  oddsFxSilence();
+  paused = true;
+  oddsRunning = true;
+  simHeadless = true;
+  previewRun = {
+    a: a, b: b, size: size, mode: modeKind, key: key,
+    base: previewHash(key),
+    flip: a.join('+') > b.join('+'),
+    cur: null, n: c ? c.n : 0
+  };
+  requestAnimationFrame(previewLoop);
+}
+
+/* 分数旁的小字用：当前阵容对已经跑了几局（没有样本返回 0） */
+function previewSampleOf(aKeys, bKeys) {
+  if (!aKeys || !bKeys || !aKeys.length || aKeys.length !== bKeys.length) return 0;
+  var c = previewCache[previewKeyOf(aKeys, bKeys)];
+  return c ? c.n : 0;
+}
+
+/* 某个阵容对的预测胜率（a 方视角）；样本不足返回 null */
+function previewPctOf(aKeys, bKeys) {
+  if (!aKeys || !bKeys || !aKeys.length || aKeys.length !== bKeys.length) return null;
+  var c = previewCache[previewKeyOf(aKeys, bKeys)];
+  if (!c || c.n < PREVIEW_MIN_N) return null;
+  var p = Math.round(c.w / c.n * 100);
+  if (aKeys.join('+') > bKeys.join('+')) p = 100 - p;
+  return Math.max(1, Math.min(99, p));
+}
+
+/* 算完一次就刷新可见的胜率文字（桌面 / 手机各自就地更新，不重建整页） */
+function previewRepaint() {
+  if (typeof deskSyncOdds === 'function' && typeof el !== 'undefined' && el.oddsA) deskSyncOdds();
+  if (typeof mobi !== 'undefined' && mobi && mobi.on && mobi.screen === 'solo' &&
+      typeof mobiRender === 'function') mobiRender();
+}

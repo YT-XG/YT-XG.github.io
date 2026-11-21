@@ -186,6 +186,10 @@ body.mobi-mode{overflow:hidden;}
 .m-odds b.ra{color:#ff8a76;}
 .m-odds b.rb{color:#9cbbff;}
 .m-odds i{font-style:normal;font-size:16px;color:#5d6a80;}
+/* 实时预测样本不足：显示「—」并压暗，避免把占位值当成结论 */
+.m-odds.pending b.ra,.m-odds.pending b.rb{color:#6f7d93;}
+.m-odds.pending > span{color:#8a95a8;animation:mOddsPulse 1.4s ease-in-out infinite;}
+@keyframes mOddsPulse{0%,100%{opacity:.5;}50%{opacity:1;}}
 /* 押注按钮：只剩赛事页在用（.m-vs-card / .m-ko-card 会覆盖定位与宽度） */
 .m-bet{
   width:210px;height:48px;border:1px solid #2a3446;border-radius:8px;
