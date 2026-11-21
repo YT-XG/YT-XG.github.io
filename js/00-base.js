@@ -8,7 +8,7 @@
 'use strict';
 
 /* 界面显示用版本号：桌面首页与手机首页共用同一个常量 */
-var APP_VERSION = 'v26.11.21m';
+var APP_VERSION = 'v26.11.21s';
 
 /* ============================================================
    运动模型
@@ -183,6 +183,45 @@ var BALANCE = {
     hpMul: { grass: 2.1, ice: 1.35, milk: 1.25, anvil: 1.2 },
     dmgMul: { spear: 0.74, dog: 0.8, bow: 0.86 },
     pctMul: { bucket: 0.78, milk: 0.8 }
+  },
+  /* BOSS 模式（5v1，2026-11-21 第 98 条）
+     ------------------------------------------------------------
+     这一整块只在 BOSS 模式被读取（10-core 的 bossMode），常规对局完全不读。
+     设计约定：**挑战者（玩家方）不新增任何数值修正**，难度全部由 BOSS 侧倍率控制。
+     这样以后每加一个角色，BOSS 战不用为它单独补维护一套血量 / 伤害。
+       · duration  —— BOSS 战专用时长（主菜单的 1/2/3/5 分钟档位不作用于该模式）
+       · dmgTakeMul / pctTakeMul / dmgMul —— BOSS 承伤与出手的三个总开关
+       · redBomb / lapis / core —— BOSS 各自的周期技能参数
+     单位血量（红青各 3000、紫晶核心 800）写在 js/items/boss.js 的 TYPES 里。 */
+  boss: {
+    duration: 300,        // BOSS 战专用时长（主菜单的分钟档位不作用于该模式）
+    lockHp: 1,            // 红青锁血线
+    /* 下面三个倍率只作用在 BOSS 身上，挑战者完全沿用常规数值。
+       这样以后新增角色时，BOSS 战不需要再为每个新角色补维护一套数值：
+       · dmgTakeMul —— BOSS 受到的固定伤害倍率（拉长 TTK）
+       · pctTakeMul —— BOSS 受到的百分比伤害倍率（狗奶 / 缺氧，防止"引导秒杀"）
+       · dmgMul     —— BOSS 出手的整体倍率（挑战者不加血，靠压 BOSS 输出来拉长对局） */
+    dmgTakeMul: 0.60,
+    pctTakeMul: 0.20,
+    /* 0.62：二阶段紫晶核心降到 800 HP、一阶段锁血后停手（第 99 条），
+       都削弱了 BOSS 的输出窗口；这里从 0.47 上调，预设阵容实测两个种子
+       37.5% / 50.0%（均值 43.8% → BOSS 56.2%） */
+    dmgMul: 0.62,
+    redBomb: { interval: 5.0, count: 2, fuse: 1.4, radius: 100, dmg: 12 },
+    lapis: { auraR: 170, shield: 90, shieldInterval: 6.0 },
+    /* core：紫晶核心（二阶段）
+       · shockR / shockDmg / shockInterval —— 每 7 秒一圈「紫晶冲击」
+       · nukeDelay —— 合体后多少秒还没被打死就放「终末震荡」（一次性全屏震）
+       · nukePct   —— 终末震荡对每个存活敌方单位扣的最大生命比例（百分比伤害）
+       · nukeWarn  —— 释放前的播报 / 状态栏倒计时窗口（s） */
+    core: { shockR: 360, shockDmg: 30, shockInterval: 7.0, nukeDelay: 24, nukePct: 0.50, nukeWarn: 8 },
+    /* 合体演出（纯表现 + 免伤窗口，不影响平衡）：
+       · mergePause —— 两只锁到 1 血后原地「停手」的时长（s）：只亮环、不动
+       · mergeSlide —— 停手结束后两只滑向中点的时长（s）
+       · mergeFill  —— 紫晶核心登场后血条从 1 涨到满（800）的时长（s），期间免伤且不动 */
+    mergePause: 0.55,
+    mergeSlide: 0.45,
+    mergeFill: 1.2
   },
   bondShake: 3.0,         // 羁绊：一方阵亡后，幸存者原地无敌抖动的时长（s）
   redSplash: { dmg: 4, radius: 96 },          // 红石被动：撞击时对周围敌人溅射

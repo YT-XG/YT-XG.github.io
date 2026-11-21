@@ -50,7 +50,7 @@ TYPES.ice = {
       if (!v.alive || v.team === u.team) continue;
       if (Math.hypot(v.x - u.x, v.y - u.y) > R + v.r) continue;
       hurt(v, 45, u);
-      v.bindT = Math.max(v.bindT, 2.2);   // 定身：speedOf 归零，方向不变
+      if (!v.boss) v.bindT = Math.max(v.bindT, 2.2);   // 定身：speedOf 归零，方向不变（BOSS 免疫）
       ring(v.x, v.y, v.r, v.r + 46, 0.4, '#c8f6ff');
     }
     for (var k = 0; k < 12; k++) {

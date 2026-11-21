@@ -12,6 +12,12 @@
    ============================================================ */
 function speedOf(u) {
   if (!u || !u.alive) return 0;
+  if (u.st.mergeFill > 0) return 0;        // 紫晶核心血条充能中：原地涨血
+  if (bossMergeAct && (bossMergeAct.a === u || bossMergeAct.b === u)) return 0;  // 合体前停顿
+  /* 一阶段锁血：某一只被打到 1 HP 后立刻「停手」——原地不动、不攻击（仍在场等另一只）。
+     合体条件不变：两只都到 1 HP 才会进入合体流程。 */
+  var BT = TYPES[u.key];
+  if (BT && BT.bossLock && u.hp <= (BALANCE.boss.lockHp == null ? 1 : BALANCE.boss.lockHp) + 0.05) return 0;
   if (u.st.milkT > 0) return 0;   // 野生狗奶引导中：原地站桩（不改朝向）
   if (u.bindT > 0) return 0;      // 被藤蔓捆绑：定身（只停速度，不改朝向）
   var sp;
@@ -126,6 +132,37 @@ var RELAY_DELAY = 1.0;                   // 接力换人间隔（秒）
 var activeTeam = 'A';   // 当前正在选择的一方
 var activeSlot = 0;     // 当前正在选择的格子（0..teamSize-1）
 
+/* ============================================================
+   BOSS 模式（5v1，2026-11-21 第 98 条）
+   ------------------------------------------------------------
+   · bossMode 为真时：A 方固定 5 个角色（普通选人页选），B 方只有 1 个 BOSS
+   · bossRoleKey 指向 BOSS_ROLES 里的条目；后续"每个物品都能当 BOSS"时，
+     只要在这里加一条（units 换成 boss 版 key + merged 合体形态）即可
+   · pick.B 仍然写角色 key（['duo']），这样 sideName / 结算文案都能复用
+   ============================================================ */
+var bossMode = false;
+var bossRoleKey = 'duo';
+var bossMerged = false;      // 红青是否已经合体（每局 reset 时清空）
+var bossMergeFx = null;      // 合体演出状态 {x,y,ax,ay,bx,by,t,dur}，由 40-render 绘制
+var bossMergeAct = null;     // 合体前的「停顿 + 靠拢」阶段 {a,b,ax,ay,bx,by,mx,my,t,dur}
+var BOSS_ROLES = {
+  duo: {
+    key: 'duo',
+    name: '红青双子',
+    short: '红青双子',
+    role: '双生 BOSS · 锁血 → 合体',
+    units: ['bossred', 'bosslapis'],
+    merged: 'bosscore',
+    unitsLabel: '红石 / 青金',
+    enabled: true
+  }
+};
+function bossConfig() { return BOSS_ROLES[bossRoleKey] || BOSS_ROLES.duo; }
+
+// 该单位是不是 BOSS（免疫控制 / 锁血 / 特殊绘制的统一判定）
+function isBossUnit(u) { return !!(u && u.boss); }
+
+
 /* 征召模式：双方轮流选人，角色全局不可重复。
    draftOrder 记录每一步的 {team, slot}，draftStep 指向当前轮到的位置。
    最多支持 4v4（9 个角色池刚好够 8 个不重复角色）。 */
@@ -142,6 +179,7 @@ var seriesGame = 1;
 function sideName(team) {
   // 赛事模式只显示「红方 · 玩家名」，具体角色交给伤害条 / 比分条
   if (teamNames[team]) return SIDE_LABEL[team] + ' · ' + teamNames[team];
+  if (bossMode && team === 'B') return SIDE_LABEL.B + ' · BOSS ' + bossConfig().name;
   var keys = pick[team] || [];
   var names = [];
   for (var i = 0; i < keys.length; i++) {
@@ -153,6 +191,7 @@ function sideName(team) {
 
 // 侧边信息条上的短标签：接力显示「当前角色 1/3」，多角色显示「N 个角色」
 function teamShort(team) {
+  if (bossMode && team === 'B') return bossConfig().short;
   var keys = pick[team] || [];
   if (modeKind === 'relay') {
     var c = POOL_BY_KEY[keys[lineupIndex[team]]];
@@ -270,7 +309,9 @@ function addUnit(key, x, y, team) {
     r: d.r, maxHp: maxHp, hp: maxHp,
     baseSpeed: d.baseSpeed, atk: d.atk, dmgMult: 1,
     body: d.body, light: d.light, dark: d.dark, glow: d.glow,
+    boss: !!d.boss, bossImmune: !!d.bossImmune,
     skillName: d.skill.name,
+
     ultName: d.ultimate ? d.ultimate.name : '',
     ultCd: d.ultimate ? srand(5.0, 9.0) : 0,   // 终结技初始充能：错开各单位的大招节奏
     ultT: 0, ultCastMax: 0, ultAim: null,
@@ -342,6 +383,26 @@ function faceInward(u) {
   u.ang = toCenter + srand(-SPAWN.faceSpread, SPAWN.faceSpread);
 }
 
+/* BOSS 进场：B 方只有 1 个角色，但会展开成 2 个 BOSS 单位。
+   固定在右半场中线上、竖直错开，保证两只不重叠且一进场就面向玩家。 */
+function deployBoss(team) {
+  var B = bossConfig();
+  var A = ARENA;
+  var cx = A.x + A.w * 0.80;
+  var cy = A.y + A.h / 2;
+  var off = 62;
+  for (var i = 0; i < B.units.length; i++) {
+    var key = B.units[i];
+    var d = TYPES[key];
+    var y = cy + (B.units.length > 1 ? (i === 0 ? -off : off) : 0);
+    y = clamp(y, A.y + d.r + 10, A.y + A.h - d.r - 10);
+    var x = clamp(cx + srand(-14, 14), A.x + A.w * 0.62, A.x + A.w - d.r - 10);
+    var u = addUnit(key, x, y, team);
+    u.roleIdx = 0;
+    faceInward(u);
+  }
+}
+
 function reset() {
   // 菜单期的实时预测还在跑的话先收摊：它会占用引擎全局状态
   if (typeof previewStop === 'function') previewStop();
@@ -369,17 +430,24 @@ function reset() {
   anvilMarks = [];
   seeds = []; vines = []; reviveQueue = [];
   resetArena();   // 场地恢复到初始宽度
-  t = 0; roundTime = roundDuration; winner = null;
+  // BOSS 战用自己的时长常量（主菜单的分钟档位不作用于该模式）
+  t = 0; roundTime = bossMode ? BALANCE.boss.duration : roundDuration; winner = null;
+  bossMerged = false;
+  bossMergeFx = null;
+  bossMergeAct = null;
   suddenDeath = false; deathAcc = 0; suddenStart = 0;
   shake = 0; hitStop = 0;
   lineupIndex = { A: 0, B: 0 };
   relayTimer = { A: 0, B: 0 };
 
   ['A', 'B'].forEach(function (team) {
+    // BOSS 模式：B 方整队就是一个 BOSS 角色，走专用进场
+    if (bossMode && team === 'B') { deployBoss(team); return; }
     // 同时上场：全部角色一次进场；接力：只进第一个
     var n = modeKind === 'relay' ? 1 : (pick[team] || []).length;
     for (var i = 0; i < n; i++) deployRole(team, i);
   });
+
 
   el.stage.classList.remove('sudden');
   el.timerLabel.textContent = 'SEC';

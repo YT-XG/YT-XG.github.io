@@ -57,6 +57,7 @@ function rosterStatus(u) {
   if (u.ultT > 0) return '终';
   if (u.castT > 0) return '蓄';
   if (u.st && u.st.rage) return u.st.rage.phase === 'shake' ? '抖' : '狂';
+  if (u.boss && TYPES[u.key] && TYPES[u.key].bossLock && u.hp <= 1.05) return '锁';
   if (u.st && u.st.milkT > 0) return '导';
   if (u.bindT > 0) return '定';
   if (u.poisonT > 0) return '毒';
@@ -137,10 +138,24 @@ function resultTile(label, value, small) {
     deskEsc(String(value)) + '</b></div>';
 }
 
+/* BOSS 全屏播报：合体 / 狂暴这种"阶段切换"必须让观众一眼看到
+   （结算横幅 #banner 只在终局用，这里另开一层，播 2.4 秒自动收起） */
+var bossCryTimer = 0;
+function bossCry(title, sub) {
+  var box = document.getElementById('bossCry');
+  if (!box) return;
+  var b = box.querySelector('b'), s = box.querySelector('span');
+  if (b) b.textContent = title || '';
+  if (s) s.textContent = sub || '';
+  box.classList.add('show');
+  clearTimeout(bossCryTimer);
+  bossCryTimer = setTimeout(function () { box.classList.remove('show'); }, 2400);
+}
+
 function showResult(winner, sub, by) {
   if (!el.result) return;
 
-  var isSeries = seriesBest === 3;
+  var isSeries = seriesBest === 3 && !bossMode;
   var final = true;
   if (isSeries) {
     if (winner === 'A' || winner === 'B') seriesWins[winner]++;
@@ -152,6 +167,11 @@ function showResult(winner, sub, by) {
   var mvp = topDealer();
   var title = winner === 'draw' ? '平局'
     : (isSeries && final ? sideName(winner) + ' 赢下系列赛' : sideName(winner) + ' 胜利');
+  // BOSS 战只报结果，不念一长串角色名
+  if (bossMode) {
+    title = winner === 'draw' ? '平局'
+      : (winner === 'A' ? 'BOSS 讨伐成功' : (bossMerged ? '紫晶核心 胜利' : 'BOSS 胜利'));
+  }
 
   var srcLabel = matchSource === 'daily' ? '每日挑战 · '
     : (matchSource === 'ghost' ? '幽灵挑战 · ' : '');
@@ -167,6 +187,7 @@ function showResult(winner, sub, by) {
   tiles += resultTile('总伤害', dA + ' : ' + dB);
   tiles += resultTile('结束方式', by === 'time' ? '时间到' : (by === 'death' ? '决杀' : '击杀'), true);
   if (isSeries) tiles += resultTile('系列赛', seriesWins.A + ' : ' + seriesWins.B);
+  if (bossMode) tiles += resultTile('BOSS 阶段', bossMerged ? '已合体' : '双生', true);
   el.resStats.innerHTML = tiles;
 
   if (matchSource === 'daily') dailyRecordSave(winner);
@@ -175,8 +196,10 @@ function showResult(winner, sub, by) {
   if (el.resAgain) {
     el.resAgain.classList.toggle('is-hidden', isSeries && !final);
     el.resAgain.textContent = (matchSource === 'daily' || matchSource === 'ghost')
-      ? '重看本局' : (isSeries && final ? '再打一轮' : '再来一局');
+      ? '重看本局' : (isSeries && final ? '再打一轮' : (bossMode ? '再打一次' : '再来一局'));
   }
+  // BOSS 战的阵容是「玩家 5 人 vs 固定 BOSS」，没有幽灵链接的意义
+  if (el.resGhost) el.resGhost.classList.toggle('is-hidden', !!bossMode);
 
   el.result.classList.add('show');
 }
@@ -332,9 +355,10 @@ el.btnRestart.addEventListener('click', restartBattle);
 el.btnStart.addEventListener('click', startBattle);
 el.btnMenu.addEventListener('click', openMenu);
 el.cardA.addEventListener('click', function () { if (!draftMode) { activeTeam = 'A'; syncPick(); } });
-el.cardB.addEventListener('click', function () { if (!draftMode) { activeTeam = 'B'; syncPick(); } });
+// BOSS 模式下蓝方固定，点它不会切到蓝方编辑
+el.cardB.addEventListener('click', function () { if (!draftMode && !bossMode) { activeTeam = 'B'; syncPick(); } });
 el.detailA.addEventListener('click', function () { if (!draftMode) { activeTeam = 'A'; syncPick(); } });
-el.detailB.addEventListener('click', function () { if (!draftMode) { activeTeam = 'B'; syncPick(); } });
+el.detailB.addEventListener('click', function () { if (!draftMode && !bossMode) { activeTeam = 'B'; syncPick(); } });
 el.btnPause.addEventListener('click', togglePause);
 el.btnSpeed.addEventListener('click', toggleSpeed);
 if (el.btnSound) el.btnSound.addEventListener('click', sfxToggle);
@@ -342,8 +366,9 @@ if (el.btnSound) el.btnSound.addEventListener('click', sfxToggle);
 if (el.resAgain) el.resAgain.addEventListener('click', replayAgain);
 if (el.resNext) el.resNext.addEventListener('click', continueSeries);
 if (el.resChange) el.resChange.addEventListener('click', function () {
+  var wasBoss = bossMode;
   openMenu();
-  enterPick(teamSize);
+  if (wasBoss) enterBossPick(); else enterPick(teamSize);
 });
 if (el.resGhost) el.resGhost.addEventListener('click', function () {
   copyText(ghostUrl());

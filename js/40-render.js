@@ -1942,7 +1942,8 @@ function render() {
      模拟状态和当前对局无关，绘制只会白白耗掉低端机的帧预算 */
   if (typeof oddsRunning !== 'undefined' && oddsRunning) return;
 
-  var hasFx = !!(particles.length || rings.length || floaters.length || ultBeams.length);
+  var hasFx = !!(particles.length || rings.length || floaters.length || ultBeams.length ||
+    (typeof bossMergeFx !== 'undefined' && bossMergeFx));
   /* 非战斗阶段：只有在「脏」、还有特效 / 赛事击杀演出在播、或特效刚刚播完
      需要补一帧干净画面时才画（否则最后一帧会残留半空中的粒子）。
      结算横幅出现时死亡粒子与扩散环还没播完，这里让它们继续动完再停。 */
@@ -1990,6 +1991,8 @@ function render() {
   drawLasers();       // 大狗激光（压在单位之上）
   drawUltBeams();     // 终结技瞬发光束（大狗三重咆哮等）
   drawVines();        // 藤蔓压在最上层
+  drawBossCharge();   // 合体前的停顿蓄能 + 核心血条充能
+  drawBossMerge();    // BOSS 合体演出（残影 / 白闪 / 紫环，最上层）
 
   ctx.restore();
 
@@ -1998,3 +2001,173 @@ function render() {
   if (typeof updatePortraitCamera === 'function' && (hudFrame % 2) === 0) updatePortraitCamera();
 }
 
+
+/* ============================================================
+   BOSS 合体演出（第 98 条）
+   ------------------------------------------------------------
+   1.15 秒的四段：残影收束 → 光带汇聚 → 白闪 → 紫环炸开
+   纯画面层，不影响模拟；核心当帧进场（st.appear 从 0.9 递减到 0）
+   ============================================================ */
+/* 合体前后两段"过程感"的画面：
+   ① 停顿蓄能（bossMergeAct）：两只身上各套一圈光环，中点长出一颗紫色能量球，中间连能量丝
+   ② 血条充能（核心 st.mergeFill > 0）：核心外圈画一圈随进度收拢的紫环 + 上升的血气柱
+   纯画面层，不改任何模拟状态。 */
+function drawBossCharge() {
+  if (typeof bossMode === 'undefined' || !bossMode) return;
+
+  // ① 停顿 + 靠拢
+  if (typeof bossMergeAct !== 'undefined' && bossMergeAct) {
+    var m = bossMergeAct;
+    var p = m.dur > 0 ? Math.min(1, m.t / m.dur) : 1;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    var pair = [
+      { c: '#ff8a70', u: m.a },
+      { c: '#8fb4ff', u: m.b }
+    ];
+    for (var i = 0; i < pair.length; i++) {
+      var pu = pair[i].u;
+      if (!pu) continue;
+      var pulse = 0.5 + 0.5 * Math.sin(t * 12 + i * 3.14);
+      ctx.globalAlpha = 0.28 + 0.42 * (1 - p) + 0.12 * pulse;
+      ctx.strokeStyle = pair[i].c;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(pu.x, pu.y, pu.r + 10 + 16 * pulse, 0, TAU);
+      ctx.stroke();
+      // 从本体拉向中点的能量丝
+      ctx.globalAlpha = 0.25 + 0.5 * p;
+      ctx.lineWidth = 1 + 4 * p;
+      ctx.beginPath();
+      ctx.moveTo(pu.x, pu.y);
+      ctx.lineTo(m.mx, m.my);
+      ctx.stroke();
+    }
+    // 中点蓄能球：随停顿逐渐变大、变亮
+    var rr = 12 + 54 * p;
+    var g = ctx.createRadialGradient(m.mx, m.my, 0, m.mx, m.my, rr);
+    g.addColorStop(0, 'rgba(255,255,255,' + (0.55 + 0.35 * p).toFixed(3) + ')');
+    g.addColorStop(0.45, 'rgba(199,155,255,' + (0.35 + 0.4 * p).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(122,63,191,0)');
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(m.mx, m.my, rr, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+
+  // ② 核心血条充能：外圈紫环随血量比例收拢 + 上升光柱
+  for (var k = 0; k < units.length; k++) {
+    var u2 = units[k];
+    if (!u2.alive || !u2.st || !(u2.st.mergeFill > 0)) continue;
+    var prog = u2.maxHp > 0 ? u2.hp / u2.maxHp : 1;
+    var pulse2 = 0.5 + 0.5 * Math.sin(t * 16);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.55 + 0.35 * pulse2;
+    ctx.strokeStyle = '#c79bff';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(u2.x, u2.y, u2.r + 26 - 20 * prog, 0, TAU);
+    ctx.stroke();
+    // 进度弧（顺时针长满）
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(u2.x, u2.y, u2.r + 14, -Math.PI / 2, -Math.PI / 2 + TAU * prog);
+    ctx.stroke();
+    // 血气柱：从脚下升到头顶
+    var gg = ctx.createLinearGradient(0, u2.y + u2.r, 0, u2.y - u2.r - 40);
+    gg.addColorStop(0, 'rgba(180,120,255,0.55)');
+    gg.addColorStop(1, 'rgba(180,120,255,0)');
+    ctx.globalAlpha = 0.5 * prog + 0.15;
+    ctx.fillStyle = gg;
+    ctx.fillRect(u2.x - 8, u2.y - u2.r - 40, 16, u2.r * 2 + 40);
+    ctx.restore();
+  }
+}
+
+function drawBossMerge() {
+  if (typeof bossMergeFx === 'undefined' || !bossMergeFx) return;
+  var f = bossMergeFx;
+  var p = Math.max(0, Math.min(1, f.t / f.dur));
+  var x = f.x, y = f.y;
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+
+  // 1) 残影收束：两块方块从原位置滑向中点并旋转缩小（easeOutCubic）
+  var q = Math.min(1, p / 0.45);
+  var e = 1 - Math.pow(1 - q, 3);
+  var ids = [
+    { ox: f.ax, oy: f.ay, fill: '#e8483f', edge: '#ffd0c6' },
+    { ox: f.bx, oy: f.by, fill: '#4a7bf0', edge: '#cfe0ff' }
+  ];
+  for (var i = 0; i < ids.length; i++) {
+    var o = ids[i];
+    var bx = o.ox + (x - o.ox) * e;
+    var by = o.oy + (y - o.oy) * e;
+    var s = (1 - e) * 30 + 8;
+    ctx.save();
+    ctx.translate(bx, by);
+    ctx.rotate(e * 5 + i * 0.7);
+    ctx.globalAlpha = 0.45 + 0.55 * (1 - e);
+    ctx.fillStyle = o.fill;
+    ctx.fillRect(-s / 2, -s / 2, s, s);
+    ctx.strokeStyle = o.edge;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(-s / 2, -s / 2, s, s);
+    ctx.restore();
+  }
+
+  // 2) 光带：从两只原位置拉向中点，越到后面越粗
+  if (p < 0.55) {
+    var k = 1 - p / 0.55;
+    for (var j = 0; j < ids.length; j++) {
+      var o2 = ids[j];
+      ctx.globalAlpha = 0.25 + 0.5 * k;
+      ctx.strokeStyle = j ? '#8fb4ff' : '#ff8a70';
+      ctx.lineWidth = 2 + 8 * k;
+      ctx.beginPath();
+      ctx.moveTo(o2.ox, o2.oy);
+      ctx.lineTo(o2.ox + (x - o2.ox) * e, o2.oy + (y - o2.oy) * e);
+      ctx.stroke();
+    }
+  }
+
+  // 3) 白闪：p 0.32 ~ 0.62 之间最强
+  if (p > 0.30 && p < 0.64) {
+    var fl = 1 - Math.abs((p - 0.47) / 0.17);
+    fl = Math.max(0, fl);
+    var g = ctx.createRadialGradient(x, y, 0, x, y, 300);
+    g.addColorStop(0, 'rgba(255,255,255,' + (0.9 * fl).toFixed(3) + ')');
+    g.addColorStop(0.4, 'rgba(216,180,255,' + (0.55 * fl).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(120,60,220,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, 300, 0, TAU);
+    ctx.fill();
+  }
+
+  // 4) 三圈紫环依次炸开
+  var waves = [
+    { at: 0.20, color: '#ffffff', w: 9 },
+    { at: 0.40, color: '#c79bff', w: 7 },
+    { at: 0.62, color: '#9a5cff', w: 5 }
+  ];
+  for (var w = 0; w < waves.length; w++) {
+    var wv = waves[w];
+    if (p < wv.at) continue;
+    var rp = (p - wv.at) / (1 - wv.at);
+    ctx.globalAlpha = Math.max(0, 1 - rp);
+    ctx.strokeStyle = wv.color;
+    ctx.lineWidth = wv.w * (1 - rp) + 2;
+    ctx.beginPath();
+    ctx.arc(x, y, 18 + rp * 280, 0, TAU);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}

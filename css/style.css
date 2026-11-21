@@ -2490,3 +2490,55 @@ h1 em{font-size:11px;letter-spacing:.04em;color:#6f7d93;margin-left:12px;}
   .tb-ng-team.b{align-items:flex-end;text-align:right;}
   .tb-ng-team .tb-h2h{margin-top:11px;}
 }
+
+/* ============================================================
+   BOSS 模式（2026-11-21 第 98 条）
+   ------------------------------------------------------------
+   主菜单入口卡 / 选人页蓝方 BOSS 牌 / 战斗中「合体」全屏提示
+   ============================================================ */
+.home-big.bossmode{grid-column:1/-1;}
+.home-actions .home-big.bossmode{
+  border-color:rgba(180,120,255,.28);
+  background:linear-gradient(150deg,rgba(180,120,255,.12),rgba(255,80,80,.05) 55%,rgba(255,255,255,.012));
+}
+.home-actions .home-big.bossmode b{color:#e2ccff;}
+.home-actions .home-big.bossmode .hb-ico{color:rgba(200,160,255,.8);}
+.home-actions .home-big.bossmode:hover{
+  border-color:rgba(200,150,255,.62);
+  background:linear-gradient(150deg,rgba(180,120,255,.18),rgba(255,80,80,.08) 55%,rgba(255,255,255,.02));
+  box-shadow:0 20px 44px -30px rgba(170,110,255,.85);
+}
+.home-actions .home-big.bossmode em{color:#d9bcff;}
+.home.show .home-big:nth-child(4){animation:homeRise .45s .3s var(--ease) backwards;}
+
+.pick-card.boss{
+  align-content:center;gap:8px;padding:12px;
+  border-color:rgba(180,120,255,.35);
+}
+.pick-card.boss .boss-slot{
+  height:auto;min-height:110px;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  text-align:center;border-color:rgba(180,120,255,.34);cursor:default;
+  background:radial-gradient(circle at 50% 0%,rgba(180,120,255,.16),rgba(255,255,255,.015) 70%);
+}
+.pick-card.boss .boss-slot:hover{transform:none;border-color:rgba(180,120,255,.34);background:radial-gradient(circle at 50% 0%,rgba(180,120,255,.16),rgba(255,255,255,.015) 70%);}
+.pick-card.boss .boss-slot .pc-ico{width:44px;height:44px;margin:0 auto;}
+.pick-card.boss .boss-slot b{font-size:clamp(14px,1.8vh,18px);color:#e9dcff;white-space:normal;}
+.pick-card.boss .boss-slot small{margin-left:0;color:#b99ad9;}
+
+.boss-cry{
+  position:absolute;left:0;right:0;top:20%;
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  pointer-events:none;opacity:0;transform:scale(.94);
+  transition:opacity .25s ease,transform .35s var(--ease);
+  z-index:20;
+}
+.boss-cry.show{opacity:1;transform:scale(1);}
+.boss-cry b{
+  font-size:clamp(22px,4vh,40px);letter-spacing:.16em;color:#f0e4ff;
+  text-shadow:0 2px 14px rgba(0,0,0,.95), 0 0 26px rgba(180,120,255,.85);
+}
+.boss-cry span{font-size:12px;letter-spacing:.14em;color:#cfb4ff;text-shadow:0 1px 10px rgba(0,0,0,.9);}
+
+/* BOSS 模式：选人页不显示预测胜率与赛制（第 98 条） */
+body.boss-mode .pick-odds,
+body.boss-mode .series-pick{display:none;}

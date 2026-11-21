@@ -61,6 +61,8 @@ function roleUnits(keys) {
 }
 
 function detailHtml(team) {
+  // BOSS 模式：蓝方只是一个固定 BOSS，详情换成 BOSS 专属面板
+  if (bossMode && team === 'B') return bossDetailHtml();
   var keys = pick[team] || [];
   var totalHp = 0;
   for (var q = 0; q < keys.length; q++) {
@@ -147,6 +149,75 @@ function lineupBond(keys) {
 }
 
 /* ============================================================
+   BOSS 详情面板（蓝方）
+   ------------------------------------------------------------
+   收起 / 展开那套是给玩家阵容用的；BOSS 固定一套机制，直接全部铺开：
+   两个阶段的血量与技能 + 玩家的胜负条件。 */
+function bossDetailHtml() {
+  var B = bossConfig();
+  var html = '<div class="d-side">BOSS</div>' +
+    '<div class="d-name">' + deskEsc(B.name) + '</div>' +
+    '<div class="d-meta">红青各 3000 HP · 锁 1 血 · 免疫控制 → 合体 800 HP</div>' +
+    '<div class="d-tags"><span class="d-tag bond">BOSS</span>' +
+      '<span class="d-tag">锁血</span><span class="d-tag">免疫控制</span>' +
+      '<span class="d-tag">硬壳 60%</span><span class="d-tag">合体狂暴</span></div>';
+
+  html += '<div class="d-briefs">' +
+    '<div class="d-brief"><b>阶段 1 · 双生</b><span>红石 / 青金各 3000 HP，血量锁 1，谁都打不死</span></div>' +
+    '<div class="d-brief"><b>阶段 2 · 合体</b><span>两只同时 1 血 → 紫晶核心 800 HP，出生即狂暴</span></div>' +
+    '</div>';
+
+  html += '<div class="d-more">';
+  for (var i = 0; i < B.units.length; i++) {
+    var d = TYPES[B.units[i]];
+    html += '<div class="d-unit"><b>' + (i + 1) + '. ' + d.name + '</b>' +
+      '<span>' + deskEsc(d.role) + ' · 锁 1 血</span>' +
+      '<div class="d-stats"><span class="hp">' + d.maxHp + ' HP</span>' +
+      '<span>' + d.baseSpeed + ' px/s</span>' +
+      '<span>攻击 ×' + d.atk.toFixed(2) + '</span>' +
+      (d.shieldMax ? '<span>护盾 ' + d.shieldMax + '</span>' : '') + '</div>' +
+      '<p class="d-row"><em class="k skill">技能</em>' + deskEsc(d.skill.name) + '：' + deskEsc(d.skill.text) + '</p>' +
+      (d.ultimate ? '<p class="d-row"><em class="k ult">终结技</em>' + deskEsc(d.ultimate.name) + '：' + deskEsc(d.ultimate.text) + '</p>' : '') +
+      '<p class="d-row"><em class="k pas">被动</em>' + deskEsc(d.passive.name) + '：' + deskEsc(d.passive.text) + '</p>' +
+      '</div>';
+  }
+  var core = TYPES[B.merged];
+  if (core) {
+    html += '<div class="d-unit"><b>' + (B.units.length + 1) + '. ' + core.name + '（合体）</b>' +
+      '<span>' + deskEsc(core.role) + '</span>' +
+      '<div class="d-stats"><span class="hp">' + core.maxHp + ' HP</span>' +
+      '<span>' + core.baseSpeed + ' px/s</span>' +
+      '<span>攻击 ×' + core.atk.toFixed(2) + '</span></div>' +
+      '<p class="d-row"><em class="k skill">技能</em>' + deskEsc(core.skill.name) + '：' + deskEsc(core.skill.text) + '</p>' +
+      (core.ultimate ? '<p class="d-row"><em class="k ult">终结技</em>' + deskEsc(core.ultimate.name) + '：' + deskEsc(core.ultimate.text) + '</p>' : '') +
+      '<p class="d-row"><em class="k rage">狂暴</em>' + rageSummary(core.key) + '</p>' +
+      '</div>';
+  }
+  html += '<div class="d-bond">胜负：击碎紫晶核心即玩家胜利；玩家 5 个单位全灭则 BOSS 胜利。' +
+    '挑战者沿用常规数值（不做任何加成）；BOSS 硬壳：固定伤害 ×' + BALANCE.boss.dmgTakeMul +
+    '、百分比伤害 ×' + BALANCE.boss.pctTakeMul + '；BOSS 出手 ×' + BALANCE.boss.dmgMul +
+    '。BOSS 战时长固定 ' + (BALANCE.boss.duration / 60) + ' 分钟。</div>';
+  return html + '</div>';
+}
+
+/* 选人页蓝方卡片：BOSS 固定，不显示 5 个格子，只显示一块 BOSS 牌 */
+function renderBossCard(card) {
+  var B = bossConfig();
+  card.className = 'pick-card boss' + (teamSize > 1 ? ' multi' : '');
+  card.setAttribute('data-team', 'B');
+  card.style.color = '#c79bff';
+  card.style.background = 'linear-gradient(160deg,rgba(180,120,255,.14),rgba(7,10,16,.94) 62%)';
+  var ico = (typeof iconSvg === 'function') ? iconSvg('duo') : '';
+  card.innerHTML = '<div class="slot-chip boss-slot" data-team="B" data-slot="0" title="BOSS 固定，不可更换">' +
+    '<span class="sc-idx">BOSS</span>' +
+    (ico ? '<span class="pc-ico">' + ico + '</span>'
+      : '<span class="pc-dot" style="background:#b478ff;box-shadow:0 0 14px #b478ff"></span>') +
+    '<b>' + deskEsc(B.name) + '</b>' +
+    '<small>' + B.units.length + ' 单位 · 锁 1 血</small>' +
+    '</div>';
+}
+
+/* ============================================================
    征召模式（draft）：双方轮流选人，角色全局不可重复
    ------------------------------------------------------------
    · 顺序：A0,B0 → B1,A1 → A2,B2 …（蛇形，避免一方总拿先手）
@@ -216,13 +287,15 @@ function roleOwner(key, team, slot) {
 
 /* 双方每个格子都有合法角色才算选满 */
 function lineupsComplete() {
-  var teams = ['A', 'B'];
-  for (var t = 0; t < 2; t++) {
+  var teams = bossMode ? ['A'] : ['A', 'B'];
+  for (var t = 0; t < teams.length; t++) {
     var arr = pick[teams[t]] || [];
     for (var i = 0; i < teamSize; i++) {
       if (!POOL_BY_KEY[arr[i]]) return false;
     }
   }
+  // BOSS 模式：蓝方只校验「BOSS 角色存在」
+  if (bossMode && !BOSS_ROLES[bossRoleKey]) return false;
   return true;
 }
 
@@ -346,6 +419,7 @@ function makeSlot(c) {
     '<span class="ps-tags"><i class="t-a">红</i><i class="t-b">蓝</i></span>';
 
   slot.addEventListener('click', function () {
+    if (bossMode) activeTeam = 'A';   // BOSS 战只编辑玩家方
     if (draftMode) {
       if (draftPickRole(c.key)) syncPick();
       return;
@@ -464,6 +538,22 @@ function buildSizePick() {
   label.className = 'size-pick-t';
   label.textContent = '人数';
   el.sizePick.appendChild(label);
+  // BOSS 模式：人数固定 5v1，不给切
+  if (bossMode) {
+    var lock = document.createElement('button');
+    lock.type = 'button';
+    lock.textContent = '5v1';
+    lock.classList.add('on');
+    lock.disabled = true;
+    lock.title = 'BOSS 战固定 5 个角色打 1 个 BOSS';
+    el.sizePick.appendChild(lock);
+    var lock2 = document.createElement('button');
+    lock2.type = 'button';
+    lock2.textContent = 'BOSS 战';
+    lock2.disabled = true;
+    el.sizePick.appendChild(lock2);
+    return;
+  }
   for (var n = 1; n <= 6; n++) {
     (function (num) {
       var b = document.createElement('button');
@@ -601,6 +691,19 @@ function buildModePick() {
   t.textContent = '上场方式';
   row.appendChild(t);
 
+  // BOSS 模式固定「同时上场」：5 个单位一起上，接力没有意义
+  if (bossMode) {
+    var lb = document.createElement('button');
+    lb.type = 'button';
+    lb.textContent = '同时上场';
+    lb.classList.add('on');
+    lb.disabled = true;
+    lb.title = 'BOSS 战固定同时上场';
+    row.appendChild(lb);
+    el.modePick.appendChild(row);
+    return;
+  }
+
   KINDS.forEach(function (k) {
     var b = document.createElement('button');
     b.type = 'button';
@@ -624,6 +727,8 @@ function buildModePick() {
 
 // 改人数：1v1 强制回到「同时上场」；自由模式下不够的格子自动补齐
 function setSize(size) {
+  // BOSS 战固定 5v1，人数由 enterBossPick() 决定，这里直接忽略
+  if (bossMode) return;
   size = Math.max(1, Math.min(6, size | 0));   // 手机端最多 6v6
   var oldSize = teamSize;
 
@@ -683,6 +788,8 @@ function randomDraftTeam(team) {
 
 // 随机一支队伍：洗牌角色池后取前 teamSize 个（池子不够就循环取）
 function randomTeam(team) {
+  // BOSS 模式的蓝方是固定 BOSS，不能被随机掉
+  if (bossMode && team === 'B') return;
   if (draftMode) { randomDraftTeam(team); return; }
   var keys = POOL.map(function (c) { return c.key; });
   for (var i = keys.length - 1; i > 0; i--) {
@@ -696,6 +803,10 @@ function randomTeam(team) {
 }
 
 function syncPick() {
+  // BOSS 模式：隐藏「预测胜率 / 赛制」两块（5v1 没有对位预测的意义）
+  if (document.body && document.body.classList) {
+    document.body.classList.toggle('boss-mode', !!bossMode);
+  }
   // 角色池高亮：任一方阵容里出现即点亮
   var slots = el.pool.querySelectorAll('.pool-slot[data-key]');
   for (var i = 0; i < slots.length; i++) {
@@ -725,6 +836,16 @@ function syncPick() {
   ['A', 'B'].forEach(function (team) {
     var card = team === 'A' ? el.cardA : el.cardB;
     var active = activeTeam === team;
+
+    // BOSS 模式：蓝方只有一个不可更换的 BOSS，不铺 5 个空格子
+    if (bossMode && team === 'B') {
+      renderBossCard(card);
+      var bbody = el.detailBodyB;
+      if (bbody) bbody.innerHTML = bossDetailHtml();
+      if (el.detailB) el.detailB.classList.remove('active');
+      if (el.detailA) el.detailA.classList.toggle('active', activeTeam === 'A');
+      return;
+    }
 
     card.className = 'pick-card' + (active ? ' active' : '') +
       (teamSize > 1 ? ' multi' : '') + ' slots-' + teamSize;
@@ -760,7 +881,7 @@ function syncPick() {
     var chips = card.querySelectorAll('.slot-chip');
     for (var k = 0; k < chips.length; k++) {
       chips[k].addEventListener('click', function () {
-        if (draftMode) return;   // 征召模式由轮次决定，不能自由切边
+        if (draftMode || bossMode) return;   // 征召 / BOSS 模式下不能自由切边
         activeTeam = this.getAttribute('data-team');
         activeSlot = parseInt(this.getAttribute('data-slot'), 10) || 0;
         syncPick();
@@ -790,7 +911,9 @@ function syncPick() {
     }
   });
 
-  var modeText = teamSize + 'v' + teamSize + (modeKind === 'relay' ? ' 接力' : ' 同时上场');
+  var modeText = bossMode
+    ? ('5v1 · ' + bossConfig().short)
+    : (teamSize + 'v' + teamSize + (modeKind === 'relay' ? ' 接力' : ' 同时上场'));
   if (el.menuMode) el.menuMode.textContent = modeText;
   var draftText = '';
   if (draftMode) {
@@ -798,25 +921,86 @@ function syncPick() {
     draftText = ' ｜ <b>征召 ' + filled + '/' + total + '</b>' +
       (filled < total ? ' · ' + SIDE_LABEL[activeTeam] + ' 选择中' : ' · 选人完成');
   }
-  el.pickSummary.innerHTML =
-    '<b>' + modeText + '</b> ｜ ' +
-    SIDE_LABEL.A + ' <b>' + (pick.A || []).length + '</b> 人  VS  ' +
-    SIDE_LABEL.B + ' <b>' + (pick.B || []).length + '</b> 人 ｜ 对局 <b>' +
-    (roundDuration / 60) + ' 分钟</b>' +
-    (seriesBest === 3 ? ' ｜ <b>三局两胜</b>' : '') +
-    (modeKind === 'relay' ? ' ｜ 胜者保留血量' : '') + draftText;
+  el.pickSummary.innerHTML = bossMode
+    ? '<b>' + modeText + '</b> ｜ ' + SIDE_LABEL.A + ' <b>' + (pick.A || []).length +
+      '</b> 人  VS  BOSS ｜ 对局 <b>' + (BALANCE.boss.duration / 60) + ' 分钟</b> ｜ 击碎紫晶核心即胜利'
+    : ('<b>' + modeText + '</b> ｜ ' +
+      SIDE_LABEL.A + ' <b>' + (pick.A || []).length + '</b> 人  VS  ' +
+      SIDE_LABEL.B + ' <b>' + (pick.B || []).length + '</b> 人 ｜ 对局 <b>' +
+      (roundDuration / 60) + ' 分钟</b>' +
+      (seriesBest === 3 ? ' ｜ <b>三局两胜</b>' : '') +
+      (modeKind === 'relay' ? ' ｜ 胜者保留血量' : '') + draftText);
 
   el.nameA.textContent = sideName('A');
   el.nameB.textContent = sideName('B');
 
+  // BOSS 模式：蓝方的随机按钮变成「固定」
+  if (el.diceB) {
+    el.diceB.disabled = !!bossMode;
+    el.diceB.textContent = bossMode ? '固定' : '随机';
+    el.diceB.title = bossMode ? 'BOSS 由模式决定，不可更换' : '随机蓝方阵容';
+  }
+  if (el.btnRandom) {
+    el.btnRandom.textContent = bossMode ? '随机红方' : '随机双方';
+    el.btnRandom.title = bossMode ? '随机红方 5 个角色' : '双方阵容全部随机';
+  }
+
   if (el.btnStart) {
     var ready = lineupsComplete();
     el.btnStart.classList.toggle('disabled', !ready);
-    el.btnStart.title = ready ? '' : '双方阵容还没选满';
+    el.btnStart.title = ready ? '' : (bossMode ? '请先给红方选满 5 个角色' : '双方阵容还没选满');
   }
   if (el.comboPick) el.comboPick.classList.toggle('is-hidden', draftMode);
 
   if (typeof deskSyncChrome === 'function') deskSyncChrome();
+}
+
+/* ============================================================
+   BOSS 模式入口（5v1，2026-11-21 第 98 条）
+   ------------------------------------------------------------
+   · 玩家方 5 个角色，BOSS 方固定 bossRoleKey（当前只有红青双子）
+   · 时长强制切到 BALANCE.boss.duration（300s），不读主菜单的分钟档位
+   · 复用同一个选人页：只把蓝方换成不可更换的 BOSS 卡片
+   ============================================================ */
+function enterBossPick() {
+  bossMode = true;
+  bossMerged = false;
+  modeKind = 'vs';
+  teamSize = 5;
+  draftMode = false;
+  if (bossRoleKey !== 'duo' && !BOSS_ROLES[bossRoleKey]) bossRoleKey = 'duo';
+  pick.B = [bossRoleKey];
+  seriesBest = 1;
+  seriesWins = { A: 0, B: 0 };
+  seriesGame = 1;
+
+  // 玩家阵容：保留上次选过的合法角色，不足 5 个用预设补齐
+  var preset = ['spear', 'bow', 'ice', 'grass', 'anvil'];
+  var arr = [];
+  for (var i = 0; i < (pick.A || []).length && arr.length < 5; i++) {
+    if (POOL_BY_KEY[pick.A[i]] && arr.indexOf(pick.A[i]) < 0) arr.push(pick.A[i]);
+  }
+  for (var p = 0; p < preset.length && arr.length < 5; p++) {
+    if (arr.indexOf(preset[p]) < 0) arr.push(preset[p]);
+  }
+  pick.A = arr;
+
+  el.home.classList.remove('show');
+  el.menu.classList.add('show');
+  el.stage.classList.add('menu-open');
+  document.body.classList.add('menu-open');
+  el.banner.classList.remove('show');
+  el.status.textContent = '';
+  el.btns.classList.add('hidden');
+  activeTeam = 'A';
+  activeSlot = 0;
+
+  buildSizePick();
+  buildModePick();
+  buildDraftPick();
+  buildSeriesPick();
+  if (typeof buildRoundPick === 'function') buildRoundPick();
+  syncPick();
 }
 
 
@@ -945,6 +1129,7 @@ function startReplay(cfg, source) {
   hideGhostInvite();
   clearGhostQuery();
   openMenu();
+  bossMode = false;
   draftMode = false;
   teamSize = cfg.size;
   modeKind = cfg.mode;
@@ -1039,6 +1224,8 @@ function buildHome() {
         var go = btn.getAttribute('data-go');
         if (go === 'solo') {
           enterPick(teamSize || 1);
+        } else if (go === 'boss') {
+          enterBossPick();
         } else if (go === 'daily') {
           startDaily();
         } else if (go === 'tour') {
@@ -1057,6 +1244,7 @@ function buildHome() {
 
 /* 从主菜单进入某个对战人数的选人页 */
 function enterPick(size) {
+  bossMode = false;   // 单机入口一定是常规对局，BOSS 模式走 enterBossPick()
   // 手机端走独立的 1024×512 单机页（复用同一套 pick / teamSize 状态）
   if (typeof mobiIsMobile === 'function' && mobiIsMobile()) {
     if (typeof mobiEnterSolo === 'function') { mobiEnterSolo(); return; }
@@ -1081,6 +1269,8 @@ function openMenu() {
   if (typeof tourOddsStop === 'function') tourOddsStop();
   if (typeof previewStop === 'function') previewStop();
   phase = 'menu';
+  bossMode = false;      // 回主菜单即退出 BOSS 模式（再进由入口重新设置）
+  bossMerged = false;
   winner = null;
   paused = false;
   speedMul = 1;
@@ -1129,7 +1319,7 @@ function openMenu() {
 
 function startBattle() {
   if (!lineupsComplete()) {
-    uiToast('请先把双方阵容选满');
+    uiToast(bossMode ? '请先给红方选满 5 个角色' : '请先把双方阵容选满');
     return;
   }
   // R 键 / 重开按钮在赛事棋盘上也会触发：后台模拟期间先停下再重置，避免两边抢全局

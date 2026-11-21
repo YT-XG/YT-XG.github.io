@@ -60,8 +60,10 @@ TYPES.lapis = {
       if (!v.alive || v.team === u.team) continue;
       if (Math.hypot(v.x - u.x, v.y - u.y) > R + v.r) continue;
       hurt(v, DMG, u);
-      v.slowT = Math.max(v.slowT, 2.5);
-      v.slowMul = Math.min(v.slowMul || 1, 0.4);
+      if (!v.boss) {
+        v.slowT = Math.max(v.slowT, 2.5);
+        v.slowMul = Math.min(v.slowMul || 1, 0.4);
+      }
     }
     u.st.shield = Math.max(u.st.shield || 0, 64);
     u.st.shieldT = 0;
@@ -76,6 +78,7 @@ TYPES.lapis = {
       var v = units[k];
       if (!v.alive || v.team === u.team) continue;
       if (Math.hypot(v.x - u.x, v.y - u.y) < cfg.radius) {
+        if (v.boss) continue;   // BOSS 免疫减速
         v.slowT = Math.max(v.slowT, cfg.slowTime);
         v.slowMul = Math.min(v.slowMul || 1, BALANCE.slowSpeedMul);
       }

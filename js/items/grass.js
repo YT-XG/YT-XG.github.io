@@ -66,7 +66,7 @@ TYPES.grass = {
         floater(v.x, v.y - v.r - 18, '回春 +' + Math.round(heal), '#8ce06a', 12);
         ring(v.x, v.y, v.r, v.r + 42, 0.4, '#9be36f');
       } else {
-        v.bindT = Math.max(v.bindT, 2.5);
+        if (!v.boss) v.bindT = Math.max(v.bindT, 2.5);   // BOSS 免疫定身（中毒照常）
         v.poisonT = Math.max(v.poisonT, 6.0);
         v.poisonAcc = Math.min(v.poisonAcc, 1.0);
         v.poisonSrc = u;

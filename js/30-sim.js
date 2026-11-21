@@ -56,8 +56,23 @@ function hurt(u, amount, src, opt) {
   // 百分比伤害（狗奶 / 缺氧 / 决杀）不缩放，避免二次放大
   if (!pct && src && soloMode()) amount *= (BALANCE.solo.dmgMul[src.key] || 1);
   if (pct && src && soloMode()) amount *= (BALANCE.solo.pctMul[src.key] || 1);
+  /* BOSS 出手的整体倍率：挑战者不做任何血量加成（沿用常规数值），
+     对局时长完全靠压低 BOSS 输出来换，新增角色时无需再补数值。 */
+  if (!pct && src && src.boss && bossMode && BALANCE.boss.dmgMul) amount *= BALANCE.boss.dmgMul;
   if (!pct) amount *= BALANCE.dmgScale;
+  /* BOSS 硬壳：非百分比伤害再乘一层 dmgTakeMul。
+     8 倍血量的 BOSS 如果按常规 DPS 结算，5 个玩家 35 秒就能把它打到合体；
+     这一层把 TTK 拉长到 1 分钟左右（百分比伤害不受影响）。 */
+  if (!pct && u.boss && BALANCE.boss.dmgTakeMul) amount *= BALANCE.boss.dmgTakeMul;
+  /* BOSS 对「百分比伤害」（狗奶引导 / 缺氧 / 决杀）另设一层抗性：
+     否则野生狗奶一人每秒 6.6% 最大生命，两个狗奶 8 秒就能把 3000 HP 的 BOSS 打到锁血，
+     BOSS 战直接变成"开局 10 秒合体"。这里只压外部百分比伤害，决杀不走这条路径。 */
+  if (pct && u.boss && BALANCE.boss.pctTakeMul) amount *= BALANCE.boss.pctTakeMul;
   if (!u.alive || amount <= 0) return;
+  /* 合体演出期间的免伤：①两只锁到 1 血后先停顿 0.7 秒（不可打断），
+     ②紫晶核心登场后血条从 1 涨到满（mergeFill），充能完才可被击伤。 */
+  if (u.st && u.st.mergeFill > 0) return;
+  if (bossMergeAct && (bossMergeAct.a === u || bossMergeAct.b === u)) return;
   if (!dot && typeof sfxPlay === 'function') sfxPlay('hit');
 
   // 野生狗奶：引导期间受击先扣「打断护盾」（128 点）；护盾存在时不掉血，打空立即打断
@@ -95,6 +110,21 @@ function hurt(u, amount, src, opt) {
   }
 
   if (amount > 0) {
+    /* BOSS 锁血：合体前的红青双血条不会降到 1 以下（TYPES[key].bossLock）。
+       这里先按「最多扣到 1 血」截断，再把剩余量记进 dealt —— 伤害统计不会虚高。 */
+    if (TYPES[u.key] && TYPES[u.key].bossLock) {
+      var lockCap = Math.max(0, (BALANCE.boss.lockHp == null ? 1 : BALANCE.boss.lockHp) - 0);
+      var canLose = Math.max(0, u.hp - lockCap);
+      if (amount > canLose) {
+        amount = canLose;
+        if (!dot && !(u.st.lockFxT > 0)) {
+          u.st.lockFxT = 0.8;
+          ring(u.x, u.y, u.r, u.r + 52, 0.45, '#ffe08a');
+          floater(u.x, u.y - u.r - 30, '锁血 ' + lockCap + ' HP', '#ffe08a', 13);
+        }
+      }
+    }
+    if (amount <= 0) return;
     u.hp -= amount;
     if (src) src.dealt += amount;
     if (dot) {
@@ -204,16 +234,130 @@ function updateRage(u, dt) {
   shake = Math.max(shake, 4);
 }
 
-function dropBomb(u) {
-  var cfg = TYPES.red.rage.bomb;
+/* 炸弹唯一生成入口：{x,y,fuse,max,radius,dmg,team,owner,spin}
+   ------------------------------------------------------------
+   红石狂暴 / 红石终结技 / BOSS 的三类投弹都走这里，参数由 cfg 提供：
+   { fuse, radius, dmg }（BOSS 的 cfg 还会带 interval / count / intervalMin 等，多出的字段被忽略） */
+function spawnBomb(owner, x, y, cfg) {
   bombs.push({
-    x: u.x, y: u.y,
+    x: x, y: y,
     fuse: cfg.fuse, max: cfg.fuse,
     radius: cfg.radius, dmg: cfg.dmg,
-    team: u.team, owner: u, spin: rand(0, TAU)
+    team: owner.team, owner: owner, spin: rand(0, TAU)
   });
+}
+
+function dropBomb(u) {
+  var cfg = TYPES.red.rage.bomb;
+  spawnBomb(u, u.x, u.y, cfg);
   ring(u.x, u.y, 3, 24, 0.18, '#ffb14d');
   burst(u.x, u.y, 3, '#ffd166', 90);
+}
+
+/* ============================================================
+   BOSS 合体：红青同时被打到 1 血 → 紫晶核心
+   ------------------------------------------------------------
+   · 合体前两只都锁 1 血，谁都打不死；必须「两只都到 1 血」才触发
+   · 触发时移除两只（不是阵亡，不触发羁绊），在两者中点生成紫晶核心：
+     2000 HP，出生即进入狂暴（跳过 3 秒无敌抖动）
+   · 合体演出由 50-ui 的 bossCry() 负责（无头模拟里该函数不存在，安全跳过）
+   ============================================================ */
+function updateBossMerge(dt) {
+  if (!bossMode) return;
+
+  /* 阶段 1：两只锁到 1 血后先「停下来」，0.7 秒内被吸向中点（速度归零 + 免伤）。
+     这一段是纯演出：位置用插值直接改写，不参与直线运动 / 墙面反弹。 */
+  if (bossMergeAct) {
+    var m = bossMergeAct;
+    m.t += dt;
+    // 前 0.55s：原地定住（只亮环 + 播报「停止行动」）；之后 0.45s 滑向中点
+    var moved = Math.max(0, m.t - m.pause);
+    var p = m.move > 0 ? Math.min(1, moved / m.move) : 1;
+    var e = p * p * (3 - 2 * p);
+    if (m.a) { m.a.x = m.ax + (m.mx - m.ax) * e; m.a.y = m.ay + (m.my - m.ay) * e; }
+    if (m.b) { m.b.x = m.bx + (m.mx - m.bx) * e; m.b.y = m.by + (m.my - m.by) * e; }
+    if (m.t >= m.dur) completeBossMerge();
+    return;
+  }
+  if (bossMerged) return;
+  var cfg = bossConfig();
+  if (!cfg || !cfg.merged) return;
+
+  var a = null, b = null;
+  for (var i = 0; i < units.length; i++) {
+    var u = units[i];
+    if (!u.alive || u.team !== 'B') continue;
+    if (u.key === cfg.units[0]) a = u;
+    else if (u.key === cfg.units[1]) b = u;
+  }
+  if (!a || !b) return;
+
+  var lock = BALANCE.boss.lockHp == null ? 1 : BALANCE.boss.lockHp;
+  if (a.hp > lock + 0.05 || b.hp > lock + 0.05) return;
+
+  var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  var holdPause = BALANCE.boss.mergePause == null ? 0.55 : BALANCE.boss.mergePause;
+  var holdSlide = BALANCE.boss.mergeSlide == null ? 0.45 : BALANCE.boss.mergeSlide;
+  bossMergeAct = {
+    a: a, b: b,
+    ax: a.x, ay: a.y, bx: b.x, by: b.y,
+    mx: mx, my: my,
+    t: 0, pause: holdPause, move: holdSlide, dur: holdPause + holdSlide
+  };
+  // 停顿提示：两只身上同时亮一圈，然后开始互相吸引
+  a.dashT = 0; b.dashT = 0;                 // 停手：清掉进行中的冲刺
+  a.castT = 0; b.castT = 0; a.ultT = 0; b.ultT = 0;
+  ring(a.x, a.y, a.r, a.r + 70, 0.5, '#ff9a6b');
+  ring(b.x, b.y, b.r, b.r + 70, 0.5, '#8fd0ff');
+  burst(a.x, a.y, 12, '#ffb08a', 180);
+  burst(b.x, b.y, 12, '#9fd8ff', 180);
+  floater(mx, my - 46, '红青锁血 · 停止行动', '#ffe08a', 15);
+  if (typeof sfxPlay === 'function') sfxPlay('cast');
+}
+
+/* 阶段 2：原地合体 —— 残影 + 白光 + 紫环炸开，然后紫晶核心登场；
+   核心初始只有 1 HP，靠 mergeFill 把血条「从 1 涨到 800」（期间免伤）。 */
+function completeBossMerge() {
+  var m = bossMergeAct;
+  var cfg = bossConfig();
+  if (!m || !cfg) return;
+  var a = m.a, b = m.b;
+  bossMergeAct = null;
+  bossMerged = true;
+
+  bossMergeFx = {
+    x: m.mx, y: m.my,
+    ax: a.x, ay: a.y, bx: b.x, by: b.y,
+    t: 0, dur: 1.15
+  };
+  a.alive = false;
+  b.alive = false;
+  for (var q = units.length - 1; q >= 0; q--) {
+    if (units[q] === a || units[q] === b) units.splice(q, 1);
+  }
+
+  // 合体演出：白紫双环 + 大范围粒子 + 震屏（BOSS 战的核心高光）
+  ring(m.mx, m.my, 10, 260, 0.75, '#c79bff');
+  ring(m.mx, m.my, 8, 170, 0.55, '#ffffff');
+  burst(m.mx, m.my, 44, '#d9bcff', 460);
+  shake = Math.max(shake, 15);
+  hitStop = Math.max(hitStop, 0.05);
+  floater(m.mx, m.my - 44, '红青合体', '#ffe9ff', 20);
+
+  var core = addUnit(cfg.merged, m.mx, m.my, 'B');
+  core.roleIdx = 0;
+  var fill = BALANCE.boss.mergeFill == null ? 1.2 : BALANCE.boss.mergeFill;
+  core.hp = 1;                       // 血条起点 = 1
+  core.st.mergeFill = fill;          // 剩余充能时间（>0 时免伤、不可移动）
+  core.st.mergeFillRate = (core.maxHp - 1) / fill;
+  core.st.rage = { phase: 'rage', since: t + fill };   // 充能完才开始提速
+  core.st.appear = 0.9;              // 放大 → 正常 的浮现动画（见 drawBossBlock）
+  faceInward(core);
+  if (TYPES[core.key].onRageStart) TYPES[core.key].onRageStart(core);
+
+  if (typeof sfxPlay === 'function') sfxPlay('rage');
+  if (typeof bossCry === 'function') bossCry('红青合体 · 紫晶核心', '血条充能 · 狂暴降临');
+  if (typeof rebuildRoster === 'function') rebuildRoster();
 }
 
 function updateBombs(dt) {
@@ -533,8 +677,10 @@ function updateIcePatches(dt) {
     }
 
     if (onIce) {
-      v.slowT = Math.max(v.slowT, C.slowTime);
-      v.slowMul = Math.min(v.slowMul || 1, C.slowMul);
+      if (!v.boss) {   // BOSS 免疫减速；冰面 DoT 照常结算
+        v.slowT = Math.max(v.slowT, C.slowTime);
+        v.slowMul = Math.min(v.slowMul || 1, C.slowMul);
+      }
       // 冰冻值（0 → 1）：在冰面上单调累积，满 1 秒结算一次伤害并清空重来，
       // 离开冰面按 dt 回落。这样 HUD 上的冰冻条是「一直往上长」的，
       // 而不是每秒在满/空之间来回跳（旧写法 -dt 再 +=1 会闪，实战几乎看不见）。
@@ -653,8 +799,8 @@ function updateWaters(dt) {
       continue;
     }
 
-    // 2a) 引力：边缘接近 0，越靠圆心越大。无敌抖动 / 狗奶引导视为固定桩，不被拖拽
-    if (!isShaking(u) && !isMilkChannel(u) && bestD > 0.5) {
+    // 2a) 引力：边缘接近 0，越靠圆心越大。无敌抖动 / 狗奶引导 / BOSS 视为固定桩，不被拖拽
+    if (!isShaking(u) && !isMilkChannel(u) && !u.boss && bestD > 0.5) {
       var g = C.gravity * Math.max(0, 1 - bestD / Math.max(1, rr)) * wetMul;
       if (g > 0) {
         u.x += (src.x - u.x) / bestD * g * dt;
@@ -797,13 +943,14 @@ function tryVine(u, V) {
   vines.push({ x1: u.x, y1: u.y, x2: ex, y2: ey, life: 0.45, max: 0.45, hit: !!best });
 
   if (!best) return;
-  best.bindT = V.root;
+  if (!best.boss) best.bindT = V.root;   // BOSS 免疫定身；中毒照常
   best.poisonT = V.poisonTime;
   best.poisonAcc = 1.0;      // 1 秒后第一次掉血
   best.poisonSrc = u;
 
   ring(best.x, best.y, best.r, 118, 0.45, '#8ce06a');
-  floater(best.x, best.y - best.r - 18, '捆绑 ' + V.root + 's', '#9be36f', 13);
+  floater(best.x, best.y - best.r - 18,
+    best.boss ? '免疫定身 · 中毒' : ('捆绑 ' + V.root + 's'), '#9be36f', 13);
 }
 
 function updateVines(dt) {
@@ -894,7 +1041,8 @@ function arenaStartBox() {
 }
 
 function resetArena() {
-  var a = arenaStartBox();
+  // BOSS 战固定全尺寸舞台（且整局不收缩），给 5 个挑战者足够的走位空间
+  var a = bossMode ? ARENA_FULL : arenaStartBox();
   ARENA.x = a.x;
   ARENA.y = a.y;
   ARENA.w = a.w;
@@ -903,6 +1051,7 @@ function resetArena() {
 
 // 持续收缩：每帧按 rate * dt 收窄，墙是"慢慢推过来"的，不是跳一下
 function updateShrink(dt) {
+  if (bossMode) return;   // BOSS 战舞台不收缩（否则 5v1 会被挤成一团）
   if (ARENA.w <= SHRINK.minW) return;
   var d = Math.min(SHRINK.rate * dt, ARENA.w - SHRINK.minW);
   if (d <= 0) return;
@@ -959,6 +1108,31 @@ function laserStrike(u, L) {
 
 function statusText() {
   var parts = [];
+  if (bossMode && phase === 'fight') {
+    if (!bossMerged) {
+      // 合体停顿阶段（bossMergeAct）单独提示，避免读数还在跳
+      if (bossMergeAct) parts.push('红青锁血完成 · 停手合体中');
+      else {
+        // 只有一只锁到 1 血时给出提示：另一只还差多少是这一阶段唯一的博弈点
+        var a = null, b = null;
+        for (var bi = 0; bi < units.length; bi++) {
+          var bu = units[bi];
+          if (!bu.alive || bu.team !== 'B') continue;
+          if (bu.key === bossConfig().units[0]) a = bu;
+          else if (bu.key === bossConfig().units[1]) b = bu;
+        }
+        var locked = (a && a.hp <= 1.05) && (b && b.hp <= 1.05);
+        if (!locked) parts.push('BOSS 锁血：红青都要打到 1 HP 才会合体');
+      }
+    } else {
+      var core = null;
+      for (var ci = 0; ci < units.length; ci++) {
+        if (units[ci].alive && units[ci].team === 'B' && units[ci].st.mergeFill > 0) core = units[ci];
+      }
+      if (core) parts.push('紫晶核心血条充能中 · 充能完才会动');
+      else parts.push('紫晶核心狂暴中 · 击碎它即胜利');
+    }
+  }
   if (suddenDeath && phase === 'fight') {
     parts.push('决杀 · 全体每秒 -5% 最大生命（已 ' + Math.floor(t - suddenStart) + 's）');
   }
@@ -972,6 +1146,13 @@ function statusText() {
         Math.ceil(Math.max(0, u.st.shield)) + '/' + TYPES.milk.shieldMax);
     }
     if (u.ultT > 0) parts.push(u.name + ' 终结技蓄力 ' + u.ultT.toFixed(1) + 's');
+    if (TYPES[u.key] && TYPES[u.key].bossLock && u.hp <= 1.05) {
+      parts.push(u.name + ' 已锁 1 血 · 停手');
+    }
+    // 紫晶核心：终末震荡倒计时（最后 nukeWarn 秒开始报数）
+    if (u.st.nukeT >= 0 && u.st.nukeT <= (BALANCE.boss.core.nukeWarn || 8)) {
+      parts.push('终末震荡 ' + Math.ceil(u.st.nukeT) + 's');
+    }
     // 水桶：头顶缺氧值（充满后每秒掉血），状态栏显示当前百分比
     if (u.waterT > 0) {
       parts.push(u.name + ' 缺氧 ' +
@@ -1117,7 +1298,7 @@ function updateUltCasts(dt) {
     var u = units[i];
     if (u.ultT <= 0) continue;
     u.ultT -= dt;
-    if (!u.alive || u.st.rage || u.st.milkT > 0 || u.bindT > 0) {
+    if (!u.alive || (u.st.rage && !TYPES[u.key].rageCasts) || u.st.milkT > 0 || u.bindT > 0) {
       u.ultT = 0; u.ultAim = null; continue;
     }
     if (u.ultT > 0) continue;
@@ -1142,10 +1323,20 @@ function castAllowed(u, s) {
 }
 
 function think(u, dt) {
-  if (!u.alive || u.st.rage || u.dashT > 0) return;
+  if (!u.alive || u.dashT > 0) return;
+  // 狂暴后通常不再施放技能；BOSS 合体核心声明 rageCasts 后仍然会放（紫晶脉冲 / 终结技）
+  if (u.st.rage && !TYPES[u.key].rageCasts) return;
   if (u.castT > 0 || u.ultT > 0) return;
   if (u.st.ultChain && u.st.ultChain.left > 0) return;
   if (u.st.milkT > 0) return;   // 引导期间站桩，不施放任何技能
+  if (u.st.mergeFill > 0) return;   // 紫晶核心血条充能中：不动、不打
+  if (bossMergeAct && (bossMergeAct.a === u || bossMergeAct.b === u)) return;  // 合体前停手
+  /* 一阶段锁血：打到 1 HP 的那一只原地停手（不移动也不攻击），等另一只 */
+  var BT = TYPES[u.key];
+  if (BT && BT.bossLock && u.hp <= (BALANCE.boss.lockHp == null ? 1 : BALANCE.boss.lockHp) + 0.05) {
+    if (u.dashT > 0) u.dashT = 0;
+    return;
+  }
   // 被动型"技能"（冰块的寒冰轨迹）不需要主动施放，由 onTick 持续生效
   if (TYPES[u.key].skill.passiveOnly) return;
 
@@ -1191,7 +1382,7 @@ function updateCasts(dt) {
     var u = units[i];
     if (u.castT <= 0) continue;
     u.castT -= dt;
-    if (!u.alive || u.st.rage) { u.castT = 0; u.castAim = null; continue; }
+    if (!u.alive || (u.st.rage && !TYPES[u.key].rageCasts)) { u.castT = 0; u.castAim = null; continue; }
     if (u.castT > 0) continue;
     var aim = u.castAim;
     u.castAim = null;
@@ -1282,9 +1473,9 @@ function collide() {
       var pass = canPassThrough(a, b) || canPassThrough(b, a);
 
       if (!pass) {
-        // 无敌抖动 / 野生狗奶引导中：原地不动，只推另一方
-        var aFixed = isShaking(a) || isMilkChannel(a);
-        var bFixed = isShaking(b) || isMilkChannel(b);
+        // 无敌抖动 / 野生狗奶引导 / BOSS：原地不动，只推另一方（BOSS 之间正常分离，避免两只叠在一起）
+        var aFixed = isShaking(a) || isMilkChannel(a) || (a.boss && !b.boss);
+        var bFixed = isShaking(b) || isMilkChannel(b) || (b.boss && !a.boss);
         if (!aFixed) {
           var ka = bFixed ? 1 : 0.5;
           a.x -= nx * overlap * ka;
@@ -1356,6 +1547,17 @@ function collide() {
    ============================================================ */
 function teamHp(team) {
   var cur = 0, max = 0;
+  /* BOSS 模式：B 方只统计场上 BOSS 单位。
+     合体前是红 3000 + 青 3000，合体后只剩紫晶核心 800 ——
+     顶部的 BOSS 血条会随合体"重置"一次，读起来就是「打完一条又来一条」。 */
+  if (bossMode && team === 'B') {
+    for (var i2 = 0; i2 < units.length; i2++) {
+      if (units[i2].team !== 'B') continue;
+      cur += Math.max(0, units[i2].hp);
+      max += units[i2].maxHp;
+    }
+    return { cur: cur, max: max };
+  }
   var keys = pick[team] || [];
   // 分母 = 全阵容的总生命；分子 = 已在场单位的剩余生命 + 还没上场的单位按满血计
   for (var i = 0; i < keys.length; i++) {
@@ -1405,6 +1607,12 @@ function finish(by) {
   var sub = by === 'time' ? '时间到 · 按剩余血量判定'
     : (by === 'death' ? '决杀结束 · 每秒扣 5% 最大生命' : '对手倒下');
 
+  // BOSS 模式：文案要直接说明「谁死了」——BOSS 战只有两种结局
+  if (bossMode) {
+    if (winner === 'A') sub = '紫晶核心被击碎 · BOSS 讨伐成功';
+    else if (winner === 'B') sub = by === 'time' ? '时间到 · BOSS 仍然站立' : '玩家全员倒下 · BOSS 获胜';
+  }
+
   if (by !== 'time' && A.cur <= 0 && B.cur <= 0) {
     var dA = dealtOf('A'), dB = dealtOf('B');
     winner = dA > dB ? 'A' : (dB > dA ? 'B' : 'draw');
@@ -1445,6 +1653,11 @@ function deathStrike() {
     var u = units[i];
     if (!u.alive) continue;
     var loss = u.maxHp * DEATH_DRAIN;
+    // BOSS 锁血同样对「决杀」生效：合体前每秒扣血最多扣到 1 HP
+    if (TYPES[u.key] && TYPES[u.key].bossLock) {
+      loss = Math.min(loss, Math.max(0, u.hp - (BALANCE.boss.lockHp == null ? 1 : BALANCE.boss.lockHp)));
+    }
+    if (loss <= 0) continue;
     u.hp = Math.max(0, u.hp - loss);
     u.flash = 1;
     floater(u.x + rand(-8, 8), u.y - u.r - 26, '-' + Math.round(loss), '#ff6b5a', 13);
@@ -1565,6 +1778,8 @@ function tick(dt) {
       u.st.shieldT -= dt;
       if (u.st.shieldT <= 0) u.st.shield = 0;
     }
+    // BOSS 锁血提示的冷却（避免每 0.34 秒一次接触刷一屏"锁血"）
+    if (u.st.lockFxT > 0) u.st.lockFxT = Math.max(0, u.st.lockFxT - dt);
     if (u.alive) updateRage(u, dt);
   }
 
@@ -1592,6 +1807,12 @@ function tick(dt) {
   updateVines(dt);
   updateRevive(dt);
   updateShrink(dt);
+  updateBossMerge(dt);   // 红青锁血 → 停顿 → 合体 → 核心血条充能（必须在 checkOver 之前）
+  // 合体演出的计时器（纯画面层）
+  if (bossMergeFx) {
+    bossMergeFx.t += dt;
+    if (bossMergeFx.t >= bossMergeFx.dur) bossMergeFx = null;
+  }
   updateRelay(dt);
   checkOver();
 }
