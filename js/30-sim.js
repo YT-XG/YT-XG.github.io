@@ -79,6 +79,9 @@ function hurt(u, amount, src, opt) {
      已标记 calibrated 的 BOSS（新体系）数值已在自身配置里算好，不再走这层。 */
   if (!pct && src && src.boss && bossMode && BALANCE.boss.dmgMul &&
       !(TYPES[src.key] && TYPES[src.key].calibrated)) amount *= BALANCE.boss.dmgMul;
+  /* 新体系 BOSS（calibrated）：技能系数按设定写死，出手强度用独立旋钮整体缩放 */
+  if (!pct && src && src.boss && bossMode && BALANCE.boss.calibratedDmgMul &&
+      (TYPES[src.key] && TYPES[src.key].calibrated)) amount *= BALANCE.boss.calibratedDmgMul;
   if (!pct && !cal) amount *= BALANCE.dmgScale;
   /* BOSS 硬壳：非百分比伤害再乘一层 dmgTakeMul。
      8 倍血量的 BOSS 如果按常规 DPS 结算，5 个玩家 35 秒就能把它打到合体；
@@ -137,6 +140,7 @@ function hurt(u, amount, src, opt) {
       var canLose = Math.max(0, u.hp - lockCap);
       if (amount > canLose) {
         amount = canLose;
+        u.st.locked = true;   // 锁血后不再被敌人锁定（铁砧等指向性技能会跳过）
         if (!dot && !(u.st.lockFxT > 0)) {
           u.st.lockFxT = 0.8;
           ring(u.x, u.y, u.r, u.r + 52, 0.45, '#ffe08a');
@@ -183,6 +187,7 @@ function nearestEnemy(u) {
   for (var i = 0; i < units.length; i++) {
     var v = units[i];
     if (!v.alive || v.team === u.team) continue;
+    if (v.st && v.st.locked) continue;   // 锁 1 血的 BOSS 不可被锁定
     var d = Math.hypot(v.x - u.x, v.y - u.y);
     if (d < bd) { bd = d; best = v; }
   }
@@ -330,7 +335,7 @@ function updateBossMerge(dt) {
 }
 
 /* 阶段 2：原地合体 —— 残影 + 白光 + 紫环炸开，然后紫晶核心登场；
-   核心初始只有 1 HP，靠 mergeFill 把血条「从 1 涨到 4300」（期间免伤）。 */
+   核心初始只有 1 HP，靠 mergeFill 把血条「从 1 涨到 5000」（期间免伤）。 */
 function completeBossMerge() {
   var m = bossMergeAct;
   var cfg = bossConfig();

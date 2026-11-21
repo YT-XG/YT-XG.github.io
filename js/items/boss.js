@@ -1,286 +1,264 @@
 /* ============================================================
-   BOSS 模式专用单位（2026-11-22 迁移到新数值体系）
+   BOSS 模式专用单位（2026-11-22 重做：红青双子 → 紫晶核心）
    ------------------------------------------------------------
-   与常规物品分开定义，不影响 1v1 / 2v2 / 3v3 / 赛事：
-   · bossred  / bosslapis  —— 红青双子的 BOSS 版：各 4550 HP、100 攻击、
-                                锁 1 血、免疫控制（定身 / 减速 / 牵引都不吃）
-     · bosscore             —— 两者同时被打到 1 血时合体成的「紫晶核心」，
-                                4300 HP，出生即狂暴：加速 + 投弹 + 撞击叠加
-   三槽结构与常规物品一致：basic（普攻）/ skill（技能）/ ultimate（能量终结技）。
-   数值直接按 2000 HP 口径写死（calibrated），BALANCE.boss.dmgMul 不再作用于它们。
+   一阶段：红 / 青两个独立单元，各 4550 HP，锁 1 血、免疫控制
+     · 红石：3s 普攻环形 6 炸弹；7s 技能锁定敌人投 10 枚炸弹
+     · 青金石：3s 普攻中距离冲刺；5s 技能为随机友军附魔
+     · 任一方受到致命伤害时锁 1 血，并且不再被敌人锁定；
+       两只都锁 1 血 → 进入二阶段，负面效果全部清除
+   二阶段：紫晶核心，5000 HP，速度 +150%
+     · 普攻：每 500ms 原地放 1 颗炸弹
+     · 技能：5s 给自己附魔
+     · 终结技：血量首次低于 50% 时蓄力 8 秒，释放终焉一击
+       （敌方 70% 最大生命 + 10 秒虚弱，所有伤害 -20%）
+   三槽结构与常规物品一致：basic / skill / ultimate。
+   数值直接按 2000 HP 口径写死（calibrated）。
    ============================================================ */
 'use strict';
 
-/* 红色 BOSS：冲锋 + 炸弹雨
+/* 附魔：普攻 / 技能伤害按 1 / 2 / 3 层提升 25% / 45% / 70%；防御单层 +10% */
+var BOSS_ENCHANT = [0, 0.25, 0.45, 0.70];
+
+function bossBasicMul(u) {
+  var n = Math.min(3, (u && u.st && u.st.enchantBasic) || 0);
+  return 1 + BOSS_ENCHANT[n];
+}
+function bossSkillMul(u) {
+  var n = Math.min(3, (u && u.st && u.st.enchantSkill) || 0);
+  return 1 + BOSS_ENCHANT[n];
+}
+
+/* 随机附魔一次：从「未满层」的池子里抽，防御只会有 1 层。
+   noSkill = true 时不再抽「技能伤害」（二阶段核心没有可加成的技能）。 */
+function bossEnchant(u, noSkill) {
+  if (!u || !u.alive) return;
+  var st = u.st;
+  var pool = [];
+  if ((st.enchantBasic || 0) < 3) pool.push(1);
+  if (!noSkill && (st.enchantSkill || 0) < 3) pool.push(2);
+  if (!st.enchantDef) pool.push(3);
+  if (!pool.length) return;
+
+  var pick = pool[Math.floor(rand(0, pool.length))];
+  var label;
+  if (pick === 1) {
+    st.enchantBasic = (st.enchantBasic || 0) + 1;
+    label = '附魔 普攻 +' + Math.round(BOSS_ENCHANT[st.enchantBasic] * 100) + '%';
+  } else if (pick === 2) {
+    st.enchantSkill = (st.enchantSkill || 0) + 1;
+    label = '附魔 技能 +' + Math.round(BOSS_ENCHANT[st.enchantSkill] * 100) + '%';
+  } else {
+    st.enchantDef = 1;
+    u.def = Math.round(u.def * 1.1);
+    label = '附魔 防御 +10%';
+  }
+  ring(u.x, u.y, u.r, u.r + 42, 0.45, '#c79bff');
+  burst(u.x, u.y, 12, '#d9bcff', 200);
+  floater(u.x, u.y - u.r - 18, label, '#c79bff', 13);
+}
+
+function bossLocked(u) {
+  return !!(u && u.hp <= (BALANCE.boss.lockHp == null ? 1 : BALANCE.boss.lockHp) + 0.05);
+}
+
+/* 红色 BOSS：环形炸弹 + 锁定投掷
    ------------------------------------------------------------
-   · 普攻（5s）在脚下投 2 颗炸弹，每颗 90 伤害
-   · 撞击只在技能冲刺期间结算，180% 攻击力
-   · 终结技「红石陨星」：敌人周围空投 8 颗强化炸弹 */
+   · 普攻（3s）：身周一圈 6 颗炸弹，1 秒后引爆，每颗 80% 攻击力
+   · 技能（7s）：锁定敌人连续投 10 枚炸弹
+       前 5 枚 60%、中间 4 枚 90%、最后一枚 125% 攻击力（技能伤害）
+   · 没有终结技；锁 1 血后停止一切行动且不可被锁定 */
 TYPES.bossred = {
-  key: 'bossred', name: 'BOSS 红石', role: 'BOSS / 冲锋压制',
+  key: 'bossred', name: 'BOSS 红石', role: 'BOSS / 环形轰炸',
   boss: true, bossImmune: true, bossLock: true, calibrated: true,
   r: 34, maxHp: 4550, baseSpeed: 210, atk: 100, def: 80,
-  energyMax: 100, energyRegen: 2.0,
   impact: true,
   body: '#c8342b', light: '#ff7a6a', dark: '#6d140e', glow: '#ff5a44',
-  basic: { cd: 5.0, count: 2, dmg: 72 },
+  basic: { cd: 3.0, count: 6, radius: 74, bombR: 100, fuse: 1.0, dmg: 80 },
   skill: {
-    name: '熔岩脉冲', cd: 3.8,
-    dashSpeed: 720, dashTime: 0.34, dmgMult: 1.4,
-    text: '转向冲刺，撞击 150% 攻击力（BOSS 版更快）'
-  },
-  ultimate: {
-    name: '红石陨星',
-    text: '能量充满后在敌人周围空投 8 颗强化炸弹：半径 130px、每颗 100 伤害、1.2 秒引信'
+    name: '爆裂投掷', cd: 7.0,
+    dashTime: 0, dashSpeed: 0, dmgMult: 1,
+    text: '锁定敌人连续投 10 枚炸弹：前 5 枚 60%、中间 4 枚 90%、最后一枚 125% 攻击力（技能伤害）'
   },
   passive: {
-    name: '熔核', text: '冲刺撞击 150% 攻击力；免疫定身 / 减速 / 牵引；血量锁 1 不会被击倒'
+    name: '锁血熔核', text: '受到致命伤害时锁 1 血并停止行动、不可被锁定；两只都锁血后合体'
   },
-  createState: function () { return { bombCd: 1.4, basicCd: 1.4 }; },
-  // 撞击只在技能冲刺期间结算（与常规红石同口径；贴身不常驻掉血）
-  onAttack: function (u) { return u.dashT > 0 ? u.atk * 1.5 : 0; },
+  createState: function () {
+    return { bombCd: 1.0, volleyN: 0, volleyT: 0, volleyTarget: null, enchantBasic: 0, enchantSkill: 0, enchantDef: 0 };
+  },
+  onAttack: function () { return 0; },
   onCast: function (u) {
-    ring(u.x, u.y, 14, 118, 0.34, '#ff6b52');
-    burst(u.x, u.y, 20, '#ff7a5f', 280);
-    floater(u.x, u.y - u.r - 20, '熔岩脉冲', '#ff9c85', 12);
-    shake = Math.max(shake, 4);
-  },
-  onUlt: function (u) {
-    var e = nearestEnemy(u);
-    var cx = e ? e.x : u.x, cy = e ? e.y : u.y;
-    var A = ARENA;
-    for (var i = 0; i < 8; i++) {
-      var a = i / 8 * TAU + t * 0.6;
-      spawnBomb(u,
-        clamp(cx + Math.cos(a) * 100, A.x + 26, A.x + A.w - 26),
-        clamp(cy + Math.sin(a) * 100, A.y + 26, A.y + A.h - 26),
-        { fuse: 1.2, radius: 130, dmg: 100 });
-    }
-    ring(cx, cy, 12, 190, 0.55, '#ffb14d');
-    burst(cx, cy, 26, '#ffd166', 300);
-    shake = Math.max(shake, 6);
+    u.st.volleyTarget = nearestEnemy(u);
+    u.st.volleyN = 10;
+    u.st.volleyT = 0;
+    ring(u.x, u.y, u.r, 150, 0.4, '#ff8a5f');
+    burst(u.x, u.y, 18, '#ff9a6b', 240);
+    floater(u.x, u.y - u.r - 20, '爆裂投掷 · 10 枚', '#ffb08a', 13);
   },
   onTick: function (u, dt) {
-    // 一阶段锁血：打到 1 HP 后完全停手（不投弹、不动作），等另一只也锁血再合体
-    if (u.hp <= (BALANCE.boss.lockHp == null ? 1 : BALANCE.boss.lockHp) + 0.05) return;
-    var cfg = TYPES.bossred.basic;
+    if (bossLocked(u)) return;
+
+    // 技能：10 枚炸弹按 0.12 秒间隔依次砸向锁定的敌人
+    if (u.st.volleyN > 0) {
+      u.st.volleyT -= dt;
+      while (u.st.volleyT <= 0 && u.st.volleyN > 0) {
+        u.st.volleyT += 0.12;
+        var idx = 10 - u.st.volleyN;
+        var tgt = u.st.volleyTarget;
+        if (!tgt || !tgt.alive) tgt = nearestEnemy(u);
+        var tx = tgt ? tgt.x : u.x, ty = tgt ? tgt.y : u.y;
+        var base = idx < 5 ? 60 : (idx < 9 ? 90 : 125);
+        spawnBomb(u, tx + rand(-16, 16), ty + rand(-16, 16),
+          { fuse: 0.55, radius: 95, dmg: base * bossSkillMul(u) });
+        u.st.volleyN--;
+      }
+    }
+
+    // 普攻：3 秒一圈 6 颗炸弹
+    var B = TYPES.bossred.basic;
     u.st.bombCd -= dt;
     if (u.st.bombCd > 0) return;
-    u.st.bombCd += cfg.cd;
-    for (var i = 0; i < cfg.count; i++) {
-      var a = srand(0, TAU), d = srand(26, 66);
-      spawnBomb(u, u.x + Math.cos(a) * d, u.y + Math.sin(a) * d,
-        { fuse: 1.4, radius: 100, dmg: cfg.dmg });
+    u.st.bombCd += B.cd;
+    var mul = bossBasicMul(u);
+    for (var i = 0; i < B.count; i++) {
+      var a = i / B.count * TAU + t * 0.25;
+      spawnBomb(u, u.x + Math.cos(a) * B.radius, u.y + Math.sin(a) * B.radius,
+        { fuse: B.fuse, radius: B.bombR, dmg: B.dmg * mul });
     }
-    ring(u.x, u.y, 8, 90, 0.3, '#ffb14d');
+    ring(u.x, u.y, 8, B.radius + 34, 0.36, '#ffb14d');
   },
   draw: function (u) { drawBossBlock(u); }
 };
 
-/* 青色 BOSS：护盾 + 冰霜光环
+/* 青色 BOSS：中距离冲撞 + 友军附魔
    ------------------------------------------------------------
-   · 普攻（3s）向 340px 内最近敌人射出一枚冰锥，130 伤害
-   · 每 6 秒把护盾刷到 150（不叠加、不超时消失，只能被伤害消耗）
-   · 170px 内敌人持续减速（免疫控制的 BOSS 自己不吃减速）
-   · 终结技「折光爆裂」：420px 范围 300 伤害 + 强减速 + 自身 200 护盾 */
+   · 普攻（3s）：向敌人中距离冲刺，命中 130% 攻击力（普通攻击）
+   · 技能（5s）：为随机一名友军附魔随机效果（普攻 / 技能 / 防御）
+   · 没有终结技；锁 1 血后停止一切行动且不可被锁定 */
 TYPES.bosslapis = {
-  key: 'bosslapis', name: 'BOSS 青金石', role: 'BOSS / 护盾控场',
+  key: 'bosslapis', name: 'BOSS 青金石', role: 'BOSS / 冲撞附魔',
   boss: true, bossImmune: true, bossLock: true, calibrated: true,
   r: 34, maxHp: 4550, baseSpeed: 200, atk: 100, def: 90,
-  energyMax: 100, energyRegen: 2.0,
   impact: true,
-  shieldMax: 200,
   body: '#2d5bd6', light: '#7ba2ff', dark: '#152a6b', glow: '#4a7bf0',
-  basic: { cd: 3.0, range: 340, dmg: 105 },
+  basic: { cd: 3.0, range: 760, minRange: 90, dashTime: 0.32, dashSpeed: 640, pct: 1.3 },
   skill: {
-    name: '晶壁折射', cd: 4.4,
-    dashSpeed: 600, dashTime: 0.30, dmgMult: 1.2,
-    text: '转向冲刺，撞击 100% 攻击力'
-  },
-  ultimate: {
-    name: '折光爆裂',
-    text: '能量充满后 420px 内敌人受到 300 伤害并减速 2.5 秒（×0.4），自身获得 200 护盾'
+    name: '点石成金', cd: 5.0,
+    dashTime: 0, dashSpeed: 0, dmgMult: 1,
+    text: '为随机一名友军附魔随机效果：普攻 +25/45/70%、技能 +25/45/70%、防御 +10%（防御不叠加）'
   },
   passive: {
-    name: '冰霜光环', text: '170px 内敌人持续减速（×0.6）；BOSS 自身免疫减速'
+    name: '锁血晶壁', text: '受到致命伤害时锁 1 血并停止行动、不可被锁定；两只都锁血后合体'
   },
-  createState: function () { return { shield: 0, shieldT: 0, shieldCd: 5.0, basicCd: 1.0, bombCd: 0 }; },
-  onAttack: function (u) { return u.dashT > 0 ? u.atk * 1.0 : 0; },
+  createState: function () {
+    return { basicCd: 1.0, basicDmg: 0, enchantBasic: 0, enchantSkill: 0, enchantDef: 0 };
+  },
+  onAttack: function (u) {
+    if (bossLocked(u)) return 0;
+    return u.dashT > 0 ? (u.st.basicDmg || 0) : 0;
+  },
+  onHit: function (u) { u.st.basicDmg = 0; },
   onCast: function (u) {
-    ring(u.x, u.y, u.r, 140, 0.45, '#6f9bff');
-    burst(u.x, u.y, 22, '#8fb4ff', 180);
-    floater(u.x, u.y - u.r - 20, '晶壁折射', '#9cc0ff', 12);
-  },
-  onUlt: function (u) {
-    var R = 420, DMG = 250, hits = 0;
-    for (var k0 = 0; k0 < units.length; k0++) {
-      var v0 = units[k0];
-      if (!v0.alive || v0.team === u.team) continue;
-      if (Math.hypot(v0.x - u.x, v0.y - u.y) > R + v0.r) continue;
-      hits++;
+    var pool = [];
+    for (var i = 0; i < units.length; i++) {
+      if (units[i].alive && units[i].team === u.team) pool.push(units[i]);
     }
-    for (var k = 0; k < units.length; k++) {
-      var v = units[k];
-      if (!v.alive || v.team === u.team) continue;
-      if (Math.hypot(v.x - u.x, v.y - u.y) > R + v.r) continue;
-      hurt(v, DMG * aoeScale(hits), u);
-      v.slowT = Math.max(v.slowT, 2.5);
-      v.slowMul = Math.min(v.slowMul || 1, 0.4);
-    }
-    u.st.shield = Math.max(u.st.shield || 0, 200);
-    u.st.shieldT = 0;
-    ring(u.x, u.y, u.r, R, 0.7, '#9cc0ff');
-    ring(u.x, u.y, u.r, R * 0.6, 0.5, '#dbe8ff');
-    burst(u.x, u.y, 34, '#8fb4ff', 380);
-    shake = Math.max(shake, 5);
+    if (!pool.length) return;
+    bossEnchant(pool[Math.floor(rand(0, pool.length))]);
   },
   onTick: function (u, dt) {
-    // 一阶段锁血：打到 1 HP 后停手（光环与护盾都停），等另一只也锁血再合体
-    if (u.hp <= (BALANCE.boss.lockHp == null ? 1 : BALANCE.boss.lockHp) + 0.05) return;
-
-    // 普攻：3 秒一枚冰锥，打 340px 内最近的敌人
+    if (bossLocked(u)) return;
+    if (u.dashT <= 0) u.st.basicDmg = 0;
     var B = TYPES.bosslapis.basic;
     u.st.basicCd -= dt;
-    if (u.st.basicCd <= 0) {
-      var e = nearestEnemy(u);
-      if (e && Math.hypot(e.x - u.x, e.y - u.y) < B.range + e.r) {
-        u.st.basicCd += B.cd;
-        hurt(e, B.dmg, u);
-        ring(e.x, e.y, 3, 30, 0.25, '#9cc0ff');
-        burst(e.x, e.y, 6, '#8fb4ff', 160);
-      } else {
-        u.st.basicCd = 0.2;   // 没目标就下一帧再试
-      }
-    }
+    if (u.st.basicCd > 0) return;
 
-    var cfg = BALANCE.boss.lapis;
-    for (var k = 0; k < units.length; k++) {
-      var v = units[k];
-      if (!v.alive || v.team === u.team) continue;
-      if (v.boss) continue;   // BOSS 免疫控制
-      if (Math.hypot(v.x - u.x, v.y - u.y) < cfg.auraR) {
-        v.slowT = Math.max(v.slowT, 0.35);
-        v.slowMul = Math.min(v.slowMul || 1, BALANCE.slowSpeedMul);
-      }
-    }
+    var e = nearestEnemy(u);
+    if (!e) { u.st.basicCd = 0.2; return; }
+    var d = Math.hypot(e.x - u.x, e.y - u.y);
+    if (d < B.minRange || d > B.range) { u.st.basicCd = 0.2; return; }
 
-    u.st.shieldCd -= dt;
-    if (u.st.shieldCd > 0) return;
-    u.st.shieldCd += cfg.shieldInterval;
-    u.st.shield = cfg.shield;
-    u.st.shieldT = 0;   // 不按时间清空，只能被伤害打掉
-    ring(u.x, u.y, u.r, 118, 0.4, '#8fb4ff');
-    burst(u.x, u.y, 10, '#9cc0ff', 180);
-    floater(u.x, u.y - u.r - 14, '护盾 ' + cfg.shield, '#9cc0ff', 12);
+    u.st.basicCd += B.cd;
+    u.ang = Math.atan2(e.y - u.y, e.x - u.x);
+    u.dashT = B.dashTime;
+    u.dashSpeed = B.dashSpeed;
+    u.st.basicDmg = u.atk * B.pct * bossBasicMul(u);
+    ring(u.x, u.y, u.r, u.r + 40, 0.3, '#8fb4ff');
   },
   draw: function (u) { drawBossBlock(u); }
 };
 
-/* 紫晶核心：红青合体后的最终形态（出生即狂暴）
+/* 紫晶核心：红青合体后的最终形态
    ------------------------------------------------------------
-   · 合体演出：血条从 1 充到 6500；从这一刻起可以被击倒
-   · 普攻（3s）：400px 内最近敌人受到 140 伤害
-   · 狂暴：移速 ×2.6 起、每秒 +0.11 倍（上限 ×4.0）；可穿透敌方
-   · 沿途投炸弹（间隔 0.75s → 最快 0.45s，45 伤害）
-   · 撞击伤害随时间叠加（每秒 +15，上限 +150），每次命中后有 1.0s 冷却
-   · 每 7 秒放一圈「紫晶冲击」：360px 内敌人 120 伤害
-   · 合体后 32 秒还没被打死 → 「终末震荡」：BOSS 原地停止，镜头依次给到每个受击单位，
-     敌方每个存活单位（含种子）扣 60% 最大生命，并施加 10 秒虚弱（所有伤害 -20%） */
+   · 合体演出：血条从 1 充到 4300；从这一刻起可以被击倒
+   · 天赋：移动速度 +150%（×2.5），可穿透敌方
+   · 普攻：每 500ms 在原地放 1 颗炸弹（40 × 普攻附魔）
+   · 技能（5s）：给自己附魔随机效果
+   · 终结技：生命首次低于 50% 时开始蓄力 8 秒，随后原地停止释放终焉一击：
+     敌方每个存活单位扣 70% 最大生命，并获得 10 秒虚弱（所有伤害 -20%） */
 TYPES.bosscore = {
   key: 'bosscore', name: '紫晶核心', role: 'BOSS / 合体形态',
   boss: true, bossImmune: true, calibrated: true,
-  rageCasts: true,   // 狂暴期间仍然施放技能（其它角色的狂暴会停手）
-  r: 46, maxHp: 4300, baseSpeed: 240, atk: 100, def: 120,
-  energyMax: 100, energyRegen: 2.2,
+  rageCasts: true,
+  r: 46, maxHp: 5000, baseSpeed: 240, atk: 100, def: 120,
   impact: true,
   body: '#7a3fbf', light: '#c79bff', dark: '#3a1668', glow: '#b478ff',
-  basic: { cd: 3.0, range: 400, dmg: 105 },
+  basic: { cd: 0.5, fuse: 1.0, radius: 105, dmg: 40 },
   skill: {
-    name: '紫晶脉冲', cd: 2.6,
-    dashSpeed: 780, dashTime: 0.30, dmgMult: 1.35,
-    text: '转向冲刺，撞击 115% 攻击力'
+    name: '自我附魔', cd: 5.0,
+    dashTime: 0, dashSpeed: 0, dmgMult: 1,
+    text: '为自己附魔随机效果：普攻 +25/45/70%、防御 +10%（防御不叠加）'
   },
   ultimate: {
-    name: '紫晶崩裂',
-    text: '能量充满后以自身为中心 460px 爆发 300 伤害（多目标衰减），并空投 6 颗炸弹'
+    name: '终焉一击',
+    text: '生命首次低于 50% 时蓄力 8 秒，随后敌方各扣 70% 最大生命，并虚弱 10 秒（所有伤害 -20%）'
   },
   passive: {
     name: '合体狂暴',
-    text: '速度持续提升 · 沿途投弹 · 撞击伤害随时间叠加（每秒 +15，上限 +120，每次命中后 1.0 秒冷却）· 32 秒后原地停止释放终末震荡：全场扣 60% 最大生命并虚弱 10 秒'
+    text: '移动速度 +150% · 免疫控制 · 锁血后不可被锁定 · 血量低于 50% 开始终焉蓄力'
   },
   rage: {
-    speedMul: 2.6,
-    speedRampPerSec: 0.11,
-    speedMulCap: 4.0,
+    speedMul: 2.5,
+    speedRampPerSec: 0,
+    speedMulCap: 2.5,
     passThrough: true,
     hitCd: 1.0,
-    dmgPerSec: 15,
-    dmgCap: 120,
-    ramp: true,
-    status: '移速 ×2.6 起 · 越跑越快 · 可穿透敌方 · 沿途投掷炸弹 · 撞击伤害叠加',
-    bomb: { interval: 0.75, intervalRamp: 0.010, intervalMin: 0.45, fuse: 1.3, radius: 105, dmg: 36 }
+    dmgPerSec: 0,
+    dmgCap: 0,
+    ramp: false,
+    status: '移速 +150% · 可穿透敌方 · 每 0.5 秒原地投弹',
+    bomb: { interval: 0.5, intervalRamp: 0, intervalMin: 0.5, fuse: 1.0, radius: 105, dmg: 40 }
   },
-  ultBlocked: function (u) { return u.st.nukeCast > 0; },
-  createState: function () { return { bombCd: 0.2, basicCd: 1.0, rageHitCd: 0, shockCd: 7.0, nukeT: -1, nukeWarned: false, nukeCast: 0 }; },
-  // 撞击：狂暴后常驻，按「合体后经过的秒数」叠加附加伤害，命中后有 hitCd 冷却
+  ultBlocked: function () { return true; },   // 终焉一击由血量触发，不走能量/CD 大招
+  createState: function () {
+    return {
+      bombCd: 0.2, basicCd: 0.2, rageHitCd: 0,
+      nukeStarted: false, nukeT: -1, nukeWarned: false, nukeCast: 0,
+      enchantBasic: 0, enchantSkill: 0, enchantDef: 0
+    };
+  },
   onAttack: function (u) {
-    if (u.st.nukeCast > 0) return 0;   // 终末震荡演出期间不结算撞击
-    var R = u.st.rage;
-    if (!R) return u.atk * 1.15;
-    if (R.phase === 'shake') return 0;
+    if (u.st.mergeFill > 0) return 0;
+    if (u.st.nukeCast > 0) return 0;
     if ((u.st.rageHitCd || 0) > 0) return 0;
     u.st.rageHitCd = TYPES.bosscore.rage.hitCd;
-    var extra = Math.min(TYPES.bosscore.rage.dmgCap,
-      (t - R.since) * TYPES.bosscore.rage.dmgPerSec);
-    return u.atk * 1.15 + extra;
+    return u.atk * 0.9;
   },
   onCast: function (u) {
-    ring(u.x, u.y, u.r, 150, 0.36, '#c79bff');
-    burst(u.x, u.y, 24, '#d9bcff', 300);
-    floater(u.x, u.y - u.r - 22, '紫晶脉冲', '#d9bcff', 13);
-    shake = Math.max(shake, 4);
-  },
-  onUlt: function (u) {
-    var R = 460, DMG = 300, hits = 0;
-    for (var k0 = 0; k0 < units.length; k0++) {
-      var v0 = units[k0];
-      if (!v0.alive || v0.team === u.team) continue;
-      if (Math.hypot(v0.x - u.x, v0.y - u.y) > R + v0.r) continue;
-      hits++;
-    }
-    for (var k = 0; k < units.length; k++) {
-      var v = units[k];
-      if (!v.alive || v.team === u.team) continue;
-      if (Math.hypot(v.x - u.x, v.y - u.y) > R + v.r) continue;
-      hurt(v, DMG * aoeScale(hits), u);
-      burst(v.x, v.y, 8, '#d9bcff', 220);
-    }
-    var A = ARENA;
-    for (var i = 0; i < 6; i++) {
-      var a = i / 6 * TAU + t * 0.5;
-      spawnBomb(u,
-        clamp(u.x + Math.cos(a) * 130, A.x + 26, A.x + A.w - 26),
-        clamp(u.y + Math.sin(a) * 130, A.y + 26, A.y + A.h - 26),
-        { fuse: 1.4, radius: 120, dmg: 100 });
-    }
-    ring(u.x, u.y, u.r, R, 0.75, '#c79bff');
-    ring(u.x, u.y, u.r, R * 0.6, 0.55, '#efe2ff');
-    burst(u.x, u.y, 36, '#b478ff', 400);
-    shake = Math.max(shake, 7);
-    hitStop = Math.max(hitStop, 0.03);
+    bossEnchant(u, true);   // 二阶段只抽普攻 / 防御
+    ring(u.x, u.y, u.r, u.r + 50, 0.4, '#c79bff');
   },
   onTick: function (u, dt) {
-    // 出场放大动画计时（只影响外观）
     if (u.st.appear > 0) u.st.appear = Math.max(0, u.st.appear - dt);
-    /* 血条充能：合体登场时只有 1 HP，1.2 秒内涨到 4300（期间免伤、不能移动）。
-       这样玩家能看到「血条从 1 涨到满」的过程，而不是瞬间满血。 */
+
+    /* 血条充能：合体登场时只有 1 HP，1.2 秒内涨到 5000（期间免伤、不能移动）。 */
     if (u.st.mergeFill > 0) {
       u.st.mergeFill = Math.max(0, u.st.mergeFill - dt);
       u.hp = Math.min(u.maxHp, u.hp + (u.st.mergeFillRate || 0) * dt);
       if (u.st.mergeFill <= 0) u.hp = u.maxHp;
+      return;
     }
 
-    // 终末震荡演出：BOSS 原地停止，只蓄能（速度由 speedOf 归零，攻击全部跳过）
+    // 终焉一击释放演出：BOSS 原地停止
     if (u.st.nukeCast > 0) {
       u.st.nukeCast = Math.max(0, u.st.nukeCast - dt);
       if (Math.floor((u.st.nukeCast + dt) * 5) !== Math.floor(u.st.nukeCast * 5)) {
@@ -289,100 +267,53 @@ TYPES.bosscore = {
       return;
     }
 
-    // 狂暴撞击的冷却
-    if (u.st.rageHitCd > 0) u.st.rageHitCd = Math.max(0, u.st.rageHitCd - dt);
-
-    // 普攻：3 秒打 400px 内最近的敌人 140
-    var BB = TYPES.bosscore.basic;
-    u.st.basicCd -= dt;
-    if (u.st.basicCd <= 0 && u.st.mergeFill <= 0) {
-      var be = nearestEnemy(u);
-      if (be && Math.hypot(be.x - u.x, be.y - u.y) < BB.range + be.r) {
-        u.st.basicCd += BB.cd;
-        hurt(be, BB.dmg, u);
-        ring(be.x, be.y, 3, 34, 0.25, '#c79bff');
-        burst(be.x, be.y, 8, '#b478ff', 180);
-      } else {
-        u.st.basicCd = 0.2;
-      }
+    /* 生命首次低于 50% → 开始 8 秒蓄力（只触发一次）。 */
+    if (!u.st.nukeStarted && u.hp <= u.maxHp * 0.5) {
+      u.st.nukeStarted = true;
+      u.st.nukeT = 8.0;
+      u.st.nukeWarned = false;
+      if (typeof bossCry === 'function') bossCry('终焉蓄力', '8 秒后释放终焉一击');
+      if (typeof sfxPlay === 'function') sfxPlay('cast');
+      ring(u.x, u.y, u.r, u.r + 140, 0.7, '#c79bff');
     }
 
-    var R = u.st.rage;
-    /* 终末震荡：合体后 nukeDelay 秒还没被打死 → 全屏一震（每局只放一次）。
-       充能最后 nukeWarn 秒给一次播报 + 状态栏倒计时，让玩家知道该集火。 */
-    if (R && R.phase === 'rage' && u.st.mergeFill <= 0 && u.st.nukeT >= 0) {
+    if (u.st.nukeT >= 0) {
       u.st.nukeT -= dt;
-      var NC = BALANCE.boss.core;
-      if (!u.st.nukeWarned && u.st.nukeT <= (NC.nukeWarn || 8)) {
+      if (!u.st.nukeWarned && u.st.nukeT <= 8.0) {
         u.st.nukeWarned = true;
-        if (typeof bossCry === 'function') bossCry('终末震荡充能', '快集火！BOSS 未死将全屏一震');
-        if (typeof sfxPlay === 'function') sfxPlay('cast');
-        ring(u.x, u.y, u.r, u.r + 120, 0.6, '#ff9a6b');
       }
       if (u.st.nukeT <= 0) {
         u.st.nukeT = -1;
-        u.st.nukeCast = 1.8;   // 原地停止 1.8 秒，配合镜头演出
+        u.st.nukeCast = 1.8;
         coreNuke(u);
         return;
       }
     }
 
-    // 沿途投弹（只有狂暴阶段）
-    if (R && R.phase === 'rage') {
-      var B = TYPES.bosscore.rage.bomb;
-      var interval = Math.max(B.intervalMin, B.interval - (t - R.since) * B.intervalRamp);
-      u.st.bombCd -= dt;
-      if (u.st.bombCd <= 0) {
-        u.st.bombCd += interval;
-        spawnBomb(u, u.x, u.y, B);
-        ring(u.x, u.y, 3, 30, 0.18, '#c79bff');
-      }
-    }
+    if (u.st.rageHitCd > 0) u.st.rageHitCd = Math.max(0, u.st.rageHitCd - dt);
 
-    // 紫晶冲击：每 7 秒一圈范围伤害（合体后才有）
-    if (R) {
-      u.st.shockCd -= dt;
-      if (u.st.shockCd <= 0) {
-        u.st.shockCd += BALANCE.boss.core.shockInterval;
-        var RR = BALANCE.boss.core.shockR, DD = BALANCE.boss.core.shockDmg;
-        var hits = 0;
-        for (var k = 0; k < units.length; k++) {
-          var v = units[k];
-          if (!v.alive || v.team === u.team) continue;
-          if (Math.hypot(v.x - u.x, v.y - u.y) > RR + v.r) continue;
-          hits++;
-        }
-        for (var k2 = 0; k2 < units.length; k2++) {
-          var v2 = units[k2];
-          if (!v2.alive || v2.team === u.team) continue;
-          if (Math.hypot(v2.x - u.x, v2.y - u.y) > RR + v2.r) continue;
-          hurt(v2, DD * aoeScale(hits), u);
-        }
-        ring(u.x, u.y, u.r, RR, 0.55, '#c79bff');
-        burst(u.x, u.y, 22, '#b478ff', 300);
-        shake = Math.min(15, shake + 3);
-      }
+    // 普攻：每 500ms 在脚下放一颗炸弹
+    var B = TYPES.bosscore.basic;
+    u.st.basicCd -= dt;
+    if (u.st.basicCd <= 0) {
+      u.st.basicCd += B.cd;
+      spawnBomb(u, u.x, u.y, { fuse: B.fuse, radius: B.radius, dmg: B.dmg * bossBasicMul(u) });
     }
   },
   onRageStart: function (u) {
-    u.st.bombCd = 0.15;
+    u.st.basicCd = 0.2;
     u.st.rageHitCd = 0;
-    u.st.shockCd = 3.0;
-    // 合体即开始为「终末震荡」计时（0 表示已放完 / 不再计时）
-    var C = BALANCE.boss.core;
-    u.st.nukeT = C.nukeDelay == null ? 24 : C.nukeDelay;
-    u.st.nukeWarned = false;
   },
   draw: function (u) { drawBossBlock(u); }
 };
 
-/* 终末震荡（全屏一震）：BOSS 原地停止，所有存活敌方单位 + 敌方种子各扣 pct% 最大生命，
-   并附加 10 秒虚弱（普攻 / 技能 / 终结技伤害 -20%）。
+/* 终焉一击：BOSS 原地停止，所有存活敌方单位 + 敌方种子各扣 pct% 最大生命，
+   并附加 10 秒虚弱（所有伤害 -20%）。
    走 hurt(..., {pct:1})，因此不吃 dmgScale / dmgTakeMul；
-   同时生成 bossCine 镜头队列，渲染层会依次放大每个被命中的单位。 */
+   同时生成慢动作镜头（先聚焦 BOSS，再拉远到全场）。 */
 function coreNuke(u) {
   var C = BALANCE.boss.core;
-  var pct = C.nukePct == null ? 0.60 : C.nukePct;
+  var pct = C.nukePct == null ? 0.70 : C.nukePct;
   var weakDur = C.weakDur == null ? 10 : C.weakDur;
   var A = ARENA;
 
@@ -409,7 +340,7 @@ function coreNuke(u) {
   hitStop = Math.max(hitStop, 0.09);
   if (typeof sfxPlay === 'function') sfxPlay('bomb');
   if (typeof bossCry === 'function') {
-    bossCry('终末震荡', 'BOSS 原地停止 · 敌方各扣 ' + Math.round(pct * 100) + '% 最大生命并虚弱 ' + weakDur + ' 秒');
+    bossCry('终焉一击', 'BOSS 原地停止 · 敌方各扣 ' + Math.round(pct * 100) + '% 最大生命并虚弱 ' + weakDur + ' 秒');
   }
 
   for (var i = 0; i < units.length; i++) {
@@ -488,9 +419,8 @@ function drawBossBlock(u) {
   }
 
   var st = u.st || {};
-  /* 终末震荡预警蓄能：最后 nukeWarn 秒核心向内收紧蓄能，
-     蓄能环收缩 + 内圈白环收拢 + 向上抽微光柱，让玩家提前集火。 */
-  var warnW = BALANCE.boss.core.nukeWarn || 8;
+  /* 终焉蓄力：最后 8 秒核心向内收紧蓄能，蓄能环收缩 + 内圈白环收拢 + 向上抽微光柱。 */
+  var warnW = 8;
   if (st.nukeT >= 0 && st.nukeT <= warnW) {
     var wp2 = 1 - st.nukeT / warnW;
     var pulse = 0.5 + 0.5 * Math.sin(t * 10);
@@ -514,7 +444,7 @@ function drawBossBlock(u) {
     ctx.restore();
   }
 
-  /* 终末震荡释放演出：核心残留辉光随 nukeCast 消退向外扩散。 */
+  /* 终焉一击释放演出：核心残留辉光随 nukeCast 消退向外扩散。 */
   if (st.nukeCast > 0) {
     var np = 1 - st.nukeCast / 1.8;
     ctx.save();

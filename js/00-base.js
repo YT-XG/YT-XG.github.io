@@ -205,6 +205,9 @@ var BALANCE = {
        · pctTakeMul —— BOSS 受到的百分比伤害倍率（狗奶 / 缺氧，防止"引导秒杀"）
        · dmgMul     —— BOSS 出手的整体倍率（挑战者不加血，靠压 BOSS 输出来拉长对局） */
     dmgTakeMul: 0.79,
+    /* 新体系 BOSS（calibrated）的出手总倍率：技能系数已按用户设定写死，
+       这里只做整体难度旋钮，避免再回去改每个技能的百分比。 */
+    calibratedDmgMul: 0.68,
     pctTakeMul: 0.20,
     /* 0.62：一阶段锁血后停手、二阶段核心登场有免伤充能窗口，
        BOSS 的实际输出窗口小于纯 DPS 计算；保留这个倍率只影响未标记
@@ -217,12 +220,12 @@ var BALANCE = {
        · nukeDelay —— 合体后多少秒还没被打死就放「终末震荡」（一次性全屏震）
        · nukePct   —— 终末震荡对每个存活敌方单位扣的最大生命比例（百分比伤害）
        · nukeWarn  —— 释放前的播报 / 状态栏倒计时窗口（s） */
-    core: { shockR: 360, shockDmg: 95, shockInterval: 7.0, nukeDelay: 32, nukePct: 0.60, nukeWarn: 8,
+    core: { shockR: 360, shockDmg: 95, shockInterval: 7.0, nukeDelay: 32, nukePct: 0.70, nukeWarn: 8,
             weakDur: 10, weakMul: 0.80 },
     /* 合体演出（纯表现 + 免伤窗口，不影响平衡）：
        · mergePause —— 两只锁到 1 血后原地「停手」的时长（s）：只亮环、不动
        · mergeSlide —— 停手结束后两只滑向中点的时长（s）
-       · mergeFill  —— 紫晶核心登场后血条从 1 涨到满（4300）的时长（s），期间免伤且不动 */
+       · mergeFill  —— 紫晶核心登场后血条从 1 涨到满（5000）的时长（s），期间免伤且不动 */
     mergePause: 0.55,
     mergeSlide: 0.45,
     mergeFill: 1.2

@@ -117,7 +117,7 @@ vm.runInContext(`
   })();
 `, sandbox);
 
-if (Number.isFinite(DMG_ARG)) vm.runInContext('BALANCE.boss.dmgMul = ' + DMG_ARG + ';', sandbox);
+if (Number.isFinite(DMG_ARG)) vm.runInContext('BALANCE.boss.dmgMul = ' + DMG_ARG + '; BALANCE.boss.calibratedDmgMul = ' + DMG_ARG + ';', sandbox);
 if (Number.isFinite(TAKE_ARG)) vm.runInContext('BALANCE.boss.dmgTakeMul = ' + TAKE_ARG + ';', sandbox);
 if (Number.isFinite(PCT_ARG)) vm.runInContext('BALANCE.boss.pctTakeMul = ' + PCT_ARG + ';', sandbox);
 if (Number.isFinite(NUKE_ARG)) vm.runInContext('BALANCE.boss.core.nukeDelay = ' + NUKE_ARG + ';', sandbox);
@@ -209,7 +209,7 @@ console.log('');
 console.log('BOSS 战 5v1 无头模拟 · 每套 ' + N + ' 局 · 时长 ' + DUR + 's');
 console.log('挑战者：常规数值（无额外加成）｜ BOSS 承伤 ×' + sandbox.BALANCE.boss.dmgTakeMul +
   ' · 百分比 ×' + sandbox.BALANCE.boss.pctTakeMul +
-  ' ｜ BOSS 出手 ×' + sandbox.BALANCE.boss.dmgMul);
+  ' ｜ BOSS 出手 ×' + (sandbox.BALANCE.boss.calibratedDmgMul || sandbox.BALANCE.boss.dmgMul));
 console.log('红青各 ' + sandbox.TYPES.bossred.maxHp + ' HP ｜ 紫晶核心 ' +
   sandbox.TYPES.bosscore.maxHp + ' HP');
 console.log('');

@@ -1845,7 +1845,10 @@ function drawUnitStatus(u) {
   var st = u.st || {};
   var rows = [];
   if (st.enchantAtk > 0) rows.push(['攻', '+' + Math.round(st.enchantAtk * 10) + '%', '#ffd166']);
+  if (st.enchantBasic > 0) rows.push(['攻', '+' + [0, 25, 45, 70][Math.min(3, st.enchantBasic)] + '%', '#ffd166']);
   if (st.eAtk > 0) rows.push(['攻', '+' + Math.round(st.eAtk * 10) + '%', '#ffc46b']);
+  if (st.enchantSkill > 0) rows.push(['技', '+' + [0, 25, 45, 70][Math.min(3, st.enchantSkill)] + '%', '#ffb27a']);
+  if (st.enchantDef) rows.push(['防', '+10%', '#9fd0ff']);
   if (st.eHp > 0) rows.push(['血', '+' + (st.eHp * 80), '#8fe08a']);
   if (st.eSpeed > 0) rows.push(['速', '+' + Math.round(st.eSpeed * 6) + '%', '#8ce0ff']);
   var smax = TYPES[u.key] && TYPES[u.key].shieldMax;
