@@ -93,7 +93,7 @@ TYPES.bucket = {
     if (!e) return;
     if (Math.hypot(e.x - u.x, e.y - u.y) > BUCKET_BASIC.range + e.r) return;
     u.st.basicCd = BUCKET_BASIC.cd;
-    hurt(e, BUCKET_BASIC.dmg, u);
+    hurt(e, BUCKET_BASIC.dmg, u, { basic: 1 });
     gainEnergy(u, BUCKET_BASIC.energy);
     ring(e.x, e.y, e.r, e.r + 28, 0.26, '#9fe4ff');
     burst(e.x, e.y, 5, '#cdefff', 150);

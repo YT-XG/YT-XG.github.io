@@ -130,7 +130,7 @@ TYPES.milk = {
     if (!e) return;
     if (Math.hypot(e.x - u.x, e.y - u.y) > MILK_BASIC.range + e.r) return;
     u.st.basicCd = MILK_BASIC.cd;
-    hurt(e, MILK_BASIC.dmg, u);
+    hurt(e, MILK_BASIC.dmg, u, { basic: 1 });
     var heal = u.maxHp * MILK_BASIC.healPct;
     u.hp = Math.min(u.maxHp, u.hp + heal);
     gainEnergy(u, MILK_BASIC.energy);

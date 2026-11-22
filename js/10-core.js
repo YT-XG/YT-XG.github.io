@@ -10,8 +10,14 @@
    · sense(u)    —— 最近敌人的距离 / 速度 / 冲刺状态 / 血量比
    只读，不产生任何位移；决策层唯一能做的动作仍是 cast()
    ============================================================ */
+/* 大狗终结技引导：原地释放 5 秒激光，期间不被推动 */
+function isDogChannel(u) {
+  return !!(u && u.st && u.st.ultLaserT > 0);
+}
+
 function speedOf(u) {
   if (!u || !u.alive) return 0;
+  if (isDogChannel(u)) return 0;            // 终极咆哮：原地引导，不移动
   if (u.st.mergeFill > 0) return 0;        // 紫晶核心血条充能中：原地涨血
   if (u.st.nukeCast > 0) return 0;         // 终末震荡演出：BOSS 原地停止
   if (bossMergeAct && (bossMergeAct.a === u || bossMergeAct.b === u)) return 0;  // 合体前停顿
@@ -66,6 +72,12 @@ function dmgOf(attacker, impact, victim) {
   var T = victim && TYPES[victim.key];
   if (T && T.onDamaged) dmg = T.onDamaged(victim, dmg);
   return dmg;
+}
+
+/* 撞击伤害是否来自「普攻」：普攻冲刺开始时由物品写 st.basicAtk，
+   技能 / 终结技会在 cast() / castUltimate() 里清掉该标记。 */
+function isBasicHit(u) {
+  return !!(u && u.st && u.st.basicAtk && u.dashT > 0);
 }
 
 /* ============================================================
@@ -334,7 +346,13 @@ function addUnit(key, x, y, team) {
     cd: d.skill.passiveOnly ? 0 : srand(0.8, 1.8), hitCd: 0, wallCd: 0,
     dashT: 0, dashSpeed: 0,
     castT: 0, castMax: 0, castAim: null,
-    slowT: 0, slowMul: BALANCE.slowSpeedMul, iceTick: 0, dealt: 0, taken: 0,
+    slowT: 0, slowMul: BALANCE.slowSpeedMul, dealt: 0, taken: 0,
+    // 寒冷：层数 / 每秒结算累加器 / 是否站在陷阱上 / 施放者与攻击力快照
+    coldStacks: 0, coldAcc: 1.0, coldOn: false, coldSrc: null, coldAtk: 0,
+    // 脆弱：受到所有类型伤害的倍率与剩余时间（冰块终结技）
+    vulnT: 0, vulnMul: 1.2,
+    // 大狗技能加攻：已加到 atk 上的数值 / 剩余时间（到期由 tick 还原）
+    atkBuffAdd: 0, atkBuffT: 0,
     waterT: 0, waterAcc: 1.0,   // 浸水累计时长 / 满 1 秒结算一次的累加器（水桶的水面）
     bindT: 0, poisonT: 0, poisonAcc: 1.0, poisonSrc: null, poisonDps: 0,
     dotAmt: 0, dotT: 0,         // DoT 汇总：这一秒累计的持续伤害 / 距离下次飘字的剩余时间

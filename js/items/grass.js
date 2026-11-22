@@ -98,7 +98,7 @@ TYPES.grass = {
     if (!e) return;
     if (Math.hypot(e.x - u.x, e.y - u.y) > GRASS_BASIC.range + e.r) return;
     u.st.basicCd = GRASS_BASIC.cd;
-    hurt(e, GRASS_BASIC.dmg, u);
+    hurt(e, GRASS_BASIC.dmg, u, { basic: 1 });
     e.poisonT = Math.max(e.poisonT, GRASS_BASIC.poisonTime);
     e.poisonAcc = Math.min(e.poisonAcc, 1.0);
     e.poisonDps = GRASS_BASIC.poisonDps;

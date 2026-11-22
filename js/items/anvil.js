@@ -108,7 +108,7 @@ TYPES.anvil = {
     if (!e) return;
     u.st.basicCd = ANVIL_BASIC.cd;
     var p = anvilSpot(e, ANVIL_BASIC.delay);
-    spawnAnvilMark(u, p.x, p.y, { r: ANVIL_BASIC.r, delay: ANVIL_BASIC.delay, dmg: ANVIL_BASIC.dmg });
+    spawnAnvilMark(u, p.x, p.y, { r: ANVIL_BASIC.r, delay: ANVIL_BASIC.delay, dmg: ANVIL_BASIC.dmg, basic: 1 });
     gainEnergy(u, ANVIL_BASIC.energy);
     ring(p.x, p.y, 6, ANVIL_BASIC.r, 0.3, '#cbd8ea');
   },

@@ -18,7 +18,7 @@ var POOL = [
     key: 'spear',
     name: '长矛',
     short: '长矛',
-    role: '单点爆发',
+    role: '突刺 / 持续伤害',
     units: ['spear'],
     body: '#b9c4d4',
     glow: '#cfe0ff'

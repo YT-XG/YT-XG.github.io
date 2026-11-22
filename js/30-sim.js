@@ -61,18 +61,28 @@ function gainEnergy(u, amt) {
 /* 伤害统一入口
    ------------------------------------------------------------
    · opt = { pct: 1 }  —— 按目标最大生命算的百分比伤害，不乘全局倍率
-   · opt = { dot: 1 }  —— 持续伤害（冰面 / 中毒 / 浸水 / 狗奶引导 / 大狗每段激光）：
+   · opt = { dot: 1 }  —— 持续伤害（冰面 / 中毒 / 浸水 / 狗奶引导）：
                         不播音效、不爆粒子、不逐跳飘字，改为每满 1 秒汇总一条小飘字
+   · opt = { multi: 1 } —— 多段激光（大狗终结技）：每段单独飘字、不合并、不播命中音效
    · 其余（撞击 / 箭矢 / 落点 / 炸弹 / 终结技 / 种子被撞）都走绝对值口径，
      统一乘 BALANCE.dmgScale —— 保证「生命上限整体上调」时所有固定伤害同步放大 */
 function hurt(u, amount, src, opt) {
   var pct = !!(opt && opt.pct);
   var dot = !!(opt && opt.dot);
+  /* multi：多段激光的每一段都单独飘字（不合并、不播命中音效），用于大狗终结技 */
+  var multi = !!(opt && opt.multi);
   /* 新数值体系（红青组合）标记 calibrated：伤害已按 2000 HP 口径校准，
      不再乘 dmgScale；旧角色没有这个标记，行为完全不变。 */
   var cal = !!(src && TYPES[src.key] && TYPES[src.key].calibrated);
   /* 虚弱（终末震荡）：出手方 10 秒内普攻 / 技能 / 终结技伤害 -20% */
   if (src && src.weakT > 0) amount *= (src.weakMul || 0.8);
+  /* 脆弱（冰块终结技）：受到的所有类型伤害 +20%，只刷新时间、不叠乘 */
+  if (u.vulnT > 0) amount *= (u.vulnMul || 1.2);
+  /* 青金石狂暴天赋：受到的普通攻击伤害按 rage.basicTakenMul 缩放（0.4 = -60%） */
+  if (opt && opt.basic && u.st && u.st.rage && u.st.rage.phase === 'rage') {
+    var RT = TYPES[u.key];
+    if (RT && RT.rage && RT.rage.basicTakenMul != null) amount *= RT.rage.basicTakenMul;
+  }
   /* 防御减伤：比值式 DEF/(DEF+defK)，边际递减、永远不为负。def=0 的旧角色跳过。 */
   if (u.def > 0) amount *= BALANCE.defK / (BALANCE.defK + u.def);
   // 1v1 单挑修正：按「出手方」缩放全部非百分比伤害（含箭矢 / 激光等固定伤害技能）
@@ -101,14 +111,14 @@ function hurt(u, amount, src, opt) {
      ②紫晶核心登场后血条从 1 涨到满（mergeFill），充能完才可被击伤。 */
   if (u.st && u.st.mergeFill > 0) return;
   if (bossMergeAct && (bossMergeAct.a === u || bossMergeAct.b === u)) return;
-  if (!dot && typeof sfxPlay === 'function') sfxPlay('hit');
+  if (!dot && !multi && typeof sfxPlay === 'function') sfxPlay('hit');
 
   // 野生狗奶：引导期间受击先扣「打断护盾」（128 点）；护盾存在时不掉血，打空立即打断
   if (u.st && u.st.milkT > 0) {
     var absorbed = Math.min(u.st.shield, amount);
     u.st.shield -= absorbed;
     u.taken += amount;       // 承伤统计照常累加（含被护盾吸收的部分）
-    if (!dot) {
+    if (!dot && !multi) {
       floater(u.x, u.y - u.r - 12, '护盾 ' + Math.ceil(Math.max(0, u.st.shield)), '#93b6ff', 12);
       ring(u.x, u.y, u.r + 4, u.r + 30, 0.2, '#93b6ff');
     }
@@ -118,7 +128,7 @@ function hurt(u, amount, src, opt) {
 
   // 羁绊狂暴前的 3 秒：原地无敌
   if (u.st.rage && u.st.rage.phase === 'shake') {
-    if (!dot) floater(u.x, u.y - u.r - 14, '无敌', '#ffe08a', 12);
+    if (!dot && !multi) floater(u.x, u.y - u.r - 14, '无敌', '#ffe08a', 12);
     return;
   }
 
@@ -129,7 +139,7 @@ function hurt(u, amount, src, opt) {
     var absorbed2 = Math.min(u.st.shield, amount);
     u.st.shield -= absorbed2;
     amount -= absorbed2;
-    if (absorbed2 > 0 && !dot) floater(u.x, u.y - u.r - 12, '吸收 ' + Math.round(absorbed2), '#93b6ff', 12);
+    if (absorbed2 > 0 && !dot && !multi) floater(u.x, u.y - u.r - 12, '吸收 ' + Math.round(absorbed2), '#93b6ff', 12);
     if (u.st.shield <= 0.01) {
       u.st.shield = 0; u.st.shieldT = 0;
       ring(u.x, u.y, u.r, 128, 0.45, '#8fb4ff');
@@ -146,7 +156,7 @@ function hurt(u, amount, src, opt) {
       if (amount > canLose) {
         amount = canLose;
         u.st.locked = true;   // 锁血后不再被敌人锁定（铁砧等指向性技能会跳过）
-        if (!dot && !(u.st.lockFxT > 0)) {
+        if (!dot && !multi && !(u.st.lockFxT > 0)) {
           u.st.lockFxT = 0.8;
           ring(u.x, u.y, u.r, u.r + 52, 0.45, '#ffe08a');
           floater(u.x, u.y - u.r - 30, '锁血 ' + lockCap + ' HP', '#ffe08a', 13);
@@ -156,11 +166,18 @@ function hurt(u, amount, src, opt) {
     if (amount <= 0) return;
     u.hp -= amount;
     if (src) src.dealt += amount;
-    if (dot) {
+    if (dot && !multi) {
       // 持续伤害不逐跳表现：累加到 dotAmt，由 tick() 每秒合并成一条小飘字
       u.dotAmt = (u.dotAmt || 0) + amount;
       if (!(u.dotT > 0)) u.dotT = 1.0;
       if (u.flash < 0.25) u.flash = 0.25;
+    } else if (multi) {
+      // 多段激光：每一段都单独飘字，位置贴近目标，避免数字飞得太高
+      u.flash = Math.max(u.flash, 0.35);
+      floater(u.x + rand(-14, 14), u.y - u.r - 34 + rand(-5, 5),
+        '-' + Math.round(amount), '#ffd166', 16, { pop: 1 });
+      burst(u.x, u.y, 4, '#fff4d6', 150);
+      shake = Math.min(8, shake + 0.4);   // 每段都有一点震感
     } else {
       u.flash = 1;
       floater(u.x + rand(-9, 9), u.y - u.r - 72, '-' + Math.round(amount), '#ffd166', 22, { pop: 1 });
@@ -233,11 +250,8 @@ function startRage(u) {
 
 function onUnitDeath(u) {
   if (typeof sfxPlay === 'function') sfxPlay('death');
-  // 大狗：死亡立刻收回激光，否则 onTick 不再跑、laserT 永远 > 0，光束会一直挂在场上
-  if (u.st && u.st.laserT > 0) {
-    u.st.laserT = 0;   // 死亡立刻收回
-    u.st.laserTick = 0;
-  }
+  // 大狗：死亡立刻收回终结技激光，否则 onTick 不再跑、ultLaserT 永远 > 0，光束会一直挂在场上
+  if (u.st && u.st.ultLaserT > 0) u.st.ultLaserT = 0;   // 死亡立刻收回
 
   // 草：场上还有自己的种子 → 排队在种子上复活（这次不算真死，不触发羁绊）
   if (TYPES[u.key].revivesAtSeed && queueRevive(u)) return;
@@ -267,13 +281,15 @@ function updateRage(u, dt) {
 /* 炸弹唯一生成入口：{x,y,fuse,max,radius,dmg,team,owner,spin}
    ------------------------------------------------------------
    红石普攻 / 红石终结技 / BOSS 的投弹都走这里：
-   { fuse, radius, dmg }，可选 { energy, budget } 用于命中回能 */
+   { fuse, radius, dmg }，可选 { energy, budget } 用于命中回能；
+   { touch:1 } 让敌方触碰立即引爆，{ burn:n } 让命中者叠 n 层灼烧 */
 function spawnBomb(owner, x, y, cfg) {
   bombs.push({
     x: x, y: y,
     fuse: cfg.fuse, max: cfg.fuse,
     radius: cfg.radius, dmg: cfg.dmg,
     energy: cfg.energy || 0, budget: cfg.budget || null,
+    basic: !!cfg.basic, touch: !!cfg.touch, burn: cfg.burn || 0,
     team: owner.team, owner: owner, spin: rand(0, TAU)
   });
 }
@@ -387,6 +403,14 @@ function completeBossMerge() {
 function updateBombs(dt) {
   for (var i = bombs.length - 1; i >= 0; i--) {
     var b = bombs[i];
+    /* 普攻炸弹 / 声明 touch 的炸弹：敌方触碰立即引爆（引信置 0，本帧结算） */
+    if (b.basic || b.touch) {
+      for (var c = 0; c < units.length; c++) {
+        var cu = units[c];
+        if (!cu.alive || cu.team === b.team) continue;
+        if (Math.hypot(cu.x - b.x, cu.y - b.y) < cu.r + 12) { b.fuse = 0; break; }
+      }
+    }
     b.fuse -= dt;
     if (b.fuse > 0) continue;
     bombs.splice(i, 1);
@@ -403,7 +427,10 @@ function updateBombs(dt) {
       var v = units[k];
       if (!v.alive || v.team === b.team) continue;
       if (Math.hypot(v.x - b.x, v.y - b.y) < b.radius + v.r) {
-        hurt(v, b.dmg, b.owner);
+        hurt(v, b.dmg, b.owner, b.basic ? { basic: 1 } : null);
+        /* 命中灼烧：普攻炸弹默认 1 层，BOSS 二阶段炸弹由 burn 显式声明 */
+        var burnN = b.burn || (b.basic ? 1 : 0);
+        if (burnN > 0 && v.alive) redApplyBurn(v, b.owner, burnN);
         hits++;
       }
     }
@@ -489,6 +516,7 @@ function spawnAnvilMark(owner, x, y, cfg) {
     x: x, y: y, r: r,
     t: delay, max: delay,
     dmg: (cfg && cfg.dmg) || C.dmg,
+    basic: !!(cfg && cfg.basic),
     team: owner.team, owner: owner
   });
   if (anvilMarks.length > ANVIL_MARK_MAX) {
@@ -527,7 +555,7 @@ function updateAnvilMarks(dt) {
       var dmg = markDmg;
       if (hits[h].d > m.r * C.coreRatio) dmg *= C.edgeMul;   // 边缘区减伤
       if (h > 0) dmg *= C.splashMul;                          // 非最近目标只吃溅射
-      hurt(hits[h].v, dmg, m.owner);
+      hurt(hits[h].v, dmg, m.owner, m.basic ? { basic: 1 } : null);
     }
 
     // 敌方种子永远按"非最近目标"处理：只吃溅射（外圈再乘 edgeMul），不会顶掉单位的全额伤害
@@ -548,8 +576,9 @@ function updateAnvilMarks(dt) {
    箭矢（弓箭专属飞行物）
    ------------------------------------------------------------
    · 直线飞行、不反弹；寿命耗尽或飞出场地即销毁
-   · 普通箭命中第一个敌人后消失；强化箭对每个敌人只结算一次并继续飞
+   · 每支箭命中第一个敌人后消失（单目标）
    · 伤害统一走 hurt()，与护盾 / 无敌抖动 / 死亡流程保持一致
+   · 箭种效果（破伤风 / 减速 / 灼烧 / 引爆）在 applyArrowEffects 里结算
    ============================================================ */
 // 点到线段的最短距离：避免高速箭在相邻两帧之间"穿过"目标
 function segDist(px, py, x1, y1, x2, y2) {
@@ -575,29 +604,52 @@ function aimAngle(u, sx, sy, speed) {
   return Math.atan2(py - sy, px - sx);
 }
 
-function fireArrow(u, power, opts) {
-  var base = power ? TYPES.bow.arrow.power : TYPES.bow.arrow.normal;
-  var C = {
-    speed: (opts && opts.speed) || base.speed,
-    dmg: (opts && opts.dmg) || base.dmg,
-    life: (opts && opts.life) || base.life,
-    hitR: (opts && opts.hitR) || base.hitR
-  };
-  var aim = aimAngle(u, u.x, u.y, C.speed) + ((opts && opts.spread) || 0);
+function fireArrow(u, cfg) {
+  var C = cfg || {};
+  var speed = C.speed || 640;
+  var aim = aimAngle(u, u.x, u.y, speed) + (C.spread || 0);
   u.faceAng = aim;   // 仅用于绘制朝向；移动方向 u.ang 保持不变
 
   var sx = u.x + Math.cos(aim) * (u.r + 6);
   var sy = u.y + Math.sin(aim) * (u.r + 6);
   arrows.push({
     x: sx, y: sy, px: sx, py: sy,
-    ang: aim, speed: C.speed,
-    life: C.life, max: C.life,
-    power: !!power, dmg: C.dmg, hitR: C.hitR,
+    ang: aim, speed: speed,
+    life: C.life || 0.95, max: C.life || 0.95,
+    kind: C.kind || 'normal', color: C.color || '#c9f59b',
+    dmg: C.dmg || 0, hitR: C.hitR || 5, big: !!C.big,
+    energy: C.energy || 0, budget: C.budget || null,
+    basic: !!C.basic, settle: !!C.settle,
     team: u.team, owner: u, hit: []
   });
 
-  ring(sx, sy, 2, C.hitR * 4, 0.16, power ? '#ffd166' : '#c9f59b');
-  burst(sx, sy, power ? 6 : 3, power ? '#ffd166' : '#b9e88a', 110);
+  ring(sx, sy, 2, (C.hitR || 5) * 4, 0.16, C.color || '#c9f59b');
+  burst(sx, sy, C.big ? 8 : 3, C.color || '#b9e88a', C.big ? 170 : 110);
+}
+
+/* 箭种命中效果：破伤风 / 灼烧沿用统一 DoT，蛛丝箭减速，大火箭引爆 */
+function applyArrowEffects(v, a) {
+  if (!v || !v.alive || !a) return;
+  if (a.kind === 'tetanus') {
+    spearApplyTetanus(v, a.owner, BOW_ARROW.tetanus.stacks);
+  } else if (a.kind === 'fire') {
+    redApplyBurn(v, a.owner, BOW_ARROW.fire.stacks);
+  } else if (a.kind === 'web') {
+    if (!v.boss) v.bindT = Math.max(v.bindT || 0, BOW_ARROW.web.bindTime);   // BOSS 免疫定身
+  }
+  if (a.settle) settleDots(v, a.owner);
+}
+
+/* 箭矢回能：技能的三支箭共用一个预算，避免三发全中时回能翻三倍 */
+function arrowEnergy(a) {
+  if (!a.energy || !a.owner) return;
+  var g = a.energy;
+  if (a.budget) {
+    if (a.budget.left <= 0) return;
+    g = Math.min(g, a.budget.left);
+    a.budget.left -= g;
+  }
+  gainEnergy(a.owner, g);
 }
 
 function updateArrows(dt) {
@@ -618,27 +670,27 @@ function updateArrows(dt) {
       if (segDist(v.x, v.y, a.px, a.py, a.x, a.y) > v.r + a.hitR) continue;
 
       a.hit.push(v);
-      hurt(v, a.dmg, a.owner);
-      ring(v.x, v.y, 3, 26, 0.22, a.power ? '#ffd166' : '#c9f59b');
-      burst(v.x, v.y, a.power ? 8 : 4, a.power ? '#ffd166' : '#b9e88a', 180);
-      if (!a.power) { a.life = 0; break; }   // 普通箭命中即消失
+      hurt(v, a.dmg, a.owner, a.basic ? { basic: 1 } : null);
+      arrowEnergy(a);
+      applyArrowEffects(v, a);
+      ring(v.x, v.y, 3, a.big ? 60 : 26, a.big ? 0.4 : 0.22, a.color);
+      burst(v.x, v.y, a.big ? 24 : 4, a.color, a.big ? 340 : 180);
+      if (a.big) shake = Math.max(shake, 7);
+      a.life = 0; break;   // 单目标：命中第一个敌人后销毁
     }
 
-    // 箭矢也能命中敌方种子（种子是实体）；普通箭命中即消失，强化箭对每个种子只结算一次
+    // 箭矢也能命中敌方种子（种子是实体）：命中即消失
     if (a.life > 0) {
       for (var q = seeds.length - 1; q >= 0; q--) {
         var sd = seeds[q];
         if (sd.team === a.team) continue;
-        if (a.seedHit && a.seedHit.indexOf(sd) >= 0) continue;
         if (segDist(sd.x, sd.y, a.px, a.py, a.x, a.y) > sd.r + a.hitR) continue;
 
-        a.seedHit = a.seedHit || [];
-        a.seedHit.push(sd);
         hurtSeed(sd, a.dmg, a.owner);
-        ring(sd.x, sd.y, 3, 24, 0.2, a.power ? '#ffd166' : '#c9f59b');
-        burst(sd.x, sd.y, a.power ? 8 : 4, a.power ? '#ffd166' : '#b9e88a', 180);
+        ring(sd.x, sd.y, 3, 24, 0.2, a.color);
+        burst(sd.x, sd.y, 4, a.color, 180);
         if (sd.hp <= 0) destroySeed(q, '种子被射落');
-        if (!a.power) { a.life = 0; break; }
+        a.life = 0; break;
       }
     }
 
@@ -651,17 +703,19 @@ function updateArrows(dt) {
 }
 
 /* ============================================================
-   冰面：冰块移动时留下的地面残留
+   冰面陷阱：冰块技能在当前位置生成的区域效果
    ------------------------------------------------------------
-   · 每块存活 hold 秒，再用 fade 秒线性淡出（总寿命 hold+fade）
-   · 只对敌方生效：减速仍走 slowT，伤害每 dotInterval 秒结算一次
-   · 冰面不改方向、不推动单位，符合"只有技能/撞墙才转向"的红线
+   · 每块存活 hold 秒，最后 fade 秒线性淡出（淡出期间仍生效）
+   · 只对敌方单位生效：减速仍走 slowT / slowMul，不改方向、不推位置
+   · 寒冷：站在陷阱里每秒 +1 层（进入瞬间先计 1 层，上限 6）；
+     每层每秒造成施放者 15% 攻击力伤害；离开陷阱后每秒 -1 层，
+     层数归零前伤害继续结算
    ============================================================ */
-function dropIcePatch(owner, x, y) {
-  var C = TYPES.ice.iceTrail;
+function dropIceTrap(owner, x, y) {
+  var C = TYPES.ice.trap;
   icePatches.push({
     x: x, y: y, r: C.r,
-    life: C.hold + C.fade,
+    life: C.hold,
     team: owner.team, owner: owner
   });
   if (icePatches.length > ICE_PATCH_MAX) {
@@ -670,7 +724,6 @@ function dropIcePatch(owner, x, y) {
 }
 
 function updateIcePatches(dt) {
-  var C = TYPES.ice.iceTrail;
   var i, j;
 
   for (i = icePatches.length - 1; i >= 0; i--) {
@@ -678,86 +731,52 @@ function updateIcePatches(dt) {
     if (icePatches[i].life <= 0) icePatches.splice(i, 1);
   }
 
-  // 多目标衰减：先数当前踩在敌方冰面上的目标数（单位 + 种子），
-  // 同一块地面效果不再按人数线性翻倍（1 个目标时保持原值）
-  var iced = 0;
-  for (i = 0; i < units.length; i++) {
-    var iu = units[i];
-    if (!iu.alive) continue;
-    for (j = 0; j < icePatches.length; j++) {
-      var ip = icePatches[j];
-      if (ip.team === iu.team) continue;
-      var idx2 = iu.x - ip.x, idy2 = iu.y - ip.y;
-      var irr2 = ip.r + iu.r * 0.35;
-      if (idx2 * idx2 + idy2 * idy2 <= irr2 * irr2) { iced++; break; }
-    }
-  }
-  for (i = 0; i < seeds.length; i++) {
-    var isd = seeds[i];
-    for (j = 0; j < icePatches.length; j++) {
-      var ip2 = icePatches[j];
-      if (ip2.team === isd.team) continue;
-      var sdx2 = isd.x - ip2.x, sdy2 = isd.y - ip2.y;
-      var srr2 = ip2.r + isd.r * 0.35;
-      if (sdx2 * sdx2 + sdy2 * sdy2 <= srr2 * srr2) { iced++; break; }
-    }
-  }
-  var iceMul = aoeScale(iced);
-
   for (i = 0; i < units.length; i++) {
     var v = units[i];
     if (!v.alive) continue;
 
-    // 站上任意一块敌方冰面即生效（重叠多块不叠加）
-    var onIce = false, src = null;
+    // 站上任意一块敌方陷阱即生效（重叠多块不叠加层数）
+    var onTrap = false, srcPatch = null;
     for (j = 0; j < icePatches.length; j++) {
       var p = icePatches[j];
       if (p.team === v.team) continue;
       var dx = v.x - p.x, dy = v.y - p.y;
       var rr = p.r + v.r * 0.35;
-      if (dx * dx + dy * dy <= rr * rr) { onIce = true; src = p.owner; break; }
+      if (dx * dx + dy * dy <= rr * rr) { onTrap = true; srcPatch = p; break; }
     }
 
-    if (onIce) {
-      if (!v.boss) {   // BOSS 免疫减速；冰面 DoT 照常结算
-        v.slowT = Math.max(v.slowT, C.slowTime);
-        v.slowMul = Math.min(v.slowMul || 1, C.slowMul);
-      }
-      // 冰冻值（0 → 1）：在冰面上单调累积，满 1 秒结算一次伤害并清空重来，
-      // 离开冰面按 dt 回落。这样 HUD 上的冰冻条是「一直往上长」的，
-      // 而不是每秒在满/空之间来回跳（旧写法 -dt 再 +=1 会闪，实战几乎看不见）。
-      v.iceTick += dt;
-      if (v.iceTick >= C.dotInterval) {
-        v.iceTick -= C.dotInterval;   // 每 dotInterval 秒一次
-        hurt(v, C.dot * iceMul, src, { dot: 1 });
-      }
-    } else if (v.iceTick > 0) {
-      // 离开冰面后缓慢恢复，避免"很久以前踩过一次，回来一下就掉血"
-      v.iceTick = Math.max(0, v.iceTick - dt);
+    if (onTrap && !v.boss) {   // BOSS 免疫减速；寒冷伤害照常结算
+      v.slowT = Math.max(v.slowT, ICE_COLD.slowTime);
+      v.slowMul = Math.min(v.slowMul || 1, ICE_COLD.slowMul);
     }
-  }
 
-  // 种子同样会被敌方冰面侵蚀：判定口径与单位一致（半径 + 0.35 身位），每 dotInterval 秒扣 dot 点
-  for (i = seeds.length - 1; i >= 0; i--) {
-    var sd = seeds[i];
-    var sdIce = false, sdSrc = null;
-    for (j = 0; j < icePatches.length; j++) {
-      var p2 = icePatches[j];
-      if (p2.team === sd.team) continue;
-      var sdx = sd.x - p2.x, sdy = sd.y - p2.y;
-      var srr = p2.r + sd.r * 0.35;
-      if (sdx * sdx + sdy * sdy <= srr * srr) { sdIce = true; sdSrc = p2.owner; break; }
+    // 进入陷阱的那一帧先计一层；离开后按 1 秒节奏衰减层数并继续结算伤害
+    if (onTrap && !v.coldOn) v.coldAcc = 0;
+    v.coldOn = onTrap;
+    if (!onTrap && !(v.coldStacks > 0)) {
+      v.coldAcc = ICE_COLD.interval;
+      continue;
     }
-    if (sdIce) {
-      sd.iceTick -= dt;
-      if (sd.iceTick <= 0) {
-        sd.iceTick += C.dotInterval;
-        hurtSeed(sd, C.dot * iceMul, sdSrc, { dot: 1 });
+
+    v.coldAcc -= dt;
+    while (v.coldAcc <= 0 && v.alive) {
+      v.coldAcc += ICE_COLD.interval;
+      if (onTrap && srcPatch && srcPatch.owner) {
+        v.coldStacks = Math.min(ICE_COLD.maxStacks, (v.coldStacks || 0) + 1);
+        v.coldSrc = srcPatch.owner;
+        v.coldAtk = srcPatch.owner.atk || 0;
       }
-    } else if (sd.iceTick < C.dotInterval) {
-      sd.iceTick = Math.min(C.dotInterval, sd.iceTick + dt);
+      if (v.coldStacks > 0) {
+        hurt(v, v.coldStacks * ICE_COLD.pctPerLayer * (v.coldAtk || 0), v.coldSrc, { dot: 1 });
+      }
+      if (!onTrap && v.coldStacks > 0) v.coldStacks -= 1;
     }
-    if (sd.hp <= 0) destroySeed(i, '种子被冻碎');
+    if (v.coldStacks <= 0) {
+      v.coldStacks = 0;
+      v.coldSrc = null;
+      v.coldAtk = 0;
+      v.coldAcc = ICE_COLD.interval;
+    }
   }
 }
 
@@ -842,7 +861,7 @@ function updateWaters(dt) {
     }
 
     // 2a) 引力：边缘接近 0，越靠圆心越大。无敌抖动 / 狗奶引导 / BOSS 视为固定桩，不被拖拽
-    if (!isShaking(u) && !isMilkChannel(u) && !u.boss && bestD > 0.5) {
+    if (!isShaking(u) && !isMilkChannel(u) && !isDogChannel(u) && !u.boss && bestD > 0.5) {
       var g = C.gravity * Math.max(0, 1 - bestD / Math.max(1, rr)) * wetMul;
       if (g > 0) {
         u.x += (src.x - u.x) / bestD * g * dt;
@@ -916,7 +935,7 @@ function plantSeed(u, cfg) {
   seeds.push({
     x: u.x, y: u.y, r: cfg.r, hp: cfg.hp, maxHp: cfg.hp,
     team: u.team, owner: u, hitCd: 0, phase: rand(0, TAU),
-    healAcc: 1.0, iceTick: 1.0, flash: 0, lastHit: -99
+    healAcc: 1.0, flash: 0, lastHit: -99
   });
   if (seeds.length > SEED_MAX) seeds.shift();
 
@@ -1139,7 +1158,17 @@ function laserStrike(u, L) {
   }
   // 多目标衰减：一道光束同时扫到多个目标时，每段伤害不再线性翻倍
   var mul = aoeScale(hitUnits.length + hitSeeds.length);
-  for (var k = 0; k < hitUnits.length; k++) hurt(hitUnits[k], L.dmg * mul, u, { dot: 1 });
+  // L.multi：多段激光逐段飘字；L.slowMul：命中后减速（大狗终结技 -50%）
+  var hitOpt = L.multi ? { multi: 1 } : (L.basic ? { dot: 1, basic: 1 } : { dot: 1 });
+  for (var k = 0; k < hitUnits.length; k++) {
+    var hit = hitUnits[k];
+    hurt(hit, L.dmg * mul, u, hitOpt);
+    if (L.multi) ring(hit.x, hit.y, 3, 22, 0.16, '#fff4d6');
+    if (L.slowMul && hit.alive && !hit.boss) {
+      hit.slowT = Math.max(hit.slowT, L.slowTime || 0.6);
+      hit.slowMul = Math.min(hit.slowMul || 1, L.slowMul);
+    }
+  }
   for (var q = hitSeeds.length - 1; q >= 0; q--) {
     var s2 = hitSeeds[q];
     hurtSeed(s2, L.dmg * mul, u, { dot: 1 });
@@ -1148,6 +1177,8 @@ function laserStrike(u, L) {
       if (at >= 0) destroySeed(at, '种子被激光烧毁');
     }
   }
+  // 返回命中的敌方单位：大狗终结技最后 10 段需要给命中者叠灼烧
+  return hitUnits;
 }
 
 function statusText() {
@@ -1190,6 +1221,12 @@ function statusText() {
         Math.ceil(Math.max(0, u.st.shield)) + '/' + TYPES.milk.shieldMax);
     }
     if (u.ultT > 0) parts.push(u.name + ' 终结技蓄力 ' + u.ultT.toFixed(1) + 's');
+    if (u.st.ultLaserT > 0) {
+      parts.push(u.name + ' 终极咆哮 ' + u.st.ultLaserT.toFixed(1) + 's');
+    }
+    if (u.atkBuffT > 0) {
+      parts.push(u.name + ' 攻击 +' + Math.round(u.atkBuffAdd) + ' ' + u.atkBuffT.toFixed(1) + 's');
+    }
     if (TYPES[u.key] && TYPES[u.key].bossLock && u.hp <= 1.05) {
       parts.push(u.name + ' 已锁 1 血 · 停手');
     }
@@ -1201,6 +1238,18 @@ function statusText() {
     if (u.waterT > 0) {
       parts.push(u.name + ' 缺氧 ' +
         Math.round(clamp(u.waterT / TYPES.bucket.water.wetThreshold, 0, 1) * 100) + '%');
+    }
+    if (u.tetStacks > 0) {
+      parts.push(u.name + ' 破伤风 ×' + u.tetStacks);
+    }
+    if (u.burnStacks > 0) {
+      parts.push(u.name + ' 灼烧 ×' + u.burnStacks);
+    }
+    if (u.coldStacks > 0) {
+      parts.push(u.name + ' 寒冷 ×' + u.coldStacks);
+    }
+    if (u.vulnT > 0) {
+      parts.push(u.name + ' 脆弱 ' + u.vulnT.toFixed(1) + 's');
     }
     if (!R) continue;
     if (R.phase === 'shake') {
@@ -1233,6 +1282,7 @@ function cast(u, target) {
   var S = T.skill;
   var aim = Math.atan2(target.y - u.y, target.x - u.x);
   if (typeof sfxPlay === 'function') sfxPlay('cast');
+  if (u.st) u.st.basicAtk = false;   // 主动技能不是普攻：清掉撞击伤害的普攻标记
 
   // 远程技能声明 noTurn 时只瞄准、不改自身运动方向（方向仍只由撞墙 / 其他技能改变）
   if (!S.noTurn) u.ang = aim;   // 转向
@@ -1329,6 +1379,7 @@ function castUltimate(u) {
   u.ultT = 0;
   u.ultAim = null;
   if (typeof sfxPlay === 'function') sfxPlay('ult');
+  if (u.st) u.st.basicAtk = false;   // 终结技不是普攻：清掉撞击伤害的普攻标记
   ring(u.x, u.y, u.r + 4, u.r + 150, 0.55, '#ffe08a');
   ring(u.x, u.y, u.r + 4, u.r + 92, 0.4, '#fff6d8');
   burst(u.x, u.y, 26, '#ffe9a8', 330);
@@ -1369,6 +1420,7 @@ function castAllowed(u, s) {
 
 function think(u, dt) {
   if (!u.alive || u.dashT > 0) return;
+  if (isDogChannel(u)) return;   // 终极咆哮引导中：不普攻、不施放其它技能
   // 狂暴后通常不再施放技能；BOSS 合体核心声明 rageCasts 后仍然会放（紫晶脉冲 / 终结技）
   if (u.st.rage && !TYPES[u.key].rageCasts) return;
   if (u.castT > 0 || u.ultT > 0) return;
@@ -1518,9 +1570,9 @@ function collide() {
       var pass = canPassThrough(a, b) || canPassThrough(b, a);
 
       if (!pass) {
-        // 无敌抖动 / 野生狗奶引导 / BOSS：原地不动，只推另一方（BOSS 之间正常分离，避免两只叠在一起）
-        var aFixed = isShaking(a) || isMilkChannel(a) || (a.boss && !b.boss);
-        var bFixed = isShaking(b) || isMilkChannel(b) || (b.boss && !a.boss);
+        // 无敌抖动 / 野生狗奶引导 / 大狗终结技引导 / BOSS：原地不动，只推另一方
+        var aFixed = isShaking(a) || isMilkChannel(a) || isDogChannel(a) || (a.boss && !b.boss);
+        var bFixed = isShaking(b) || isMilkChannel(b) || isDogChannel(b) || (b.boss && !a.boss);
         if (!aFixed) {
           var ka = bFixed ? 1 : 0.5;
           a.x -= nx * overlap * ka;
@@ -1547,8 +1599,8 @@ function collide() {
       if (!pass) {
         // 等质量弹性碰撞：交换法线方向的速度分量，大小各自保持不变。
         // 引导中的野生狗奶视为"不可推动的桩"，只反弹对方，自己不改朝向。
-        if (!isMilkChannel(a)) a.ang = Math.atan2(vay + rel * ny, vax + rel * nx);
-        if (!isMilkChannel(b)) b.ang = Math.atan2(vby - rel * ny, vbx - rel * nx);
+        if (!isMilkChannel(a) && !isDogChannel(a)) a.ang = Math.atan2(vay + rel * ny, vax + rel * nx);
+        if (!isMilkChannel(b) && !isDogChannel(b)) b.ang = Math.atan2(vby - rel * ny, vbx - rel * nx);
       }
 
       var impact = -rel;
@@ -1564,6 +1616,9 @@ function collide() {
       // da 是 a 承受的伤害（乘 b 的攻击力与倍率）；db 同理
       var da = dmgOf(b, impact, a);
       var db = dmgOf(a, impact, b);
+      // 普通攻击标记：只有本次冲刺是普攻时才带上 basic，供「普攻承伤」类天赋识别
+      var ba = isBasicHit(b);
+      var bb = isBasicHit(a);
 
       /* 先算伤害再决定表现：弓箭 / 冰块 / 铁砧 / 狗奶的普通撞击伤害恒为 0，
          过去这种「零伤害碰撞」也会放全套震屏 + 顿帧 + 粒子，看着像打中了却不掉血，
@@ -1576,8 +1631,8 @@ function collide() {
         hitStop = Math.max(hitStop, 0.045);
       }
 
-      hurt(a, da, b);
-      hurt(b, db, a);
+      hurt(a, da, b, ba ? { basic: 1 } : null);
+      hurt(b, db, a, bb ? { basic: 1 } : null);
 
       // 物品自己的撞击被动（红石溅射）
       var TA = TYPES[a.key], TB = TYPES[b.key];
@@ -1635,9 +1690,9 @@ function finish(by) {
   if (phase !== 'fight') return;
   phase = 'over';
 
-  // 结算时收回所有激光：tick 停了之后 laserT 不再递减，光束会定格在结算画面上
+  // 结算时收回所有激光：tick 停了之后计时不再递减，光束会定格在结算画面上
   for (var li = 0; li < units.length; li++) {
-    if (units[li].st) units[li].st.laserT = 0;
+    if (units[li].st) units[li].st.ultLaserT = 0;
   }
 
   var A = teamHp('A'), B = teamHp('B');
@@ -1828,6 +1883,18 @@ function tick(dt) {
     if (u.bindT > 0) u.bindT = Math.max(0, u.bindT - dt);
     // 虚弱：终末震荡留下的伤害减免计时
     if (u.weakT > 0) u.weakT = Math.max(0, u.weakT - dt);
+    // 脆弱：冰块终结技留下的承伤加成计时
+    if (u.vulnT > 0) u.vulnT = Math.max(0, u.vulnT - dt);
+    // 极寒领域：绘制层读取，与脆弱同长；施放者阵亡后领域仍按剩余时间消退
+    if (u.st && u.st.domainT > 0) u.st.domainT = Math.max(0, u.st.domainT - dt);
+    // 大狗技能加攻：到期后把临时抬高的攻击力还原
+    if (u.atkBuffT > 0) {
+      u.atkBuffT = Math.max(0, u.atkBuffT - dt);
+      if (u.atkBuffT <= 0) {
+        if (u.atkBuffAdd) u.atk -= u.atkBuffAdd;
+        u.atkBuffAdd = 0;
+      }
+    }
     // 中毒：每满 1 秒结算一次，伤害走 hurt()（护盾可吸收）
     // 每秒伤害优先读该单位自己的 poisonDps（普攻 / 终结技 / 藤蔓各不相同）
     if (u.poisonT > 0 && u.alive) {
@@ -1858,6 +1925,9 @@ function tick(dt) {
     if (u.st.lockFxT > 0) u.st.lockFxT = Math.max(0, u.st.lockFxT - dt);
     if (u.alive) updateRage(u, dt);
   }
+
+  updateTetanus(dt);   // 破伤风：每秒结算并消耗 1 层（长矛）
+  updateBurns(dt);     // 灼烧：每秒结算并消耗 1 层（红石普攻炸弹）
 
   // 物品自己的每帧被动（青金石光环）
   for (var p = 0; p < units.length; p++) {

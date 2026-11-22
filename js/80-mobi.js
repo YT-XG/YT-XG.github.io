@@ -999,7 +999,9 @@ function mobiClick(e) {
   if (act === 'randSel') { randomTeam(mobi.activeTeam); syncPick(); mobiRender(); return; }
   if (act === 'slot') {
     if (draftMode) return;   // 征召模式由轮次决定，不能自由切边
-    mobi.activeTeam = t.getAttribute('data-team');
+    var slotTeam = t.getAttribute('data-team');
+    if (bossMode && slotTeam !== 'A') return;   // BOSS 固定，只允许点红方号位
+    mobi.activeTeam = slotTeam;
     mobi.activeSlot = parseInt(t.getAttribute('data-slot'), 10) || 0;
     activeTeam = mobi.activeTeam;
     activeSlot = mobi.activeSlot;
@@ -1160,9 +1162,14 @@ function mobiPickRole(key) {
     }
     return;
   }
+  if (bossMode) mobi.activeTeam = 'A';   // BOSS 战只编辑红方
   if (!pick[mobi.activeTeam]) pick[mobi.activeTeam] = [];
   pick[mobi.activeTeam][mobi.activeSlot] = key;
-  if (mobi.activeSlot < teamSize - 1) {
+  // 填完自动跳下一格；BOSS 战只编辑红方，永远不切换到蓝方
+  if (bossMode) {
+    mobi.activeTeam = 'A';
+    mobi.activeSlot = (mobi.activeSlot + 1) % teamSize;
+  } else if (mobi.activeSlot < teamSize - 1) {
     mobi.activeSlot++;
   } else {
     mobi.activeTeam = mobi.activeTeam === 'A' ? 'B' : 'A';

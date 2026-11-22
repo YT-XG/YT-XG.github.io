@@ -217,6 +217,162 @@ function drawArena() {
   ctx.strokeStyle = 'rgba(120,160,235,.06)';
   ctx.lineWidth = 7;
   ctx.strokeRect(a.x - 3.5, a.y - 3.5, a.w + 7, a.h + 7);
+
+  // 冰块终结技「极寒领域」：直接把整块场地切换成冰霜主题
+  drawIceDomain(iceDomainAlpha());
+}
+
+/* 极寒领域：把整块场地切换成冰霜主题
+   ------------------------------------------------------------
+   · iceDomainAlpha() 从单位的 st.domainT 取最大剩余时间；与脆弱同为 8s
+   · 只在绘制层读取，不参与模拟；施放者阵亡后仍按剩余时间消退
+   · 视觉：场内冰蓝渐变 + 霜纹网格 + 边缘霜雾 + 中心雪花 + 飘雪 + 发光冰边框 */
+function iceDomainAlpha() {
+  var k = 0;
+  for (var i = 0; i < units.length; i++) {
+    var u = units[i];
+    if (u.key === 'ice' && u.st && u.st.domainT > 0) {
+      k = Math.max(k, Math.min(1, u.st.domainT / 0.6));
+    }
+  }
+  return k;
+}
+
+function drawIceDomain(k) {
+  if (k <= 0.001) return;
+  var a = ARENA;
+  var cx = a.x + a.w / 2, cy = a.y + a.h / 2;
+  var i, gx, gy, px, py, eg;
+
+  ctx.save();
+
+  // 场外冷雾：整张画布轻微偏蓝，让领域像罩住整个竞技场
+  ctx.fillStyle = 'rgba(70,160,220,' + (0.055 * k).toFixed(3) + ')';
+  ctx.fillRect(0, 0, W, H);
+
+  // 场内冰面：顶部霜白，向下过渡到深冰蓝
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(a.x, a.y, a.w, a.h);
+  ctx.clip();
+
+  var bg = ctx.createLinearGradient(0, a.y, 0, a.y + a.h);
+  bg.addColorStop(0, 'rgba(185,242,255,' + (0.22 * k).toFixed(3) + ')');
+  bg.addColorStop(0.38, 'rgba(90,190,235,' + (0.13 * k).toFixed(3) + ')');
+  bg.addColorStop(1, 'rgba(22,72,120,' + (0.24 * k).toFixed(3) + ')');
+  ctx.fillStyle = bg;
+  ctx.fillRect(a.x, a.y, a.w, a.h);
+
+  // 霜纹网格：只画大格，比基础网格更亮
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(210,250,255,' + (0.10 * k).toFixed(3) + ')';
+  ctx.beginPath();
+  for (gx = a.x; gx <= a.x + a.w + 1; gx += 96) {
+    px = Math.round(gx) + 0.5;
+    ctx.moveTo(px, a.y);
+    ctx.lineTo(px, a.y + a.h);
+  }
+  for (gy = a.y; gy <= a.y + a.h + 1; gy += 96) {
+    py = Math.round(gy) + 0.5;
+    ctx.moveTo(a.x, py);
+    ctx.lineTo(a.x + a.w, py);
+  }
+  ctx.stroke();
+
+  // 边缘霜雾：四条边向内渐隐
+  var edge = 54;
+  eg = ctx.createLinearGradient(0, a.y, 0, a.y + edge);
+  eg.addColorStop(0, 'rgba(205,248,255,' + (0.30 * k).toFixed(3) + ')');
+  eg.addColorStop(1, 'rgba(205,248,255,0)');
+  ctx.fillStyle = eg;
+  ctx.fillRect(a.x, a.y, a.w, edge);
+
+  eg = ctx.createLinearGradient(0, a.y + a.h, 0, a.y + a.h - edge);
+  eg.addColorStop(0, 'rgba(205,248,255,' + (0.30 * k).toFixed(3) + ')');
+  eg.addColorStop(1, 'rgba(205,248,255,0)');
+  ctx.fillStyle = eg;
+  ctx.fillRect(a.x, a.y + a.h - edge, a.w, edge);
+
+  eg = ctx.createLinearGradient(a.x, 0, a.x + edge, 0);
+  eg.addColorStop(0, 'rgba(205,248,255,' + (0.26 * k).toFixed(3) + ')');
+  eg.addColorStop(1, 'rgba(205,248,255,0)');
+  ctx.fillStyle = eg;
+  ctx.fillRect(a.x, a.y, edge, a.h);
+
+  eg = ctx.createLinearGradient(a.x + a.w, 0, a.x + a.w - edge, 0);
+  eg.addColorStop(0, 'rgba(205,248,255,' + (0.26 * k).toFixed(3) + ')');
+  eg.addColorStop(1, 'rgba(205,248,255,0)');
+  ctx.fillStyle = eg;
+  ctx.fillRect(a.x + a.w - edge, a.y, edge, a.h);
+
+  // 中央大雪花：缓慢旋转，呼应"领域"的仪式感
+  var R = Math.min(a.w, a.h) * 0.30;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(t * 0.16);
+  ctx.strokeStyle = 'rgba(220,250,255,' + (0.18 * k).toFixed(3) + ')';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (i = 0; i < 6; i++) {
+    var ang = i * Math.PI / 3;
+    var ux = Math.cos(ang), uy = Math.sin(ang);
+    var nx = -uy, ny = ux;
+    ctx.moveTo(0, 0);
+    ctx.lineTo(ux * R, uy * R);
+    for (var b = 0; b < 2; b++) {
+      var rr = (b === 0 ? 0.54 : 0.80) * R;
+      var bx = ux * rr, by = uy * rr;
+      var bl = R * 0.13;
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx + nx * bl, by + ny * bl);
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx - nx * bl, by - ny * bl);
+    }
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // 飘雪：位置只依赖 t 与索引，不占用模拟随机流
+  ctx.fillStyle = 'rgba(235,252,255,' + (0.55 * k).toFixed(3) + ')';
+  for (i = 0; i < 34; i++) {
+    var sx = a.x + ((i * 137.51 + t * (6 + i % 5)) % a.w);
+    var sy = a.y + ((i * 83.37 + t * (12 + i % 7)) % a.h);
+    var sr = 0.7 + (i % 3) * 0.5;
+    ctx.beginPath();
+    ctx.arc(sx, sy, sr, 0, TAU);
+    ctx.fill();
+  }
+
+  ctx.restore();   // 结束场地裁剪
+
+  // 冰边框：外层辉光 + 主冰边 + 内白边
+  var pulse = 0.82 + 0.18 * Math.sin(t * 2.4);
+  ctx.strokeStyle = 'rgba(120,220,255,' + (0.16 * k * pulse).toFixed(3) + ')';
+  ctx.lineWidth = 12;
+  ctx.strokeRect(a.x - 4.5, a.y - 4.5, a.w + 9, a.h + 9);
+  ctx.strokeStyle = 'rgba(185,245,255,' + (0.85 * k).toFixed(3) + ')';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(a.x + 0.5, a.y + 0.5, a.w - 1, a.h - 1);
+  ctx.strokeStyle = 'rgba(255,255,255,' + (0.45 * k).toFixed(3) + ')';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(a.x + 3.5, a.y + 3.5, a.w - 7, a.h - 7);
+
+  // 四角冰晶
+  var corners = [[a.x, a.y, 1, 1], [a.x + a.w, a.y, -1, 1], [a.x, a.y + a.h, 1, -1], [a.x + a.w, a.y + a.h, -1, -1]];
+  for (i = 0; i < 4; i++) {
+    var c = corners[i];
+    ctx.save();
+    ctx.translate(c[0] + c[2] * 20, c[1] + c[3] * 20);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillStyle = 'rgba(205,248,255,' + (0.30 * k * pulse).toFixed(3) + ')';
+    ctx.fillRect(-6, -6, 12, 12);
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.65 * k).toFixed(3) + ')';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-6, -6, 12, 12);
+    ctx.restore();
+  }
+
+  ctx.restore();
 }
 
 /* ============================================================
@@ -704,40 +860,68 @@ function drawBow(u) {
 function drawArrows() {
   for (var i = 0; i < arrows.length; i++) {
     var a = arrows[i];
-    var len = a.power ? 28 : 22;
+    var len = a.big ? 40 : 22;
+    var col = a.color || '#d9f2b8';
 
     ctx.save();
     ctx.translate(a.x, a.y);
     ctx.rotate(a.ang);
 
-    if (a.power) {
-      var g = ctx.createRadialGradient(0, 0, 1, 0, 0, 20);
-      g.addColorStop(0, 'rgba(255,209,102,.45)');
-      g.addColorStop(1, 'rgba(255,209,102,0)');
+    // 冰锥：菱形锥体 + 冷光，和弓箭的木杆羽尾区分
+    if (a.kind === 'iceshard') {
+      var ig = ctx.createRadialGradient(0, 0, 1, 0, 0, 22);
+      ig.addColorStop(0, 'rgba(150,235,255,.5)');
+      ig.addColorStop(1, 'rgba(150,235,255,0)');
+      ctx.fillStyle = ig;
+      ctx.beginPath();
+      ctx.arc(0, 0, 22, 0, TAU);
+      ctx.fill();
+
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.moveTo(len * 0.85, 0);
+      ctx.lineTo(len * 0.10, -5.5);
+      ctx.lineTo(-len * 0.55, 0);
+      ctx.lineTo(len * 0.10, 5.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.8)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+      continue;
+    }
+
+    if (a.big) {
+      var g = ctx.createRadialGradient(0, 0, 1, 0, 0, 34);
+      g.addColorStop(0, 'rgba(255,138,77,.5)');
+      g.addColorStop(1, 'rgba(255,138,77,0)');
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(0, 0, 20, 0, TAU);
+      ctx.arc(0, 0, 34, 0, TAU);
       ctx.fill();
     }
 
     // 尾迹
-    ctx.strokeStyle = a.power ? 'rgba(255,209,102,.55)' : 'rgba(185,232,138,.45)';
-    ctx.lineWidth = a.power ? 2.4 : 1.6;
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = a.big ? 3 : 1.6;
     ctx.beginPath();
     ctx.moveTo(-len * 1.8, 0);
     ctx.lineTo(-len * 0.45, 0);
     ctx.stroke();
+    ctx.globalAlpha = 1;
 
     // 箭杆
-    ctx.strokeStyle = a.power ? '#ffe9a8' : '#e4f5c9';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = a.big ? '#ffe3c4' : col;
+    ctx.lineWidth = a.big ? 3 : 2;
     ctx.beginPath();
     ctx.moveTo(-len * 0.5, 0);
     ctx.lineTo(len * 0.42, 0);
     ctx.stroke();
 
     // 箭头
-    ctx.fillStyle = a.power ? '#ffd166' : '#d9f2b8';
+    ctx.fillStyle = col;
     ctx.beginPath();
     ctx.moveTo(len * 0.72, 0);
     ctx.lineTo(len * 0.24, -4);
@@ -746,7 +930,7 @@ function drawArrows() {
     ctx.fill();
 
     // 尾羽
-    ctx.strokeStyle = a.power ? '#ffb14d' : '#8fc45e';
+    ctx.strokeStyle = col;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(-len * 0.5, 0);
@@ -759,50 +943,69 @@ function drawArrows() {
   }
 }
 
-// 冰面残留：贴地椭圆；前 5 秒完全可见，最后 1 秒线性淡出
+// 冰面陷阱：贴地椭圆；前 4.5 秒完全可见，最后 0.5 秒线性淡出
 function drawIcePatches() {
-  var fade = TYPES.ice.iceTrail.fade;
-  // 冰面贴着墙生成时会画到战斗区外，盖住两侧伤害条；统一裁到场地内
+  var C = TYPES.ice.trap;
+  // 陷阱贴着墙生成时会画到战斗区外，盖住两侧伤害条；统一裁到场地内
   ctx.save();
   ctx.beginPath();
   ctx.rect(ARENA.x, ARENA.y, ARENA.w, ARENA.h);
   ctx.clip();
-  // 大量冰面时降级：只画"空心冰盘"，省掉裂纹（绘制量降到 1/4）
-  var heavy = icePatches.length > 48;
   for (var i = 0; i < icePatches.length; i++) {
     var p = icePatches[i];
-    var a = clamp(p.life / fade, 0, 1);
-    var rx = p.r * 0.88, ry = p.r * 0.62;
+    var a = clamp(p.life / C.fade, 0, 1);
+    var rx = p.r * 0.92, ry = p.r * 0.62;
 
-    // 冰面彼此大幅重叠（r56、间距 24），实心填充叠几层就是一条不透明白管子，
-    // 把网格和单位都糊掉。改成极淡的蓝色冰带：只有刚踩出来的几片有亮边，
-    // 老冰面只剩一层薄色，重叠处像水面反光而不是一坨白。
-    ctx.globalAlpha = 0.13 * a;
+    // 冰盘主体：极淡的蓝色，避免盖住网格与单位
+    ctx.globalAlpha = 0.16 * a;
     ctx.fillStyle = '#8fdcf8';
     ctx.beginPath();
     ctx.ellipse(p.x, p.y, rx, ry, 0, 0, TAU);
     ctx.fill();
 
-    var fresh = p.life > fade - 0.7;   // 刚留下的一片才描亮边
-    if (fresh) {
-      ctx.globalAlpha = (0.30 * a) * ((p.life - (fade - 0.7)) / 0.7);
-      ctx.strokeStyle = '#e6fbff';
-      ctx.lineWidth = 1.2;
+    // 外圈虚线：和"走过留下的冰面"区分，明确这是可触发的陷阱边界
+    ctx.globalAlpha = 0.55 * a;
+    ctx.strokeStyle = '#d8f7ff';
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash([9, 7]);
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y, rx, ry, 0, 0, TAU);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 内圈高光 + 三道冰裂纹
+    ctx.globalAlpha = 0.30 * a;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y, rx * 0.62, ry * 0.62, 0, 0, TAU);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.20 * a;
+    ctx.beginPath();
+    ctx.moveTo(p.x - rx * 0.55, p.y);
+    ctx.lineTo(p.x + rx * 0.30, p.y - ry * 0.22);
+    ctx.moveTo(p.x - rx * 0.08, p.y + ry * 0.28);
+    ctx.lineTo(p.x + rx * 0.50, p.y + ry * 0.04);
+    ctx.moveTo(p.x - rx * 0.10, p.y - ry * 0.50);
+    ctx.lineTo(p.x + rx * 0.20, p.y + ry * 0.45);
+    ctx.stroke();
+
+    // 中心冰晶：缓慢旋转的六角星，提示这里可以触发寒冷
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(t * 0.6);
+    ctx.globalAlpha = 0.50 * a;
+    ctx.strokeStyle = '#eaffff';
+    ctx.lineWidth = 1.4;
+    for (var k = 0; k < 3; k++) {
+      var ang = k * Math.PI / 3;
       ctx.beginPath();
-      ctx.ellipse(p.x, p.y, rx, ry, 0, 0, TAU);
+      ctx.moveTo(Math.cos(ang) * rx * 0.22, Math.sin(ang) * ry * 0.22);
+      ctx.lineTo(-Math.cos(ang) * rx * 0.22, -Math.sin(ang) * ry * 0.22);
       ctx.stroke();
     }
-    if (heavy) continue;
-
-    // 两道冰裂纹，让残留看起来像"冰面"而不是普通圆点
-    ctx.globalAlpha = 0.16 * a;
-    ctx.strokeStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.moveTo(p.x - p.r * 0.5, p.y);
-    ctx.lineTo(p.x + p.r * 0.3, p.y - p.r * 0.12);
-    ctx.moveTo(p.x - p.r * 0.08, p.y + p.r * 0.22);
-    ctx.lineTo(p.x + p.r * 0.45, p.y + p.r * 0.03);
-    ctx.stroke();
+    ctx.restore();
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -1385,56 +1588,60 @@ function drawMilkLinks() {
   }
 }
 
-/* 大狗激光：三段叠加（光晕 / 中层 / 白热芯）+ 枪口闪光 + 命中亮点 */
+/* 大狗终结技激光：三段叠加（光晕 / 中层 / 白热芯）+ 枪口闪光 + 命中亮点
+   5 秒引导期间光束缓慢追踪最近敌人；绘制只读 st.ultLaserT / ultLaserAng */
 function drawLasers() {
   for (var i = 0; i < units.length; i++) {
     var u = units[i];
-    if (!u || !u.alive || !u.st || !(u.st.laserT > 0)) continue;
+    if (!u || !u.alive || !u.st || !(u.st.ultLaserT > 0)) continue;
     var T = TYPES[u.key];
-    if (!T || !T.laser) continue;
+    if (!T || !T.ultLaser) continue;
 
-    var L = T.laser;
-    var ex = u.x + Math.cos(u.st.laserAng) * L.len;
-    var ey = u.y + Math.sin(u.st.laserAng) * L.len;
+    var L = T.ultLaser;
+    var ex = u.x + Math.cos(u.st.ultLaserAng) * L.len;
+    var ey = u.y + Math.sin(u.st.ultLaserAng) * L.len;
 
-    // 淡入 0.2s / 淡出 0.35s
-    var age = L.dur - u.st.laserT;
-    var a = Math.min(1, age / 0.2, u.st.laserT / 0.35);
+    // 淡入 0.2s / 淡出 0.35s；+0.12 让光束在引导开始时立刻可见
+    var age = L.dur - u.st.ultLaserT;
+    var a = Math.min(1, (age + 0.12) / 0.2, u.st.ultLaserT / 0.35);
     if (a <= 0) continue;
-    var pulse = 0.78 + 0.22 * Math.sin(t * 34);
+    // ultHitPulse：每段命中时闪一下，让光束像在"咬牙吐火"
+    var punch = u.st.ultHitPulse || 0;
+    var pulse = 0.78 + 0.22 * Math.sin(t * 34) + 0.30 * punch;
 
     ctx.save();
     ctx.lineCap = 'round';
 
-    ctx.globalAlpha = 0.18 * a * pulse;
+    ctx.globalAlpha = 0.20 * a * pulse;
     ctx.strokeStyle = '#ff9d3c';
-    ctx.lineWidth = L.width * 1.9;
+    ctx.lineWidth = L.width * (2.1 + 0.6 * punch);
     ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(ex, ey); ctx.stroke();
 
     ctx.globalAlpha = 0.55 * a;
     ctx.strokeStyle = '#ffc46b';
-    ctx.lineWidth = L.width * 0.55;
+    ctx.lineWidth = L.width * (0.55 + 0.12 * punch);
     ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(ex, ey); ctx.stroke();
 
     ctx.globalAlpha = 0.95 * a;
     ctx.strokeStyle = '#fff4d6';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3.5 + 2.2 * punch;
     ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(ex, ey); ctx.stroke();
     ctx.restore();
 
     // 枪口闪光
     ctx.save();
     ctx.globalAlpha = a;
-    var g = ctx.createRadialGradient(u.x, u.y, 2, u.x, u.y, u.r * 1.8);
+    var muzzle = u.r * (2 + 0.35 * punch);
+    var g = ctx.createRadialGradient(u.x, u.y, 2, u.x, u.y, muzzle);
     g.addColorStop(0, 'rgba(255,244,214,.95)');
     g.addColorStop(1, 'rgba(255,157,60,0)');
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(u.x, u.y, u.r * 1.8, 0, TAU);
+    ctx.arc(u.x, u.y, muzzle, 0, TAU);
     ctx.fill();
     ctx.restore();
 
-    // 被扫到的敌人：打一个高亮点，代替每段粒子（避免 40 段刷屏）
+    // 被扫到的敌人：打一个高亮点，代替每段粒子（避免 50 段刷屏）
     for (var j = 0; j < units.length; j++) {
       var v = units[j];
       if (!v.alive || v.team === u.team) continue;
@@ -1442,17 +1649,21 @@ function drawLasers() {
       ctx.globalAlpha = 0.85 * a * pulse;
       ctx.fillStyle = '#fff6dc';
       ctx.beginPath();
-      ctx.arc(v.x, v.y, v.r * 0.55, 0, TAU);
+      ctx.arc(v.x, v.y, v.r * (0.55 + 0.25 * punch), 0, TAU);
       ctx.fill();
       ctx.globalAlpha = 1;
     }
   }
 }
 
-/* 终结技瞬发光束（大狗三重咆哮等）：短寿命三层光柱 */
+/* 终结技瞬发光束（大狗三重咆哮等）：短寿命三层光柱
+   长矛复用这套数组做纯视觉：kind='phantom' 画分身矛影，kind='fissure' 画地裂 */
 function drawUltBeams() {
   for (var i = 0; i < ultBeams.length; i++) {
     var b = ultBeams[i];
+    if (b.kind === 'phantom') { drawSpearPhantom(b); continue; }
+    if (b.kind === 'fissure') continue;   // 地裂是贴地效果，由 drawSpearGroundFx() 在单位之前绘制
+    if (b.kind === 'bark') { drawDogBark(b); continue; }
     var k = clamp(b.life / b.max, 0, 1);
     var a = Math.min(1, k * 1.6);
     ctx.save();
@@ -1470,6 +1681,140 @@ function drawUltBeams() {
     ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
     ctx.restore();
   }
+}
+
+/* 大狗汪声波：三层向前扩散的弧形声波 */
+function drawDogBark(b) {
+  var k = clamp(b.life / b.max, 0, 1);
+  var a = Math.min(1, k * 1.6);
+  var grow = 0.42 + 0.58 * (1 - k);
+  ctx.save();
+  ctx.translate(b.x1, b.y1);
+  ctx.lineCap = 'round';
+  for (var i = 0; i < 3; i++) {
+    var rr = b.len * grow * (0.55 + i * 0.2);
+    ctx.globalAlpha = a * (0.55 - i * 0.12);
+    ctx.strokeStyle = i === 1 ? '#fff4d6' : b.color;
+    ctx.lineWidth = 3.4 - i * 0.8;
+    ctx.beginPath();
+    ctx.arc(0, 0, rr, b.ang - b.half, b.ang + b.half);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* 长矛分身：一条带矛头的半透明突刺残影 */
+function drawSpearPhantom(b) {
+  var k = clamp(b.life / b.max, 0, 1);
+  var a = Math.min(1, k * 1.8);
+  var len = Math.hypot(b.x2 - b.x1, b.y2 - b.y1);
+  ctx.save();
+  ctx.translate(b.x1, b.y1);
+  ctx.rotate(b.ang);
+  ctx.lineCap = 'round';
+
+  ctx.globalAlpha = 0.18 * a;
+  ctx.strokeStyle = '#bcd4ff';
+  ctx.lineWidth = 18;
+  ctx.beginPath(); ctx.moveTo(len * 0.06, 0); ctx.lineTo(len * 0.8, 0); ctx.stroke();
+
+  ctx.globalAlpha = 0.7 * a;
+  ctx.strokeStyle = '#e8f1ff';
+  ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(len * 0.08, 0); ctx.lineTo(len * 0.82, 0); ctx.stroke();
+
+  ctx.globalAlpha = 0.9 * a;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(len * 0.16, 0); ctx.lineTo(len, 0); ctx.stroke();
+
+  // 矛头
+  ctx.globalAlpha = a;
+  ctx.fillStyle = '#f6faff';
+  ctx.beginPath();
+  ctx.moveTo(len + 14, 0);
+  ctx.lineTo(len - 12, -9);
+  ctx.lineTo(len - 5, 0);
+  ctx.lineTo(len - 12, 9);
+  ctx.closePath();
+  ctx.fill();
+
+  // 两道平行残影，强调“分身”
+  ctx.globalAlpha = 0.22 * a;
+  ctx.strokeStyle = '#cfe0ff';
+  ctx.lineWidth = 2;
+  for (var s = -1; s <= 1; s += 2) {
+    ctx.beginPath(); ctx.moveTo(len * 0.1, s * 10); ctx.lineTo(len * 0.88, s * 10); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* 长矛地裂：贴地效果，在单位之前绘制，避免宽裂口盖住单位与血牌 */
+function drawSpearGroundFx() {
+  for (var i = 0; i < ultBeams.length; i++) {
+    if (ultBeams[i].kind === 'fissure') drawSpearFissure(ultBeams[i]);
+  }
+}
+
+/* 长矛地裂：先亮起地面裂口，再留下一道锈橙色余烬 */
+function drawSpearFissure(b) {
+  var k = clamp(b.life / b.max, 0, 1);
+  var a = Math.min(1, k * 1.7);
+  var len = Math.hypot(b.x2 - b.x1, b.y2 - b.y1);
+  var half = b.width * 0.5;
+  var steps = 18;
+  var i, px, pw;
+
+  ctx.save();
+  ctx.translate(b.x1, b.y1);
+  ctx.rotate(b.ang);
+
+  // 底部橙色辉光
+  ctx.globalAlpha = 0.22 * a;
+  ctx.fillStyle = '#ff9a4a';
+  ctx.fillRect(0, -half, len, half * 2);
+
+  // 深色裂谷（上下边缘用正弦噪声做出锯齿）
+  ctx.globalAlpha = 0.85 * a;
+  ctx.fillStyle = '#2a1c13';
+  ctx.beginPath();
+  for (i = 0; i <= steps; i++) {
+    px = len * i / steps;
+    pw = half * (0.45 + 0.4 * Math.abs(Math.sin(i * 1.7 + b.seed)));
+    if (i === 0) ctx.moveTo(px, -pw); else ctx.lineTo(px, -pw);
+  }
+  for (i = steps; i >= 0; i--) {
+    px = len * i / steps;
+    pw = half * (0.45 + 0.4 * Math.abs(Math.sin(i * 2.3 + b.seed + 1.2)));
+    ctx.lineTo(px, pw);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // 裂口内的熔岩亮线
+  ctx.globalAlpha = 0.75 * a;
+  ctx.strokeStyle = '#ffb36b';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (i = 0; i <= steps; i++) {
+    px = len * i / steps;
+    var py = Math.sin(i * 2.1 + b.seed) * half * 0.22;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  ctx.globalAlpha = 0.95 * a;
+  ctx.strokeStyle = '#fff3d6';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  for (i = 0; i <= steps; i++) {
+    px = len * i / steps;
+    var py2 = Math.sin(i * 2.1 + b.seed) * half * 0.22;
+    if (i === 0) ctx.moveTo(px, py2); else ctx.lineTo(px, py2);
+  }
+  ctx.stroke();
+
+  ctx.restore();
 }
 
 /* 战斗内的单位外观：把 45-icons.js 的图标做成「圆牌」，
@@ -1587,10 +1932,23 @@ function drawUnit(u) {
   ctx.fill();
   ctx.globalAlpha = 1;
 
+  // 长矛终结技：释放地裂时长矛直径变大（纯表现，同时提示大招已生效）
+  var growK = (u.st && u.st.ultGrow > 0 && typeof SPEAR_ULT !== 'undefined')
+    ? clamp(u.st.ultGrow / SPEAR_ULT.grow, 0, 1) : 0;
+  if (growK > 0) {
+    ctx.save();
+    ctx.translate(u.x, u.y);
+    var gs = 1 + 0.5 * growK;
+    ctx.scale(gs, gs);
+    ctx.translate(-u.x, -u.y);
+  }
+
   // 物品自己的外观：优先用与菜单同一套的矢量图标（第 97 条）
   var ico = (typeof iconImage === 'function') ? iconImage(u.key) : null;
   if (ico && ico.complete && ico.naturalWidth) drawTokenUnit(u, ico);
   else TYPES[u.key].draw(u);
+
+  if (growK > 0) ctx.restore();
 
   if (shaking) ctx.restore();
 
@@ -1646,6 +2004,26 @@ function drawUnit(u) {
       var pr = u.r + 4 + Math.sin(t * 2 + pz) * 5;
       ctx.beginPath();
       ctx.arc(u.x + Math.cos(pa) * pr, u.y + Math.sin(pa) * pr, 2.6, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  // 破伤风：橙红色虚线环 + 向上飘的锈色碎屑（层数越多环越粗）
+  if (u.tetStacks > 0) {
+    var tsw = 2 + Math.min(3, u.tetStacks) * 0.5;
+    ctx.strokeStyle = 'rgba(240,160,112,' + (0.45 + 0.25 * Math.sin(t * 6 + u.seed)).toFixed(3) + ')';
+    ctx.lineWidth = tsw;
+    ctx.setLineDash([4, 5]);
+    ctx.beginPath();
+    ctx.arc(u.x, u.y, u.r + 6, 0, TAU);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(226,132,86,.65)';
+    for (var tz = 0; tz < 3; tz++) {
+      var ta = t * 1.2 + tz * 2.2 + u.seed;
+      var tr = u.r + 2 + Math.sin(t * 1.8 + tz) * 4;
+      ctx.beginPath();
+      ctx.arc(u.x + Math.cos(ta) * tr, u.y + Math.sin(ta) * tr - (t * 14 + tz * 9) % 16, 2.2, 0, TAU);
       ctx.fill();
     }
   }
@@ -1736,11 +2114,11 @@ function drawUnit(u) {
     ctx.restore();
   }
 
-  /* 血条上方两条状态细条按统一栈位排：冰冻值最贴近血牌（最影响近战判断），
+  /* 血条上方两条状态细条按统一栈位排：寒冷层数最贴近血牌（最影响近战判断），
      缺氧值在它上面；两者同时存在时间距 7px，不会互相压字。stackTop 供狂暴文字让位。 */
   var stackTop = bcy - spanY / 2 - 6;
-  if (u.iceTick > 0.004) {
-    drawOverBar(bx, bw, stackTop, u.iceTick, '#8ce0ff', '#ffffff', 'ice');
+  if (u.coldStacks > 0) {
+    drawOverBar(bx, bw, stackTop, u.coldStacks / ICE_COLD.maxStacks, '#8ce0ff', '#ffffff', 'ice');
     stackTop -= 7;
   }
   if (u.waterT > 0) {
@@ -1899,20 +2277,35 @@ function drawUnitStatus(u) {
     ctx.stroke();
     ctx.restore();
   }
+  // 脆弱：冰块终结技留下的青紫色虚线环
+  if (u.vulnT > 0) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(150,220,255,' + (0.35 + 0.25 * Math.sin(t * 7)) + ')';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.arc(u.x, u.y, u.r + 13, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
   var st = u.st || {};
   var rows = [];
-  if (st.enchantAtk > 0) rows.push(['攻', '+' + Math.round(st.enchantAtk * 10) + '%', '#ffd166']);
+  // 青金石附魔 1 / 2 号：普攻增伤层数、生命上限层数
+  if (st.basicBuffLayers > 0) rows.push(['攻', '+' + Math.round(st.basicBuffLayers * 20) + '%', '#ffd166']);
+  if (st.hpBuffLayers > 0) rows.push(['血', '上限 +' + (st.hpBuffLayers * 5) + '%', '#8fe08a']);
   if (st.enchantBasic > 0) rows.push(['攻', '+' + [0, 25, 45, 70][Math.min(3, st.enchantBasic)] + '%', '#ffd166']);
-  if (st.eAtk > 0) rows.push(['攻', '+' + Math.round(st.eAtk * 10) + '%', '#ffc46b']);
   if (st.enchantSkill > 0) rows.push(['技', '+' + [0, 25, 45, 70][Math.min(3, st.enchantSkill)] + '%', '#ffb27a']);
   if (st.enchantDef) rows.push(['防', '+10%', '#9fd0ff']);
-  if (st.eHp > 0) rows.push(['血', '+' + (st.eHp * 80), '#8fe08a']);
-  if (st.eSpeed > 0) rows.push(['速', '+' + Math.round(st.eSpeed * 6) + '%', '#8ce0ff']);
   var smax = TYPES[u.key] && TYPES[u.key].shieldMax;
   if (smax && st.shield > 0) rows.push(['盾', String(Math.round(st.shield)), '#8fc4ff']);
   if (u.slowT > 0) rows.push(['缓', '减速', '#8cbaff']);
   if (u.weakT > 0) rows.push(['弱', '伤害 -20%', '#c79bff']);
   if (u.bindT > 0) rows.push(['缚', '定身', '#a6e27a']);
+  if (u.tetStacks > 0) rows.push(['破', '破伤风 ×' + u.tetStacks, '#f0a070']);
+  if (u.burnStacks > 0) rows.push(['燃', '灼烧 ×' + u.burnStacks, '#ff9a5f']);
+  if (u.coldStacks > 0) rows.push(['寒', '寒冷 ×' + u.coldStacks, '#8ce0ff']);
+  if (u.vulnT > 0) rows.push(['脆', '易伤 +20%', '#c79bff']);
+  if (u.atkBuffT > 0) rows.push(['攻', '+' + Math.round(u.atkBuffAdd), '#ffd166']);
   if (u.poisonT > 0) rows.push(['毒', '中毒', '#96eb78']);
   if (!rows.length) return;
   if (rows.length > 6) rows.length = 6;
@@ -2169,6 +2562,7 @@ function render() {
   drawWaters();       // 水桶的水面（贴地，压在单位之下）
   drawSeeds();        // 草的种子也贴地
   drawAnvilMarks();   // 铁砧落点预警圆（贴地）
+  drawSpearGroundFx(); // 长矛地裂（贴地，压在单位之下）
 
   for (var i = 0; i < units.length; i++) drawTrail(units[i]);
   drawBombs();

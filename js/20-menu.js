@@ -50,6 +50,7 @@ function rageSummary(key) {
   if (R.dmgPerSec) parts.push('撞击伤害每秒 +' + R.dmgPerSec +
       (R.dmgCap ? '（上限 +' + R.dmgCap + '）' : '（无上限）'));
   if (R.shield) parts.push('每 ' + R.shield.interval + ' 秒刷新 ' + R.shield.amount + ' 点护盾');
+  if (R.basicTakenMul != null) parts.push('受到的普通攻击伤害 ×' + R.basicTakenMul);
   return parts.join('；');
 }
 
@@ -431,8 +432,11 @@ function makeSlot(c) {
     }
     if (!pick[activeTeam]) pick[activeTeam] = [];
     pick[activeTeam][activeSlot] = c.key;
-    // 填完自动跳下一格，整队填满后交给对面
-    if (activeSlot < teamSize - 1) {
+    // 填完自动跳下一格；BOSS 战只编辑红方，永远不切换到蓝方
+    if (bossMode) {
+      activeTeam = 'A';
+      activeSlot = (activeSlot + 1) % teamSize;
+    } else if (activeSlot < teamSize - 1) {
       activeSlot++;
     } else {
       activeTeam = activeTeam === 'A' ? 'B' : 'A';
@@ -865,12 +869,12 @@ function syncPick() {
       var sel = (active && activeSlot === s) ? ' sel' : '';
       if (!c) {
         html += '<div class="slot-chip empty' + sel + '" data-team="' + team + '" data-slot="' + s + '"' +
-          ' title="点击后从角色池选择"><span class="sc-idx">' + (s + 1) + '</span><b>待选</b></div>';
+          ' title="点击选中 ' + (s + 1) + ' 号位，再从角色池选择"><span class="sc-idx">' + (s + 1) + '</span><b>待选</b></div>';
         continue;
       }
       var sic = (typeof iconSvg === 'function') ? iconSvg(c.key) : '';
       html += '<div class="slot-chip' + sel + '" data-team="' + team + '" data-slot="' + s + '" title="' +
-        deskEsc(c.role + ' · ' + c.units.length + ' 个单位') + '">' +
+        deskEsc(c.role + ' · ' + c.units.length + ' 个单位 · 点击选中 ' + (s + 1) + ' 号位换人') + '">' +
         '<span class="sc-idx">' + (s + 1) + '</span>' +
         (c.img
           ? '<img class="pc-img" src="' + c.img + '" alt="' + c.name + '">'
@@ -886,8 +890,10 @@ function syncPick() {
     var chips = card.querySelectorAll('.slot-chip');
     for (var k = 0; k < chips.length; k++) {
       chips[k].addEventListener('click', function () {
-        if (draftMode || bossMode) return;   // 征召 / BOSS 模式下不能自由切边
-        activeTeam = this.getAttribute('data-team');
+        if (draftMode) return;   // 征召模式由轮次决定，不能自由切边
+        var team = this.getAttribute('data-team');
+        if (bossMode && team !== 'A') return;   // BOSS 固定，只允许点红方号位
+        activeTeam = team;
         activeSlot = parseInt(this.getAttribute('data-slot'), 10) || 0;
         syncPick();
       });

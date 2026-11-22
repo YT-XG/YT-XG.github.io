@@ -7,9 +7,9 @@
      · 任一方受到致命伤害时锁 1 血，并且不再被敌人锁定；
        两只都锁 1 血 → 进入二阶段，负面效果全部清除
    二阶段：紫晶核心，5000 HP，速度 +150%
-     · 普攻：每 500ms 原地放 1 颗炸弹
+     · 普攻：每 500ms 原地放 1 颗炸弹（3 秒引信，触碰即引爆并叠 1 层灼烧）
      · 普攻（终焉一击后解锁）：3s 向敌人中距离冲刺，命中 100% 攻击力
-     · 普攻（终焉一击后解锁）：5s 身周一圈 6 颗炸弹，1 秒后引爆，每颗 60% 攻击力
+     · 普攻（终焉一击后解锁）：5s 身周一圈 6 颗炸弹，3 秒引信，触碰即引爆并叠 1 层灼烧，每颗 60% 攻击力
      · 技能：5s 给自己附魔
      · 终结技：血量首次低于 50% 时蓄力 8 秒，释放终焉一击
        （敌方 70% 最大生命 + 10 秒虚弱，所有伤害 -20%）
@@ -204,9 +204,9 @@ TYPES.bosscore = {
   r: 46, maxHp: 5000, baseSpeed: 240, atk: 100, def: 120,
   impact: true,
   body: '#7a3fbf', light: '#c79bff', dark: '#3a1668', glow: '#b478ff',
-  basic: { cd: 0.5, fuse: 1.0, radius: 105, dmg: 40,
+  basic: { cd: 0.5, fuse: 3.0, radius: 105, dmg: 40,
            dashCd: 3.0, dashRange: 760, dashMin: 90, dashTime: 0.32, dashSpeed: 640, dashPct: 1.0,
-           ringCd: 5.0, ringCount: 6, ringRadius: 74, ringBombR: 100, ringFuse: 1.0, ringPct: 0.6 },
+           ringCd: 5.0, ringCount: 6, ringRadius: 74, ringBombR: 100, ringFuse: 3.0, ringPct: 0.6 },
   skill: {
     name: '自我附魔', cd: 5.0,
     dashTime: 0, dashSpeed: 0, dmgMult: 1,
@@ -229,8 +229,8 @@ TYPES.bosscore = {
     dmgPerSec: 0,
     dmgCap: 0,
     ramp: false,
-    status: '移速 +150% · 可穿透敌方 · 0.5 秒投弹 · 终焉后解锁冲撞 / 环形炸弹',
-    bomb: { interval: 0.5, intervalRamp: 0, intervalMin: 0.5, fuse: 1.0, radius: 105, dmg: 40 }
+    status: '移速 +150% · 可穿透敌方 · 0.5 秒投弹（3s 引信 / 触碰引爆 / 1 层灼烧） · 终焉后解锁冲撞 / 环形炸弹',
+    bomb: { interval: 0.5, intervalRamp: 0, intervalMin: 0.5, fuse: 3.0, radius: 105, dmg: 40 }
   },
   ultBlocked: function () { return true; },   // 终焉一击由血量触发，不走能量/CD 大招
   createState: function () {
@@ -319,7 +319,7 @@ TYPES.bosscore = {
       }
     }
 
-    // 普攻 ③：5 秒身周一圈 6 颗炸弹，1 秒后引爆
+    // 普攻 ③：5 秒身周一圈 6 颗炸弹，3 秒后引爆（触碰立即引爆 + 1 层灼烧）
     u.st.ringCd -= dt;
     if (u.st.ringCd <= 0) {
       u.st.ringCd += B.ringCd;
@@ -327,17 +327,19 @@ TYPES.bosscore = {
       for (var i = 0; i < B.ringCount; i++) {
         var a = i / B.ringCount * TAU - t * 0.3;
         spawnBomb(u, u.x + Math.cos(a) * B.ringRadius, u.y + Math.sin(a) * B.ringRadius,
-          { fuse: B.ringFuse, radius: B.ringBombR, dmg: B.ringPct * u.atk * rm });
+          { fuse: B.ringFuse, radius: B.ringBombR, dmg: B.ringPct * u.atk * rm, touch: true, burn: 1 });
       }
       ring(u.x, u.y, 8, B.ringRadius + 34, 0.36, '#c79bff');
     }
     }
 
-    // 普攻 ①：每 500ms 在脚下放一颗炸弹
+    // 普攻 ①：每 500ms 在脚下放一颗炸弹（3 秒引信，触碰立即引爆 + 1 层灼烧）
     u.st.basicCd -= dt;
     if (u.st.basicCd <= 0) {
       u.st.basicCd += B.cd;
-      spawnBomb(u, u.x, u.y, { fuse: B.fuse, radius: B.radius, dmg: B.dmg * bossBasicMul(u) });
+      spawnBomb(u, u.x, u.y, {
+        fuse: B.fuse, radius: B.radius, dmg: B.dmg * bossBasicMul(u), touch: true, burn: 1
+      });
     }
   },
   onRageStart: function (u) {

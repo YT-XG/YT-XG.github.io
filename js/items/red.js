@@ -8,11 +8,42 @@ var RED_BASIC = {
   count: 5,         // 身周一圈炸弹数
   ring: 70,         // 炸弹生成半径
   radius: 95,       // 爆炸半径（贴脸命中更稳，避免炸弹只是"地上装饰"）
-  fuse: 2.0,        // 引信：落地 2 秒后爆炸，给双方留出躲避/走位窗口
+  fuse: 3.0,        // 引信：落地 3 秒后爆炸；敌方触碰会立刻引爆
   pct: 0.35,        // 每颗 35% 攻击力
   energy: 3,        // 每命中 1 个敌人回 3 能量
   energyCap: 6      // 每次普攻最多回 6 点（5 颗全中也不超额）
 };
+
+/* 灼烧：普攻炸弹爆炸给命中者叠 1 层，最高 10 层。
+   每层每秒造成 5% 红石攻击力伤害；每结算一次伤害消耗 1 层。 */
+var RED_BURN = { pctPerLayer: 0.05, maxStacks: 10, interval: 1.0 };
+
+function redApplyBurn(v, src, n) {
+  if (!v || !v.alive || !src || !(n > 0)) return;
+  v.burnStacks = Math.min(RED_BURN.maxStacks, (v.burnStacks || 0) + n);
+  v.burnAtk = src.atk || 0;
+  v.burnSrc = src;
+  if (!(v.burnAcc > 0)) v.burnAcc = RED_BURN.interval;
+}
+
+function updateBurns(dt) {
+  for (var i = 0; i < units.length; i++) {
+    var u = units[i];
+    if (!u.alive || !(u.burnStacks > 0)) continue;
+    u.burnAcc -= dt;
+    while (u.burnAcc <= 0 && u.alive && u.burnStacks > 0) {
+      u.burnAcc += RED_BURN.interval;
+      hurt(u, u.burnStacks * RED_BURN.pctPerLayer * (u.burnAtk || 0), u.burnSrc, { dot: 1 });
+      u.burnStacks -= 1;   // 每结算一次伤害降低 1 层
+    }
+    if (u.burnStacks <= 0) {
+      u.burnStacks = 0;
+      u.burnSrc = null;
+      u.burnAtk = 0;
+      u.burnAcc = RED_BURN.interval;
+    }
+  }
+}
 
 TYPES.red = {
   key: 'red', name: '红石块', role: '莽夫 / 先手', bond: 'lapis',
@@ -22,6 +53,7 @@ TYPES.red = {
   calibrated: true,
   /* 保留撞击判定，但伤害由 onAttack 改写：只有突进期间才结算 */
   impact: true,
+  shieldMax: 50,      // 护盾条分母（青金石附魔 3 号刷新为 50）
   body: '#c8342b', light: '#ff7a6a', dark: '#6d140e', glow: '#ff5a44',
   basic: RED_BASIC,
   skill: {
@@ -41,14 +73,15 @@ TYPES.red = {
   },
   // 羁绊：青金石阵亡后先无敌抖动 3 秒，随后提速 + 普攻提速
   rage: {
-    speedMul: 1.5,
+    speedMul: 3,
+    passThrough: true,   // 狂暴后穿透敌方：只跳过分离 / 反弹，伤害照常结算
     basicCd: 1.2,
     skillCd: 6.0,
-    status: '移速 ×1.5 · 普攻 3s → 1.2s · 突进 8s → 6s'
+    status: '移速 ×3 · 可穿透敌方 · 普攻 3s → 1.2s · 突进 8s → 6s'
   },
   rageCasts: true,
   createState: function () {
-    return { bombCd: 1.2, energyOnHit: false, bombRain: null, enchantAtk: 0 };
+    return { bombCd: 1.2, energyOnHit: false, bombRain: null, basicBuffLayers: 0, hpBuffLayers: 0 };
   },
   // 只有突进期间按 180% 攻击力结算；平时碰撞伤害为 0
   onAttack: function (u) {
@@ -88,12 +121,12 @@ TYPES.red = {
     if (u.st.bombCd <= 0) {
       u.st.bombCd += interval;
       var budget = { left: B.energyCap };
-      // 青金石 1 号附魔：红石普攻伤害 +10%/层
-      var dmg = u.atk * B.pct * (1 + 0.10 * (u.st.enchantAtk || 0));
+      // 青金石附魔 1 号：普攻伤害 +20%/层，无上限
+      var dmg = u.atk * B.pct * (1 + 0.20 * (u.st.basicBuffLayers || 0));
       for (var i = 0; i < B.count; i++) {
         var a = i / B.count * TAU + t * 0.4;
         spawnBomb(u, u.x + Math.cos(a) * B.ring, u.y + Math.sin(a) * B.ring, {
-          fuse: B.fuse, radius: B.radius, dmg: dmg, energy: B.energy, budget: budget
+          fuse: B.fuse, radius: B.radius, dmg: dmg, energy: B.energy, budget: budget, basic: 1
         });
       }
       ring(u.x, u.y, 12, B.ring, 0.22, '#ffb14d');
