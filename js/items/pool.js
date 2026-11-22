@@ -54,7 +54,7 @@ var POOL = [
     key: 'grass',
     name: '草',
     short: '草',
-    role: '召唤 / 控制',
+    role: '治疗 / 中毒',
     units: ['grass'],
     body: '#5fbf5a',
     glow: '#9be36f'
@@ -72,7 +72,7 @@ var POOL = [
     key: 'milk',
     name: '野生狗奶',
     short: '狗奶',
-    role: '全域压制 / 引导',
+    role: '全域压制 / 领域',
     units: ['milk'],
     body: '#e6cfa8',
     glow: '#ffe0a0',

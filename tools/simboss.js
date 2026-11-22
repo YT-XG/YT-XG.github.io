@@ -107,6 +107,7 @@ fs.readdirSync(path.join(JS_DIR, 'items'))
   .forEach(function (f) { load(path.join('items', f)); });
 load(path.join('items', 'pool.js'));
 load('10-core.js');
+load('25-field.js');
 load('30-sim.js');
 
 vm.runInContext(`
@@ -152,6 +153,7 @@ function __bossMatch(keys, seed, dur) {
   lineupIndex = { A: 0, B: 0 };
   relayTimer = { A: 0, B: 0 };
   seedSim(seed);
+  resetField();
 
   for (var i = 0; i < keys.length; i++) deployRole('A', i);
   deployBoss('B');

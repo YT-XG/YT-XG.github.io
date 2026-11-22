@@ -163,10 +163,10 @@ function settleDots(v, src) {
     if (bd > 0) { hurt(v, bd, v.burnSrc || src); total += bd; }
     v.burnAcc = RED_BURN.interval;
   }
-  if (v.poisonT > 0 && v.poisonDps > 0) {
-    hurt(v, v.poisonDps, v.poisonSrc || src);
-    v.poisonAcc = 1.0;
-    total += v.poisonDps;
+  if ((v.poisonStacks || 0) > 0) {
+    var pd = v.poisonStacks * GRASS_POISON.pctPerStack * (v.poisonMhp || 0);
+    if (pd > 0) { hurt(v, pd, v.poisonSrc || src); total += pd; }
+    v.poisonAcc = GRASS_POISON.interval;
   }
   if (v.waterT > 0 && typeof TYPES.bucket !== 'undefined') {
     var W = TYPES.bucket.water;

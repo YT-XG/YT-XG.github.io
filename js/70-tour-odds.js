@@ -17,7 +17,7 @@
 
 /* 规则版本：改碰撞 / 技能结算这类「不改数值也会变结果」的机制时手动 +1，
    让旧缓存整体失效（数值改动则由 oddsFingerprint 里的 TYPES / BALANCE 自动覆盖） */
-var ODDS_RULES = 16;  // 2026-11-22：大狗终结技三段倍率 5% / 8% / 12% + 打击感增强（DOG_* 不在 TYPES 里，需手动失效）
+var ODDS_RULES = 23;  // 2026-11-22：野生狗奶重做（无普攻/技能，仅奶狗领域终结技）
 
 var ODDS_ENABLED = true;
 var ODDS_DT = 1 / 30;          // 后台模拟步长：实测 1/30 与 1/60 胜率差 ≤ 5 个百分点（40 局样本内）
@@ -109,6 +109,8 @@ function oddsSnapshot() {
     seeds: seeds, vines: vines, reviveQueue: reviveQueue, waters: waters,
     pick: pick, teamSize: teamSize, modeKind: modeKind,
     lineupIndex: lineupIndex, relayTimer: relayTimer,
+    foods: foods, hazards: hazards, fieldBolts: fieldBolts,
+    fieldWeather: fieldWeather, fieldTimers: fieldTimers, lastWeatherKey: lastWeatherKey,
     t: t, roundTime: roundTime, phase: phase, winner: winner,
     suddenDeath: suddenDeath, suddenStart: suddenStart, deathAcc: deathAcc,
     shake: shake, hitStop: hitStop, paused: paused,
@@ -125,6 +127,8 @@ function oddsRestore() {
   seeds = s.seeds; vines = s.vines; reviveQueue = s.reviveQueue; waters = s.waters;
   pick = s.pick; teamSize = s.teamSize; modeKind = s.modeKind;
   lineupIndex = s.lineupIndex; relayTimer = s.relayTimer;
+  foods = s.foods; hazards = s.hazards; fieldBolts = s.fieldBolts;
+  fieldWeather = s.fieldWeather; fieldTimers = s.fieldTimers; lastWeatherKey = s.lastWeatherKey;
   t = s.t; roundTime = s.roundTime; phase = s.phase; winner = s.winner;
   suddenDeath = s.suddenDeath; suddenStart = s.suddenStart; deathAcc = s.deathAcc;
   shake = s.shake; hitStop = s.hitStop; paused = s.paused;
@@ -164,6 +168,7 @@ function oddsInitMatch(aRoles, bRoles, swap) {
   modeKind = 'vs';
   // 每局用不同种子：赔率样本需要多样本，不能用同一个复现种子
   seedSim(((Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0));
+  resetField();
   for (var i = 0; i < 2; i++) { deployRole('A', i); deployRole('B', i); }
   phase = 'fight';
 }
@@ -457,6 +462,7 @@ function previewInit(aKeys, bKeys, size, mode, swap, seed) {
   pick = { A: (swap ? bKeys : aKeys).slice(), B: (swap ? aKeys : bKeys).slice() };
   teamSize = size; modeKind = mode;
   seedSim((seed >>> 0) || 1);
+  resetField();
   for (var i = 0; i < size; i++) { deployRole('A', i); deployRole('B', i); }
   phase = 'fight';
 }

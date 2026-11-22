@@ -76,6 +76,12 @@ function hurt(u, amount, src, opt) {
   var cal = !!(src && TYPES[src.key] && TYPES[src.key].calibrated);
   /* 虚弱（终末震荡）：出手方 10 秒内普攻 / 技能 / 终结技伤害 -20% */
   if (src && src.weakT > 0) amount *= (src.weakMul || 0.8);
+  /* 场地食物：攻击增益只放大非百分比伤害（与 1v1 solo.dmgMul 同口径） */
+  if (!pct && src && src.field && src.field.atkT > 0) amount *= src.field.atkMul;
+  /* 场地食物：承伤减免对所有伤害类型生效 */
+  if (u.field && u.field.takenT > 0) amount *= u.field.takenMul;
+  /* 恶劣环境（血月）：全场承伤倍率 */
+  if (u.field && u.field.envTakenMul) amount *= u.field.envTakenMul;
   /* 脆弱（冰块终结技）：受到的所有类型伤害 +20%，只刷新时间、不叠乘 */
   if (u.vulnT > 0) amount *= (u.vulnMul || 1.2);
   /* 青金石狂暴天赋：受到的普通攻击伤害按 rage.basicTakenMul 缩放（0.4 = -60%） */
@@ -102,8 +108,8 @@ function hurt(u, amount, src, opt) {
      8 倍血量的 BOSS 如果按常规 DPS 结算，5 个玩家 35 秒就能把它打到合体；
      这一层把 TTK 拉长到 1 分钟左右（百分比伤害不受影响）。 */
   if (!pct && u.boss && BALANCE.boss.dmgTakeMul) amount *= BALANCE.boss.dmgTakeMul;
-  /* BOSS 对「百分比伤害」（狗奶引导 / 缺氧 / 决杀）另设一层抗性：
-     否则野生狗奶一人每秒 6.6% 最大生命，两个狗奶 8 秒就能把 3000 HP 的 BOSS 打到锁血，
+  /* BOSS 对「百分比伤害」（狗奶领域 / 缺氧 / 决杀）另设一层抗性：
+     否则野生狗奶一人每秒 7% 最大生命，两个狗奶几秒就能把 BOSS 打到锁血，
      BOSS 战直接变成"开局 10 秒合体"。这里只压外部百分比伤害，决杀不走这条路径。 */
   if (pct && u.boss && BALANCE.boss.pctTakeMul) amount *= BALANCE.boss.pctTakeMul;
   if (!u.alive || amount <= 0) return;
@@ -113,7 +119,7 @@ function hurt(u, amount, src, opt) {
   if (bossMergeAct && (bossMergeAct.a === u || bossMergeAct.b === u)) return;
   if (!dot && !multi && typeof sfxPlay === 'function') sfxPlay('hit');
 
-  // 野生狗奶：引导期间受击先扣「打断护盾」（128 点）；护盾存在时不掉血，打空立即打断
+  // 野生狗奶：领域期间受击先扣「打断护盾」（500 点）；护盾存在时不掉血，打空立即中断
   if (u.st && u.st.milkT > 0) {
     var absorbed = Math.min(u.st.shield, amount);
     u.st.shield -= absorbed;
@@ -457,10 +463,10 @@ function updateBombs(dt) {
 }
 
 /* ============================================================
-   野生狗奶：全域引导（百分比扣血 / 次数盾打断）
+   野生狗奶：奶狗领域（百分比扣血 / 护盾打断）
    ------------------------------------------------------------
-   · 引导期间自身不可移动（speedOf 返回 0）、免疫伤害（hurt() 直接返回）
-   · 每秒对「所有敌方单位 + 敌方召唤物（草的种子）」扣 6.6% 最大生命
+   · 领域期间自身不可移动（speedOf 返回 0）、HP 无敌（hurt() 只扣护盾）
+   · 每秒对「所有敌方单位 + 敌方召唤物（草的种子）」扣 7% 最大生命
    · 百分比扣血走 hurt()：会被护盾吸收、计入 dealt / taken、可触发死亡与羁绊
    · 不推人、不改 ang，符合匀速直线运动红线
    ============================================================ */
@@ -487,15 +493,16 @@ function milkDrain(u, D) {
   }
 }
 
-// 打断护盾（128）打空：立即打断引导，CD 从 0 重新计（= 完整 8 秒），不进入新的引导
+// 护盾（500）打空：领域立即中断，终结技冷却重新读满 12 秒，不会马上再展开
 function interruptMilk(u) {
   u.st.milkT = 0;
   u.st.milkAcc = 0;
   u.st.shield = 0;
-  u.cd = TYPES.milk.skill.cd;
+  u.st.shieldT = 0;
+  u.ultCd = TYPES.milk.ultimate.cd;
   ring(u.x, u.y, u.r, u.r + 80, 0.55, '#ff9c6b');
   burst(u.x, u.y, 20, '#ffb4aa', 260);
-  floater(u.x, u.y - u.r - 26, '引导被打断', '#ff8f7a', 14);
+  floater(u.x, u.y - u.r - 26, '领域破碎', '#ff8f7a', 14);
   shake = Math.max(shake, 4);
 }
 
@@ -507,7 +514,8 @@ function interruptMilk(u) {
    · 伤害统一走 hurt()（护盾可吸收 / 无敌抖动免疫），与炸弹一致
    · 不推人、不改 ang，只做伤害与表现，符合匀速直线运动红线
    ============================================================ */
-// cfg 可选：{ r, delay, dmg }，普攻 / 技能 / 终结技可以各用一套落点参数
+// cfg 可选：{ r, delay, dmg, energy, bindChance, bindTime }
+// 普攻 / 技能 / 分身可以各用一套落点参数
 function spawnAnvilMark(owner, x, y, cfg) {
   var C = TYPES.anvil.anvil;
   var r = (cfg && cfg.r) || C.markR;
@@ -515,8 +523,11 @@ function spawnAnvilMark(owner, x, y, cfg) {
   anvilMarks.push({
     x: x, y: y, r: r,
     t: delay, max: delay,
-    dmg: (cfg && cfg.dmg) || C.dmg,
+    dmg: (cfg && cfg.dmg != null) ? cfg.dmg : C.dmg,
     basic: !!(cfg && cfg.basic),
+    energy: (cfg && cfg.energy) || 0,
+    bindChance: (cfg && cfg.bindChance) || 0,
+    bindTime: (cfg && cfg.bindTime) || 0,
     team: owner.team, owner: owner
   });
   if (anvilMarks.length > ANVIL_MARK_MAX) {
@@ -556,6 +567,21 @@ function updateAnvilMarks(dt) {
       if (hits[h].d > m.r * C.coreRatio) dmg *= C.edgeMul;   // 边缘区减伤
       if (h > 0) dmg *= C.splashMul;                          // 非最近目标只吃溅射
       hurt(hits[h].v, dmg, m.owner, m.basic ? { basic: 1 } : null);
+    }
+
+    /* 命中回能：一个落点只结算一次（多目标不翻倍），与红石炸弹的 budget 口径一致 */
+    if (hits.length > 0 && m.energy > 0) gainEnergy(m.owner, m.energy);
+
+    /* 普攻定身：30% 概率（用 srand，影响胜负的随机必须可复现）；BOSS 免疫控制 */
+    if (hits.length > 0 && m.bindChance > 0 && m.bindTime > 0) {
+      for (var hb = 0; hb < hits.length; hb++) {
+        var bv = hits[hb].v;
+        if (!bv.alive || bv.boss) continue;
+        if (srand(0, 1) >= m.bindChance) continue;
+        bv.bindT = Math.max(bv.bindT || 0, m.bindTime);
+        ring(bv.x, bv.y, bv.r, bv.r + 28, 0.3, '#cfe0ff');
+        floater(bv.x, bv.y - bv.r - 16, '定身 ' + m.bindTime + 's', '#cfe0ff', 12);
+      }
     }
 
     // 敌方种子永远按"非最近目标"处理：只吃溅射（外圈再乘 edgeMul），不会顶掉单位的全额伤害
@@ -887,14 +913,14 @@ function updateWaters(dt) {
 }
 
 /* ============================================================
-   草：种子 / 藤蔓 / 在种子上复活
+   召唤物（草的旧种子）/ 藤蔓视觉 / 在种子上复活
    ------------------------------------------------------------
-   · plantSeed   在当前位置种一颗种子（160 HP、不移动、不挡路）
+   2026-11-22：草重做为「捆绑 / 生辉 / 中毒」后不再种植种子，
+   下面这套核心机制保留给未来的召唤物；没有 TYPES.grass.seed 时直接跳过。
+   · plantSeed   在当前位置种一颗种子（不移动、不挡路）
    · hurtSeed    种子唯一的受击入口：没有护盾 / 无敌，血量归零才消失
-   · updateSeeds 普通贴身接触不再掉血；敌方技能冲刺撞到才算攻击，
-                 同时每满 1 秒给 healRadius 内友军回复 8 HP（同队只留最新一颗，不叠加）
-   · tryVine     向范围内最近的敌人伸藤蔓：定身 3s + 中毒 5s（每秒 12）
-   · queueRevive 草阵亡时消耗一颗自己的种子，延迟 1s 原地复活
+   · updateSeeds 只有敌方技能冲刺撞到才算攻击，同时每秒治疗范围内友军
+   · queueRevive 单位阵亡时消耗一颗自己的种子，延迟 1s 原地复活
    ============================================================ */
 
 // 种子受伤：统一入口。种子不参与 dealt 排行以外的单位结算，但伤害仍计入攻击方 dealt
@@ -946,6 +972,7 @@ function plantSeed(u, cfg) {
 
 function updateSeeds(dt) {
   var S = TYPES.grass.seed;
+  if (!S) return;   // 草已不再种种子；没有配置时直接跳过
   for (var i = seeds.length - 1; i >= 0; i--) {
     var s = seeds[i];
     s.hitCd = Math.max(0, s.hitCd - dt);
@@ -988,32 +1015,6 @@ function updateSeeds(dt) {
       }
     }
   }
-}
-
-function tryVine(u, V) {
-  var best = null, bd = V.range;
-  for (var i = 0; i < units.length; i++) {
-    var v = units[i];
-    if (!v.alive || v.team === u.team) continue;
-    var d = Math.hypot(v.x - u.x, v.y - u.y);
-    if (d < bd) { bd = d; best = v; }
-  }
-
-  // 没目标也甩一下藤蔓（空放），保证"CD 好了就放"的决策不变
-  var ex = best ? best.x : u.x + Math.cos(u.ang) * 80;
-  var ey = best ? best.y : u.y + Math.sin(u.ang) * 80;
-  vines.push({ x1: u.x, y1: u.y, x2: ex, y2: ey, life: 0.45, max: 0.45, hit: !!best });
-
-  if (!best) return;
-  if (!best.boss) best.bindT = V.root;   // BOSS 免疫定身；中毒照常
-  best.poisonT = V.poisonTime;
-  best.poisonAcc = 1.0;      // 1 秒后第一次掉血
-  best.poisonDps = V.poisonDps;
-  best.poisonSrc = u;
-
-  ring(best.x, best.y, best.r, 118, 0.45, '#8ce06a');
-  floater(best.x, best.y - best.r - 18,
-    best.boss ? '免疫定身 · 中毒' : ('捆绑 ' + V.root + 's'), '#9be36f', 13);
 }
 
 function updateVines(dt) {
@@ -1114,7 +1115,8 @@ function resetArena() {
 
 // 持续收缩：每帧按 rate * dt 收窄，墙是"慢慢推过来"的，不是跳一下
 function updateShrink(dt) {
-  if (bossMode) return;   // BOSS 战舞台不收缩（否则 5v1 会被挤成一团）
+  if (bossMode) return;        // BOSS 战舞台不收缩（否则 5v1 会被挤成一团）
+  if (!soloMode()) return;     // 只有 1v1 自动收缩；2v2 / 3v3 / 接力 / 赛事均保持初始场地
   if (ARENA.w <= SHRINK.minW) return;
   var d = Math.min(SHRINK.rate * dt, ARENA.w - SHRINK.minW);
   if (d <= 0) return;
@@ -1133,6 +1135,19 @@ function updateShrink(dt) {
     var s = seeds[j];
     if (s.x < ARENA.x + s.r) s.x = ARENA.x + s.r;
     else if (s.x > ARENA.x + ARENA.w - s.r) s.x = ARENA.x + ARENA.w - s.r;
+  }
+  // 食物 / 危险区域跟着新墙走，避免 1v1 收缩后食物落在墙外吃不到
+  if (typeof foods !== 'undefined') {
+    for (var fi = 0; fi < foods.length; fi++) {
+      foods[fi].x = clamp(foods[fi].x, ARENA.x + foods[fi].r, ARENA.x + ARENA.w - foods[fi].r);
+    }
+  }
+  if (typeof hazards !== 'undefined') {
+    for (var hi = 0; hi < hazards.length; hi++) {
+      var hz = hazards[hi];
+      if (hz.x - hz.r < ARENA.x) hz.x = ARENA.x + hz.r;
+      if (hz.x + hz.r > ARENA.x + ARENA.w) hz.x = ARENA.x + ARENA.w - hz.r;
+    }
   }
 }
 
@@ -1211,13 +1226,20 @@ function statusText() {
   if (suddenDeath && phase === 'fight') {
     parts.push('决杀 · 全体每秒 -5% 最大生命（已 ' + Math.floor(t - suddenStart) + 's）');
   }
+  // 场地环境：当前天气 + 剩余时间；局部危险区域只报数量，避免状态栏过长
+  if (typeof fieldWeather !== 'undefined' && fieldWeather) {
+    parts.push('环境 · ' + fieldWeather.def.name + ' ' + Math.ceil(fieldWeather.life) + 's');
+  }
+  if (typeof hazards !== 'undefined' && hazards.length) {
+    parts.push('危险区 ×' + hazards.length);
+  }
   for (var i = 0; i < units.length; i++) {
     var u = units[i];
     var R = u.st.rage;
     if (!u.alive) continue;
-    // 野生狗奶：引导剩余时间 + 剩余打断护盾
+    // 野生狗奶：领域剩余时间 + 剩余打断护盾
     if (u.st.milkT > 0) {
-      parts.push(u.name + ' 引导 ' + u.st.milkT.toFixed(1) + 's · 护盾 ' +
+      parts.push(u.name + ' 领域 ' + u.st.milkT.toFixed(1) + 's · 护盾 ' +
         Math.ceil(Math.max(0, u.st.shield)) + '/' + TYPES.milk.shieldMax);
     }
     if (u.ultT > 0) parts.push(u.name + ' 终结技蓄力 ' + u.ultT.toFixed(1) + 's');
@@ -1250,6 +1272,10 @@ function statusText() {
     }
     if (u.vulnT > 0) {
       parts.push(u.name + ' 脆弱 ' + u.vulnT.toFixed(1) + 's');
+    }
+    // 食物增益：刚拾取时在状态栏短暂显示名称
+    if (u.field && u.field.labelT > 0) {
+      parts.push(u.name + ' 食物 · ' + u.field.label);
     }
     if (!R) continue;
     if (R.phase === 'shake') {
@@ -1671,7 +1697,10 @@ function teamHp(team) {
     }
   }
   for (var k = 0; k < units.length; k++) {
-    if (units[k].team === team) cur += Math.max(0, units[k].hp);
+    /* 临时召唤物（铁砧分身）不计入队伍总血条：分母只统计角色池里的单位，
+       否则分身会让 cur 超过 max，血条直接溢出。 */
+    if (units[k].team !== team || units[k].isSummon) continue;
+    cur += Math.max(0, units[k].hp);
   }
   return { cur: cur, max: max };
 }
@@ -1870,7 +1899,9 @@ function tick(dt) {
 
   for (var i = 0; i < units.length; i++) {
     var u = units[i];
-    u.cd = Math.max(0, u.cd - dt);
+    // 蜂蜜瓶：技能冷却流速加快（只作用于普通技能 CD，不改终结技）
+    var cdRate = (u.field && u.field.cdT > 0) ? u.field.cdMul : 1;
+    u.cd = Math.max(0, u.cd - dt * cdRate);
     u.ultCd = Math.max(0, (u.ultCd || 0) - dt);
     u.hitCd = Math.max(0, u.hitCd - dt);
     u.wallCd = Math.max(0, u.wallCd - dt);
@@ -1895,17 +1926,6 @@ function tick(dt) {
         u.atkBuffAdd = 0;
       }
     }
-    // 中毒：每满 1 秒结算一次，伤害走 hurt()（护盾可吸收）
-    // 每秒伤害优先读该单位自己的 poisonDps（普攻 / 终结技 / 藤蔓各不相同）
-    if (u.poisonT > 0 && u.alive) {
-      u.poisonT = Math.max(0, u.poisonT - dt);
-      u.poisonAcc -= dt;
-      while (u.poisonAcc <= 0 && u.alive) {
-        u.poisonAcc += 1.0;
-        hurt(u, u.poisonDps || TYPES.grass.vine.poisonDps, u.poisonSrc, { dot: 1 });
-      }
-      if (u.poisonT <= 0) { u.poisonSrc = null; u.poisonDps = 0; }
-    }
     /* 持续伤害汇总：冰面 / 中毒 / 浸水 / 狗奶引导 / 激光段伤都只累加不逐跳表现，
        每满 1 秒把这一秒的合计显示成一条小飘字（不爆粒子、不播音效），
        6v6 同时中多种 DoT 时也不会把特效池打满、挡住血条 */
@@ -1928,6 +1948,8 @@ function tick(dt) {
 
   updateTetanus(dt);   // 破伤风：每秒结算并消耗 1 层（长矛）
   updateBurns(dt);     // 灼烧：每秒结算并消耗 1 层（红石普攻炸弹）
+  updatePoisons(dt);   // 中毒：每秒按层数结算并消耗 1 层（草的捆绑 / 光环）
+  updateField(dt);     // 场地环境：食物拾取 / 局部危险区域 / 全场天气
 
   // 物品自己的每帧被动（青金石光环）
   for (var p = 0; p < units.length; p++) {
@@ -1983,6 +2005,11 @@ function fx(dt) {
   for (i = ultBeams.length - 1; i >= 0; i--) {
     ultBeams[i].life -= dt;
     if (ultBeams[i].life <= 0) ultBeams.splice(i, 1);
+  }
+  // 场地落雷：即使对局结束也要把最后一道闪电播完
+  for (i = fieldBolts.length - 1; i >= 0; i--) {
+    fieldBolts[i].life -= dt;
+    if (fieldBolts[i].life <= 0) fieldBolts.splice(i, 1);
   }
   for (i = floaters.length - 1; i >= 0; i--) {
     var f = floaters[i];

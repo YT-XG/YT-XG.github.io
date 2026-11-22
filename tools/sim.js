@@ -137,6 +137,7 @@ const itemFiles = fs.readdirSync(path.join(JS_DIR, 'items'))
 itemFiles.forEach(function (f) { load(path.join('items', f)); });
 load(path.join('items', 'pool.js'));
 load('10-core.js');
+load('25-field.js');
 load('30-sim.js');
 
 /* ---------------- 对局驱动（注入到 vm 里，才能操作引擎的顶层变量）--------------- */
@@ -162,6 +163,7 @@ function __simMatch(ka, kb, seed, dur) {
   teamSize = 1;
   modeKind = 'vs';
   seedSim(seed);
+  resetField();
   deployRole('A', 0);
   deployRole('B', 0);
   phase = 'fight';
@@ -195,6 +197,7 @@ function __simProbe(ka, kb, seed, dur, every) {
   pick = { A: [ka], B: [kb] };
   teamSize = 1; modeKind = 'vs';
   seedSim(seed);
+  resetField();
   deployRole('A', 0); deployRole('B', 0);
   phase = 'fight';
 

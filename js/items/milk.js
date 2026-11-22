@@ -1,103 +1,88 @@
-/* 野生狗奶：全域压制 / 引导，无羁绊
+/* 野生狗奶：全域压制 / 领域引导，无羁绊
    ------------------------------------------------------------
-   2026-11-22 迁移到新体系：2000 HP / 100 攻击 / 90 防御，终结技由能量条驱动。
-   三个技能槽：
-     · 普攻（3s）   340 范围内最近敌人 110 伤害，自身回复 2% 最大生命，回能 5
-     · 技能（12s）  原地引导 10 秒：每秒抽 3.2% 最大生命、自身每秒额外回能 2、180 点打断护盾
-     · 终结技       所有敌人损失 12% 最大生命，自身回复 25% 最大生命
+   2026-11-22 重做：取消普攻与普通技能，只保留终结技「奶狗领域」。
+     · 普攻：无（普通撞击伤害恒为 0）
+     · 技能：无（不会主动施放）
+     · 终结技（12s CD，无条件发动 / 不依赖能量）
+         发动后原地无敌展开「奶狗领域」：
+         每秒对在场所有敌人（含敌方召唤物）造成其自身最大生命 7% 的伤害，持续 12 秒；
+         自身获得 500 点护盾；护盾被打破时领域立即中断，冷却重新读秒 12 秒。
    ------------------------------------------------------------
-   · 引导期间完全不可移动（speedOf 直接返回 0），受击先扣 180 点打断护盾，
-     护盾打空立即打断，CD 从 0 重新计（= 完整 12 秒），不进入新的引导。
+   · 引导期间完全不可移动（speedOf 返回 0）、不可被推动（collide 视为固定桩）；
+     所有 incoming 伤害先扣 500 点护盾，HP 不掉（= 原地无敌）。
    · 百分比扣血统一走 hurt()：会被护盾吸收、计入 dealt / taken、能触发死亡与羁绊。
-   · 撞击是技能：只有引导结束后的「收汁冲撞」（0.55s、撞击 180% 攻击力）才有撞击伤害。
-   ------------------------------------------------------------
-   技能本身不冲刺、不转向（noTurn）；收汁冲撞只加速、不改朝向。 */
+   · 冷却在发动瞬间开始读；若 12 秒内无人打破护盾，领域自然结束时冷却已好，
+     会再次无条件发动（护盾随之刷新）。 */
 'use strict';
 
-var MILK_BASIC = { cd: 3.0, range: 340, dmg: 110, healPct: 0.02, energy: 5 };
-var MILK_SKILL = { cd: 12.0, energyPerSec: 2 };
-var MILK_ULT = { dmgPct: 0.12, healPct: 0.25 };
-var MILK_DASH = { time: 0.55, speed: 820, pct: 1.8 };
+var MILK_ULT = { cd: 12.0, dur: 12.0, pctPerSec: 0.07, shield: 500 };
 
 TYPES.milk = {
-  key: 'milk', name: '野生狗奶', role: '全域压制 / 引导',
+  key: 'milk', name: '野生狗奶', role: '全域压制 / 领域',
   r: 26, maxHp: 2000, baseSpeed: 200, atk: 100, def: 90,
-  energyMax: 100, energyRegen: 1.5,
-  /* 数值已按 2000 HP 口径校准：伤害不再乘 dmgScale */
+  /* 数值已按 2000 HP 口径校准：百分比伤害不再乘 dmgScale */
   calibrated: true,
-  /* 撞击是技能：只有在「引导结束的收汁冲撞」冲刺期间才有撞击伤害 */
+  /* 保留撞击判定，但 onAttack 恒为 0：贴上去不掉血 */
   impact: true,
   body: '#e6cfa8', light: '#fff4de', dark: '#8a6a44', glow: '#ffe0a0',
-  basic: MILK_BASIC,
   skill: {
-    name: '野性哺育', cd: MILK_SKILL.cd, noTurn: true,
-    // 非冲刺型技能：不加速、不转向，只进入引导状态
+    name: '无', cd: MILK_ULT.cd, noTurn: true,
     dashTime: 0, dashSpeed: 0, dmgMult: 1,
-    text: '原地引导 12 秒：自身不可移动、免疫伤害，并显示 180 点打断护盾（受击先扣护盾，打空立即打断）；' +
-      '场上所有敌方单位与召唤物每秒损失 3.2% 最大生命，自身每秒额外回能 2。引导结束或被打断后才开始计 12 秒冷却；' +
-      '引导结束时会沿当前方向收汁冲撞 0.55 秒（撞击 180% 攻击力）'
+    text: '没有普通技能：全部机制集中在终结技「奶狗领域」'
   },
   ultimate: {
-    name: '野性反哺',
-    text: '能量充满后立即抽取所有敌人 15% 最大生命（对种子 50%），并回复自身 25% 最大生命'
+    name: '奶狗领域', cd: MILK_ULT.cd, windup: 0.35,
+    text: '12 秒冷却，无条件发动：原地无敌展开领域，每秒对所有敌人造成其自身 7% 最大生命的伤害，持续 12 秒；' +
+      '自身获得 500 点护盾，护盾被打破时领域立即中断并重新读秒 12 秒'
   },
   passive: {
-    name: '野奶之躯',
-    text: '引导期间普通撞击伤害为 0；引导结束时沿当前方向「收汁冲撞」0.55 秒（撞击 180% 攻击力），用来收割被扣到残血的目标'
+    name: '无',
+    text: '无'
   },
 
-  /* 引导参数（唯一可调入口）
-     · pctPerSec 每秒扣除目标最大生命的比例（0.032 = 3.2%，10 秒 = 32%）
-     · dur       引导时长（秒）
-     · shieldMax 引导期间的打断护盾（打空即打断，同时用作护盾条分母） */
-  drain: { pctPerSec: 0.032, dur: 10.0 },
-  shieldMax: 180,
+  /* 领域参数（唯一可调入口）
+     · pctPerSec 每秒扣除目标最大生命的比例（0.07 = 7%）
+     · dur       领域持续时间（秒）
+     · shield    打断护盾（打空即中断，同时用作护盾条分母） */
+  drain: { pctPerSec: MILK_ULT.pctPerSec, dur: MILK_ULT.dur },
+  shieldMax: MILK_ULT.shield,
 
-  createState: function () { return { milkT: 0, milkAcc: 1.0, basicCd: 1.4 }; },
+  createState: function () { return { milkT: 0, milkAcc: 1.0, milkInit: false }; },
 
-  // 引导期间不再重复施放（think() 不会消耗 CD）
-  canCast: function (u) { return !(u.st.milkT > 0); },
+  /* 没有普通技能：think() 走到 canCast 直接跳过，不会消耗任何 CD；
+     终结技在 canCast 之前结算，不受影响。 */
+  canCast: function () { return false; },
 
-  // 撞击只在「收汁冲撞」期间生效：其它时候贴上去不掉血
-  onAttack: function (u) { return u.dashT > 0 ? u.atk * MILK_DASH.pct : 0; },
+  // 普攻无：普通撞击伤害恒为 0
+  onAttack: function () { return 0; },
 
-  onCast: function (u) {
+  // 终结技：原地展开奶狗领域（冷却由 castUltimate 设为 12 秒）
+  onUlt: function (u) {
     var D = TYPES.milk.drain;
     u.st.milkT = D.dur;
-    u.st.milkAcc = 1.0;          // 满 1 秒后第一次扣血
-    u.st.shield = TYPES.milk.shieldMax;   // 打断护盾：每次引导重置
-    u.st.shieldT = 0;            // 不靠时间清空，只被伤害消耗
-    u.cd = 0;                    // 引导结束 / 被打断后才开始计 CD
+    u.st.milkAcc = 1.0;                    // 之后每满 1 秒再结算一次
+    u.st.shield = TYPES.milk.shieldMax;    // 打断护盾：每次展开重置
+    u.st.shieldT = 0;                      // 不靠时间清空，只被伤害消耗
     u.dashT = 0; u.dashSpeed = 0; u.dmgMult = 1;
-    u.trail.length = 0;          // 站定：清掉冲刺残影
+    u.trail.length = 0;                    // 站定：清掉移动残影
 
-    ring(u.x, u.y, u.r, u.r + 96, 0.6, '#ffe0a0');
-    burst(u.x, u.y, 18, '#fff1cc', 200);
-    floater(u.x, u.y - u.r - 20, '野性哺育', '#ffe9b0', 13);
-  },
+    ring(u.x, u.y, u.r, u.r + 140, 0.6, '#ffe0a0');
+    burst(u.x, u.y, 20, '#fff1cc', 240);
+    floater(u.x, u.y - u.r - 22, '奶狗领域', '#ffe9b0', 14);
 
-  // 终结技：立即抽取所有敌方单位 / 敌方种子的生命，并回复自身
-  onUlt: function (u) {
-    var i;
-    for (i = 0; i < units.length; i++) {
-      var v = units[i];
-      if (!v.alive || v.team === u.team) continue;
-      hurt(v, v.maxHp * MILK_ULT.dmgPct, u, { pct: 1 });
-      ring(v.x, v.y, v.r, v.r + 40, 0.4, '#ffe0a0');
-    }
-    for (i = seeds.length - 1; i >= 0; i--) {
-      var sd = seeds[i];
-      if (sd.team === u.team) continue;
-      hurtSeed(sd, sd.maxHp * 0.5, u, { pct: 1 });
-      if (sd.hp <= 0) destroySeed(i, '种子被汲取');
-    }
-    var heal = u.maxHp * MILK_ULT.healPct;
-    u.hp = Math.min(u.maxHp, u.hp + heal);
-    floater(u.x, u.y - u.r - 26, '反哺 +' + Math.round(heal), '#ffe9b0', 14);
-    ring(u.x, u.y, u.r, u.r + 110, 0.6, '#ffe0a0');
+    // 展开瞬间先结算第一跳：护盾 500 点，通常能撑过数跳
+    milkDrain(u, D);
   },
 
   onTick: function (u, dt) {
+    /* 无条件发动：入场后第一次 tick 就把终结技冷却清零。
+       普通技能 CD 也清 0，避免冷却环在开局短暂显示一个永远用不掉的技能。 */
+    if (!u.st.milkInit) {
+      u.st.milkInit = true;
+      u.ultCd = 0;
+      u.cd = 0;
+    }
+
     var D = TYPES.milk.drain;
     if (u.st.milkT > 0) {
       u.st.milkT -= dt;
@@ -105,37 +90,19 @@ TYPES.milk = {
       while (u.st.milkAcc <= 0 && u.st.milkT > 0) {
         u.st.milkAcc += 1.0;       // 每秒结算一次（倍速下可能一次跨多秒）
         milkDrain(u, D);
-        gainEnergy(u, MILK_SKILL.energyPerSec);   // 引导期间额外回能
       }
 
-      if (u.st.milkT <= 0) {       // 正常引导结束
+      if (u.st.milkT <= 0) {       // 12 秒内没人打断：领域自然结束
         u.st.milkT = 0;
-        u.st.shield = 0;           // 护盾属于本次引导，结束后一并清空
-        u.cd = TYPES.milk.skill.cd;
-        // 收汁冲撞：沿当前运动方向冲 0.55 秒，不改朝向（noTurn 红线）
-        u.dashT = MILK_DASH.time;
-        u.dashSpeed = MILK_DASH.speed;
-        u.dmgMult = 1;
-        ring(u.x, u.y, u.r, u.r + 70, 0.5, '#bfe2ff');
-        floater(u.x, u.y - u.r - 22, '收汁冲撞', '#ffe9b0', 13);
+        u.st.shield = 0;           // 护盾属于本次领域，结束后一并清空
+        u.ultCd = 0;               // 无条件发动：冷却已好，下一帧再次展开
+        ring(u.x, u.y, u.r, u.r + 90, 0.5, '#ffe0a0');
+        floater(u.x, u.y - u.r - 22, '领域延续', '#ffe9b0', 13);
       }
-      return;   // 引导期间不普攻
+      return;   // 引导期间不普攻、不施放其它技能
     }
 
-    // 普攻：射程内最近敌人吃 110，自身回复 2% 最大生命
-    if (u.dashT > 0) return;
-    u.st.basicCd = Math.max(0, u.st.basicCd - dt);
-    if (u.st.basicCd > 0) return;
-    var e = nearestEnemy(u);
-    if (!e) return;
-    if (Math.hypot(e.x - u.x, e.y - u.y) > MILK_BASIC.range + e.r) return;
-    u.st.basicCd = MILK_BASIC.cd;
-    hurt(e, MILK_BASIC.dmg, u, { basic: 1 });
-    var heal = u.maxHp * MILK_BASIC.healPct;
-    u.hp = Math.min(u.maxHp, u.hp + heal);
-    gainEnergy(u, MILK_BASIC.energy);
-    ring(e.x, e.y, e.r, e.r + 30, 0.28, '#ffe0a0');
-    floater(u.x, u.y - u.r - 14, '汲取 +' + Math.round(heal), '#ffe9b0', 11);
+    // 普攻：无。非引导期间只按普通单位移动。
   },
 
   draw: function (u) { drawMilk(u); }

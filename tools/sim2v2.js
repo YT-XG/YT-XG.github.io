@@ -143,6 +143,7 @@ fs.readdirSync(path.join(JS_DIR, 'items'))
   .forEach(function (f) { load(path.join('items', f)); });
 load(path.join('items', 'pool.js'));
 load('10-core.js');
+load('25-field.js');
 load('30-sim.js');
 
 /* ---------------- 2v2 对局驱动 ---------------- */
@@ -166,6 +167,7 @@ function __sim2v2Init(a, b, seed, dur, dt) {
   lineupIndex = { A: 0, B: 0 };
   relayTimer = { A: 0, B: 0 };
   seedSim(seed >>> 0);
+  resetField();
   deployRole('A', 0); deployRole('A', 1);
   deployRole('B', 0); deployRole('B', 1);
   phase = 'fight';

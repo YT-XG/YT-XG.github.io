@@ -42,6 +42,11 @@ function speedOf(u) {
   }
   // 附魔移速（青金石 4 号附魔）：叠加式乘区，只放大常速与冲刺，不改变直线运动规则
   if (u.st && u.st.speedAdd) sp *= 1 + u.st.speedAdd;
+  // 场地食物 / 恶劣环境：只改速度大小，不改 u.ang（与冰面 / 水面同一口径）
+  if (u.field) {
+    if (u.field.spdT > 0) sp *= u.field.spdMul;
+    if (u.field.envSlowT > 0) sp *= u.field.envSlowMul;
+  }
   // slowMul 允许不同来源使用不同减速系数（青金石 0.6 / 冰块 0.4），默认取全局值
   return u.slowT > 0 ? sp * (u.slowMul || BALANCE.slowSpeedMul) : sp;
 }
@@ -95,7 +100,7 @@ var seeds = [], vines = [], reviveQueue = [];
 // 冰面数量上限：防止长时间对局铺满场地掉帧（存活期 6s × 落点频率，正常远低于此值）
 var ICE_PATCH_MAX = 120;
 var WATER_MAX = 6;             // 水面上限：CD 8s、水面寿命 8s，单角色最多 1 滩，多角色也不会铺满
-var ANVIL_MARK_MAX = 12;       // 落点圆上限：CD 3s、延迟 3s，单角色同时最多 1 个
+var ANVIL_MARK_MAX = 48;       // 落点圆上限：八连铁砧 + 分身同时出手时也不会挤掉落点
 var SEED_MAX = 6;              // 全场合计种子上限，超出删最早的
 var REVIVE_DELAY = 1.0;        // 草在种子上复活的吟唱时间（秒）
 var t = 0, roundTime = 180, phase = 'menu', winner = null;
@@ -354,9 +359,22 @@ function addUnit(key, x, y, team) {
     // 大狗技能加攻：已加到 atk 上的数值 / 剩余时间（到期由 tick 还原）
     atkBuffAdd: 0, atkBuffT: 0,
     waterT: 0, waterAcc: 1.0,   // 浸水累计时长 / 满 1 秒结算一次的累加器（水桶的水面）
-    bindT: 0, poisonT: 0, poisonAcc: 1.0, poisonSrc: null, poisonDps: 0,
+    bindT: 0,
+    // 中毒：层数 / 每秒结算累加器 / 施放者与生命上限快照（草）
+    poisonStacks: 0, poisonAcc: 1.0, poisonSrc: null, poisonMhp: 0,
     dotAmt: 0, dotT: 0,         // DoT 汇总：这一秒累计的持续伤害 / 距离下次飘字的剩余时间
     revives: 0,   // 已经靠种子复活过几次（草最多 2 次）
+    /* 场地环境状态（25-field.js）：
+       · atk / spd / taken / cd / regen —— 食物增益（倍率或每秒回复比例）
+       · envDps / envAcc / envSlow —— 恶劣环境写入的每秒伤害、结算累加器、减速
+       · envTakenMul —— 血月等天气的承伤倍率
+       · label / labelT —— 最近拾取的食物名，供状态栏短暂显示 */
+    field: {
+      atkMul: 1, atkT: 0, spdMul: 1, spdT: 0, takenMul: 1, takenT: 0,
+      cdMul: 1, cdT: 0, regen: 0, regenT: 0,
+      envDps: 0, envAcc: 1.0, envSlowT: 0, envSlowMul: 1, envTakenMul: 1,
+      label: '', labelT: 0
+    },
     st: d.createState ? d.createState() : {},
     trail: [], seed: Math.random() * 1000
   };
@@ -462,6 +480,7 @@ function reset() {
   anvilMarks = [];
   seeds = []; vines = []; reviveQueue = [];
   resetArena();   // 场地恢复到初始宽度
+  if (typeof resetField === 'function') resetField();   // 随机食物 / 危险区域 / 天气计时
   // BOSS 战用自己的时长常量（主菜单的分钟档位不作用于该模式）
   t = 0; roundTime = bossMode ? BALANCE.boss.duration : roundDuration; winner = null;
   bossMerged = false;

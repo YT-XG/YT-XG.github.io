@@ -72,10 +72,11 @@ function rosterStatus(u) {
   if (u.castT > 0) return '蓄';
   if (u.st && u.st.rage) return u.st.rage.phase === 'shake' ? '抖' : '狂';
   if (u.boss && TYPES[u.key] && TYPES[u.key].bossLock && u.hp <= 1.05) return '锁';
-  if (u.st && u.st.milkT > 0) return '导';
+  if (u.st && u.st.milkT > 0) return '域';
   if (u.bindT > 0) return '定';
-  if (u.poisonT > 0) return '毒';
+  if (u.poisonStacks > 0) return '毒';
   if (u.waterT > 0) return '水';
+  if (typeof fieldHasBuff === 'function' && fieldHasBuff(u)) return '食';
   if (u.st && u.st.shield > 0) return '盾';
   return '';
 }
@@ -92,7 +93,7 @@ function rebuildRoster() {
     var color = team === 'A' ? '#e8483f' : '#4a7bf0';
     for (var i = 0; i < units.length; i++) {
       var u = units[i];
-      if (u.team !== team) continue;
+      if (u.team !== team || u.isSummon) continue;   // 临时分身不占阵容条
       var chip = document.createElement('div');
       chip.className = 'roster-chip';
       chip.innerHTML =
@@ -142,6 +143,7 @@ function topDealer() {
   var best = null;
   for (var i = 0; i < units.length; i++) {
     var u = units[i];
+    if (u.isSummon) continue;   // MVP 只评角色本体
     if (!best || (u.dealt || 0) > (best.dealt || 0)) best = u;
   }
   return best;

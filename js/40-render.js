@@ -1190,6 +1190,7 @@ function drawAnvilDrops() {
 /* 草的种子：贴地的小芽 + 常驻血条 + 阵营小环 + 治疗光环范围 */
 function drawSeeds() {
   var S = TYPES.grass.seed;
+  if (!S) return;   // 草已不再种种子；没有配置时直接跳过
   for (var i = 0; i < seeds.length; i++) {
     var s = seeds[i];
     var ph = s.phase;
@@ -1265,6 +1266,37 @@ function drawSeeds() {
     roundRect(bx - 1, by - 1, bw + 2, bh + 2, 2);
     ctx.fillStyle = ratio > 0.5 ? '#7fd45f' : (ratio > 0.25 ? '#e0b23c' : '#e05a4a');
     roundRect(bx, by, bw * ratio, bh, 2);
+  }
+}
+
+/* 草的光环：技能「生辉」持续期间贴地的一圈光芒（治疗 / 中毒范围提示） */
+function drawGrassAuras() {
+  for (var i = 0; i < units.length; i++) {
+    var u = units[i];
+    if (!u.alive || u.key !== 'grass' || !u.st || !(u.st.auraT > 0)) continue;
+    var A = TYPES.grass.aura || { radius: 200, dur: 4 };
+    var R = A.radius;
+    var fade = Math.min(1, u.st.auraT / 0.45);   // 结束前 0.45s 淡出
+    var pulse = 0.5 + 0.5 * Math.sin(t * 5);
+
+    var g = ctx.createRadialGradient(u.x, u.y, u.r * 0.5, u.x, u.y, R);
+    g.addColorStop(0, 'rgba(200,245,176,' + (0.13 * fade).toFixed(3) + ')');
+    g.addColorStop(0.72, 'rgba(140,224,106,' + (0.07 * fade).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(140,224,106,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(u.x, u.y, R, 0, TAU);
+    ctx.fill();
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(190,245,150,' + ((0.32 + 0.22 * pulse) * fade).toFixed(3) + ')';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 8]);
+    ctx.lineDashOffset = -t * 38;
+    ctx.beginPath();
+    ctx.arc(u.x, u.y, R * (0.94 + 0.03 * pulse), 0, TAU);
+    ctx.stroke();
+    ctx.restore();
   }
 }
 
@@ -1996,10 +2028,11 @@ function drawUnit(u) {
     ctx.setLineDash([]);
   }
 
-  // 中毒：周围冒绿泡
-  if (u.poisonT > 0) {
+  // 中毒：周围冒绿泡（层数越多泡越多）
+  if (u.poisonStacks > 0) {
     ctx.fillStyle = 'rgba(150,235,120,.55)';
-    for (var pz = 0; pz < 3; pz++) {
+    var pb = Math.min(3, u.poisonStacks);
+    for (var pz = 0; pz < pb; pz++) {
       var pa = t * 1.6 + pz * 2.1 + u.seed;
       var pr = u.r + 4 + Math.sin(t * 2 + pz) * 5;
       ctx.beginPath();
@@ -2168,7 +2201,7 @@ function drawUnit(u) {
 
   var cr = u.r + 16;
   if (u.st && u.st.milkT > 0) {
-    // 引导进度环：金色，从 12 点顺时针填满（引导期间 CD 为 0，不能画成"就绪"）
+    // 引导进度环：金色，从 12 点顺时针填满（领域期间 CD 为 0，不能画成"就绪"）
     var dur = TYPES.milk.drain.dur;
     var cp = clamp(1 - u.st.milkT / dur, 0, 1);
     ctx.strokeStyle = 'rgba(255,224,160,.14)';
@@ -2306,9 +2339,14 @@ function drawUnitStatus(u) {
   if (u.coldStacks > 0) rows.push(['寒', '寒冷 ×' + u.coldStacks, '#8ce0ff']);
   if (u.vulnT > 0) rows.push(['脆', '易伤 +20%', '#c79bff']);
   if (u.atkBuffT > 0) rows.push(['攻', '+' + Math.round(u.atkBuffAdd), '#ffd166']);
-  if (u.poisonT > 0) rows.push(['毒', '中毒', '#96eb78']);
+  if (u.poisonStacks > 0) rows.push(['毒', '中毒 ×' + u.poisonStacks, '#96eb78']);
+  // 场地食物增益：攻击 / 移速 / 减伤 / 技能冷却 / 再生
+  if (typeof fieldBuffRows === 'function') {
+    var frows = fieldBuffRows(u);
+    for (var fr = 0; fr < frows.length; fr++) rows.push(frows[fr]);
+  }
   if (!rows.length) return;
-  if (rows.length > 6) rows.length = 6;
+  if (rows.length > 8) rows.length = 8;
 
   ctx.save();
   ctx.font = '600 10.5px "PingFang SC","Microsoft YaHei",sans-serif';
@@ -2557,10 +2595,12 @@ function render() {
   }
 
   drawArena();
+  drawFieldGround();   // 场地环境：天气底色 / 局部危险区域 / 随机食物（压在单位之下）
   drawDamagePanels();  // 场地左右留白里的「总伤害」信息条（每帧实时读取）
   drawIcePatches();   // 贴地层：在场地之上、单位与尾迹之下
   drawWaters();       // 水桶的水面（贴地，压在单位之下）
   drawSeeds();        // 草的种子也贴地
+  drawGrassAuras();   // 草「生辉」光环（贴地，压在单位之下）
   drawAnvilMarks();   // 铁砧落点预警圆（贴地）
   drawSpearGroundFx(); // 长矛地裂（贴地，压在单位之下）
 
@@ -2568,7 +2608,7 @@ function render() {
   drawBombs();
   drawFx();
   drawArrows();
-  drawMilkLinks();    // 野生狗奶引导时的全域流失连线（贴地，压在单位之下）
+  drawMilkLinks();    // 野生狗奶领域期间的全域流失连线（贴地，压在单位之下）
 
   var sorted = units.slice().sort(function (a, b) { return a.y - b.y; });
   for (var j = 0; j < sorted.length; j++) drawUnit(sorted[j]);
@@ -2576,6 +2616,7 @@ function render() {
   drawAnvilDrops();   // 落下的铁砧压在单位之上
   drawLasers();       // 大狗激光（压在单位之上）
   drawUltBeams();     // 终结技瞬发光束（大狗三重咆哮等）
+  drawFieldSky();     // 场地落雷（压在单位之上）
   drawVines();        // 藤蔓压在最上层
   drawBossCharge();   // 合体前的停顿蓄能 + 核心血条充能
   drawBossMerge();    // BOSS 合体演出（残影 / 白闪 / 紫环，最上层）
