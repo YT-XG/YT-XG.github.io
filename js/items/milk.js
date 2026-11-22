@@ -11,8 +11,8 @@
    · 引导期间完全不可移动（speedOf 返回 0）、不可被推动（collide 视为固定桩）；
      所有 incoming 伤害先扣 500 点护盾，HP 不掉（= 原地无敌）。
    · 百分比扣血统一走 hurt()：会被护盾吸收、计入 dealt / taken、能触发死亡与羁绊。
-   · 冷却在发动瞬间开始读；若 12 秒内无人打破护盾，领域自然结束时冷却已好，
-     会再次无条件发动（护盾随之刷新）。 */
+   · 冷却在领域结束后才开始读：自然结束或护盾被打空都会把终结技冷却重新读满
+     12 秒，不能无缝衔接下一轮。 */
 'use strict';
 
 var MILK_ULT = { cd: 12.0, dur: 12.0, pctPerSec: 0.07, shield: 500 };
@@ -56,7 +56,7 @@ TYPES.milk = {
   // 普攻无：普通撞击伤害恒为 0
   onAttack: function () { return 0; },
 
-  // 终结技：原地展开奶狗领域（冷却由 castUltimate 设为 12 秒）
+  // 终结技：原地展开奶狗领域（冷却在领域结束后才重新读满 12 秒）
   onUlt: function (u) {
     var D = TYPES.milk.drain;
     u.st.milkT = D.dur;
@@ -65,6 +65,7 @@ TYPES.milk = {
     u.st.shieldT = 0;                      // 不靠时间清空，只被伤害消耗
     u.dashT = 0; u.dashSpeed = 0; u.dmgMult = 1;
     u.trail.length = 0;                    // 站定：清掉移动残影
+    u.ultCd = 0;                           // 领域期间不读 CD，结束后才重新计
 
     ring(u.x, u.y, u.r, u.r + 140, 0.6, '#ffe0a0');
     burst(u.x, u.y, 20, '#fff1cc', 240);
@@ -95,9 +96,9 @@ TYPES.milk = {
       if (u.st.milkT <= 0) {       // 12 秒内没人打断：领域自然结束
         u.st.milkT = 0;
         u.st.shield = 0;           // 护盾属于本次领域，结束后一并清空
-        u.ultCd = 0;               // 无条件发动：冷却已好，下一帧再次展开
+        u.ultCd = TYPES.milk.ultimate.cd;   // 结束后重算 CD，不能无缝衔接
         ring(u.x, u.y, u.r, u.r + 90, 0.5, '#ffe0a0');
-        floater(u.x, u.y - u.r - 22, '领域延续', '#ffe9b0', 13);
+        floater(u.x, u.y - u.r - 22, '领域结束', '#ffe9b0', 13);
       }
       return;   // 引导期间不普攻、不施放其它技能
     }

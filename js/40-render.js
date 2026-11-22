@@ -1011,73 +1011,309 @@ function drawIcePatches() {
   ctx.restore();
 }
 
-/* 水桶的水面：贴地椭圆（水体 + 扩散波纹 + 中心漩涡）
+/* 水桶的狂浪：贴地椭圆（水体 + 扩散波纹 + 中心漩涡 + 旋转浪冠）
    ------------------------------------------------------------
-   · grow 秒内从圆心扩散到最大半径；hold 之后用 fade 秒线性淡出
-   · 只做表现，引力与浸水伤害由 js/30-sim.js 的 updateWaters() 结算 */
+   · grow 秒内从圆心扩散到最大半径；life 到点爆炸，再用 fade 秒淡出
+   · 只做表现，引力 / 叠溺水 / 爆炸伤害由 js/30-sim.js 的 updateWaves() 结算 */
 function drawWaters() {
   var C = TYPES.bucket.water;
-  // 裁剪到场地内：水面半径 220，贴墙施放时会超出战斗区，不能盖住两侧的伤害信息条
+  // 裁剪到场地内：浪面半径 230，贴墙施放时会超出战斗区，不能盖住两侧的伤害信息条
   ctx.save();
   ctx.beginPath();
   ctx.rect(ARENA.x, ARENA.y, ARENA.w, ARENA.h);
   ctx.clip();
   for (var i = 0; i < waters.length; i++) {
     var w = waters[i];
-    var rr = waterRadius(w);
+    var rr = waveRadius(w);
     if (rr < 2) continue;
-    var fadeK = w.age <= C.hold ? 1 : clamp(1 - (w.age - C.hold) / C.fade, 0, 1);
+    var fadeK = w.boom ? clamp(1 - (w.age - C.life) / C.fade, 0, 1) : 1;
+    if (fadeK <= 0) continue;
+    var boomK = w.boom ? clamp((w.age - C.life) / C.fade, 0, 1) : 0;
 
     // 水体：中心略深、边缘透明（离屏贴图，按当前半径缩放 + 整体淡出）
-    ctx.globalAlpha = fadeK;
+    ctx.globalAlpha = fadeK * (0.9 + 0.1 * Math.sin(t * 2 + w.phase));
     ctx.drawImage(waterSprite(), w.x - rr, w.y - rr * 0.82, rr * 2, rr * 1.64);
     ctx.globalAlpha = 1;
 
     // 扩散波纹：3 圈错相位，持续从圆心向外推（"水从中间往四周散开"）
     for (var k = 0; k < 3; k++) {
-      var ph = (t * 0.42 + k / 3 + w.phase / TAU) % 1;
+      var ph = (t * 0.46 + k / 3 + w.phase / TAU) % 1;
       var rad = rr * (0.16 + 0.84 * ph);
-      ctx.globalAlpha = (1 - ph) * 0.5 * fadeK;
+      ctx.globalAlpha = (1 - ph) * 0.55 * fadeK;
       ctx.strokeStyle = '#d9f5ff';
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 1.7;
       ctx.beginPath();
       ctx.ellipse(w.x, w.y, rad, rad * 0.82, 0, 0, TAU);
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
 
-    // 外圈边界
-    ctx.strokeStyle = 'rgba(168,234,255,' + (0.5 * fadeK).toFixed(3) + ')';
-    ctx.lineWidth = 2;
+    // 外圈边界（爆炸时变成亮白冲击环）
+    ctx.strokeStyle = w.boom
+      ? 'rgba(255,255,255,' + (0.75 * fadeK).toFixed(3) + ')'
+      : 'rgba(168,234,255,' + (0.55 * fadeK).toFixed(3) + ')';
+    ctx.lineWidth = w.boom ? 3 : 2;
     ctx.beginPath();
     ctx.ellipse(w.x, w.y, rr, rr * 0.82, 0, 0, TAU);
     ctx.stroke();
 
-    // 中心漩涡：三段弧缓慢旋转，提示这里有引力
+    // 浪冠：外圈 4 段白色浪舌，随漩涡缓慢翻卷（有浪在"转"的感觉）
     ctx.save();
-    ctx.translate(w.x, w.y);
-    ctx.strokeStyle = 'rgba(226,250,255,' + (0.38 * fadeK).toFixed(3) + ')';
-    ctx.lineWidth = 2;
-    var spin = t * 1.1 + w.phase;
-    for (var s = 0; s < 3; s++) {
-      var a0 = spin + s * TAU / 3;
+    ctx.globalCompositeOperation = 'lighter';
+    for (var cse = 0; cse < 4; cse++) {
+      var ca = t * 0.9 + w.phase + cse * TAU / 4;
+      var cw = 0.5 + 0.16 * Math.sin(t * 3.2 + cse * 1.7);
+      ctx.strokeStyle = 'rgba(226,250,255,' + (0.30 * fadeK).toFixed(3) + ')';
+      ctx.lineWidth = 5;
       ctx.beginPath();
-      ctx.arc(0, 0, rr * (0.2 + s * 0.12), a0, a0 + 1.0);
+      ctx.ellipse(w.x, w.y, rr * 1.01, rr * 0.83, 0, ca, ca + cw);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.5 * fadeK).toFixed(3) + ')';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.ellipse(w.x, w.y, rr * 1.02, rr * 0.84, 0, ca, ca + cw * 0.6);
       ctx.stroke();
     }
     ctx.restore();
 
+    // 中心漩涡：三段弧缓慢旋转，提示这里有引力
+    ctx.save();
+    ctx.translate(w.x, w.y);
+    ctx.strokeStyle = 'rgba(226,250,255,' + (0.42 * fadeK).toFixed(3) + ')';
+    ctx.lineWidth = 2;
+    var spin = t * 1.35 + w.phase;
+    for (var s = 0; s < 3; s++) {
+      var a0 = spin + s * TAU / 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, rr * (0.2 + s * 0.12), a0, a0 + 1.05);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 浪中泡沫：持续冒白点（爆炸时全部向外飞）
+    ctx.fillStyle = 'rgba(235,252,255,' + (0.5 * fadeK).toFixed(3) + ')';
+    for (var b = 0; b < 7; b++) {
+      var ba = w.phase + b * 2.4 + t * (0.5 + (b % 3) * 0.18);
+      var br = rr * (0.18 + ((b * 0.13) % 1) * 0.72) * (1 + boomK * 0.25);
+      ctx.beginPath();
+      ctx.arc(w.x + Math.cos(ba) * br, w.y + Math.sin(ba) * br * 0.82,
+        1.6 + (b % 3) * 0.9, 0, TAU);
+      ctx.fill();
+    }
+
     // 圆心高光
-    ctx.globalAlpha = 0.35 * fadeK;
+    ctx.globalAlpha = 0.4 * fadeK;
     ctx.fillStyle = '#eafcff';
     ctx.beginPath();
-    ctx.arc(w.x, w.y, Math.max(2, rr * 0.06), 0, TAU);
+    ctx.arc(w.x, w.y, Math.max(2, rr * 0.07), 0, TAU);
     ctx.fill();
     ctx.globalAlpha = 1;
   }
   ctx.restore();
 }
 
+/* 大浪淘 · 领域（贴地层）
+   ------------------------------------------------------------
+   6 秒领域的水面表现：全场地蓝色潮汐底色 + 3 道横向推进的浪带 +
+   底部抬起的巨浪 + 浪尖泡沫 + 每次拍击的冲击环。
+   纯画面层，伤害由水桶 onTick 的 bucketSurfSlam 结算。 */
+function drawSurfWaves() {
+  for (var i = 0; i < units.length; i++) {
+    var u = units[i];
+    if (!u.alive || !(u.st && u.st.surfT > 0)) continue;
+    var U = TYPES.bucket.ultimate;
+    var k = clamp(u.st.surfT / U.dur, 0, 1);      // 1 → 0（剩余比例）
+    var a = ARENA;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(a.x, a.y, a.w, a.h);
+    ctx.clip();
+
+    // ① 潮汐底色：整块场地压一层蓝，越到结尾越淡
+    var g = ctx.createLinearGradient(0, a.y, 0, a.y + a.h);
+    g.addColorStop(0, 'rgba(30,110,170,' + (0.16 * k).toFixed(3) + ')');
+    g.addColorStop(0.55, 'rgba(40,150,215,' + (0.22 * k).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(120,220,255,' + (0.26 * k).toFixed(3) + ')');
+    ctx.fillStyle = g;
+    ctx.fillRect(a.x, a.y, a.w, a.h);
+
+    // ② 3 道横向浪带：正弦曲线 + 白色浪脊，相位随时间推进
+    ctx.globalCompositeOperation = 'lighter';
+    for (var b = 0; b < 3; b++) {
+      var baseY = a.y + a.h * (0.22 + 0.27 * b);
+      var amp = 14 + b * 5;
+      var phase = t * (1.1 + b * 0.22);
+      ctx.beginPath();
+      ctx.moveTo(a.x, baseY);
+      for (var x = 0; x <= a.w; x += 18) {
+        var wy = baseY + Math.sin(x * 0.012 + phase) * amp
+          + Math.sin(x * 0.031 - phase * 1.6) * (amp * 0.35);
+        ctx.lineTo(a.x + x, wy);
+      }
+      ctx.lineTo(a.x + a.w, a.y + a.h);
+      ctx.lineTo(a.x, a.y + a.h);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(120,210,255,' + (0.05 * k).toFixed(3) + ')';
+      ctx.fill();
+
+      // 浪脊白线
+      ctx.beginPath();
+      for (var x2 = 0; x2 <= a.w; x2 += 18) {
+        var wy2 = baseY + Math.sin(x2 * 0.012 + phase) * amp
+          + Math.sin(x2 * 0.031 - phase * 1.6) * (amp * 0.35);
+        if (x2 === 0) ctx.moveTo(a.x + x2, wy2); else ctx.lineTo(a.x + x2, wy2);
+      }
+      ctx.strokeStyle = 'rgba(226,250,255,' + (0.26 * k).toFixed(3) + ')';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // ③ 底部抬起的巨浪：一条大弧从场地底边隆起，边缘带浪花
+    var lift = 0.55 + 0.35 * Math.sin(t * 1.6);
+    var wy0 = a.y + a.h - (a.h * 0.34) * lift;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y + a.h);
+    ctx.bezierCurveTo(a.x + a.w * 0.18, wy0 + 26, a.x + a.w * 0.36, wy0 - 10,
+      a.x + a.w * 0.52, wy0 + 8);
+    ctx.bezierCurveTo(a.x + a.w * 0.7, wy0 + 24, a.x + a.w * 0.86, wy0 - 6,
+      a.x + a.w, wy0 + 16);
+    ctx.lineTo(a.x + a.w, a.y + a.h);
+    ctx.closePath();
+    var wg = ctx.createLinearGradient(0, wy0, 0, a.y + a.h);
+    wg.addColorStop(0, 'rgba(210,245,255,' + (0.16 * k).toFixed(3) + ')');
+    wg.addColorStop(1, 'rgba(60,160,225,' + (0.10 * k).toFixed(3) + ')');
+    ctx.fillStyle = wg;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.5 * k).toFixed(3) + ')';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // ④ 浪尖泡沫：沿巨浪弧线冒白点
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.42 * k).toFixed(3) + ')';
+    for (var f = 0; f < 16; f++) {
+      var fx = a.x + a.w * (f / 16) + Math.sin(t * 2 + f) * 8;
+      var fy = wy0 + 12 + Math.sin(f * 1.7 + t * 3) * 14;
+      ctx.beginPath();
+      ctx.arc(fx, fy, 1.8 + (f % 3) * 1.1, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // ⑤ 拍击脉冲：每次 bucketSurfSlam 把 surfPulse 置 1，这里画成扩散冲击环
+    if (u.st.surfPulse > 0) {
+      var p = 1 - u.st.surfPulse;   // 0 → 1
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      var pr = 60 + p * Math.max(a.w, a.h) * 0.8;
+      ctx.strokeStyle = 'rgba(226,250,255,' + ((1 - p) * 0.55).toFixed(3) + ')';
+      ctx.lineWidth = 4 * (1 - p) + 1;
+      ctx.beginPath();
+      ctx.ellipse(u.x, u.y, pr, pr * 0.7, 0, 0, TAU);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // ⑥ 终拍白闪：最后一拍结算所有 DoT 时全场地闪一下
+    if (u.st.surfFlash > 0) {
+      ctx.fillStyle = 'rgba(235,252,255,' + (0.4 * u.st.surfFlash).toFixed(3) + ')';
+      ctx.fillRect(a.x, a.y, a.w, a.h);
+    }
+  }
+}
+
+/* 大浪淘 · 顶层浪花（压在单位之上）：飞溅的水柱与斜向浪丝 */
+function drawSurfSpray() {
+  for (var i = 0; i < units.length; i++) {
+    var u = units[i];
+    if (!u.alive || !(u.st && u.st.surfT > 0)) continue;
+    var k = clamp(u.st.surfT / TYPES.bucket.ultimate.dur, 0, 1);
+    var a = ARENA;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(a.x, a.y, a.w, a.h);
+    ctx.clip();
+    ctx.globalCompositeOperation = 'lighter';
+
+    // 斜向浪丝：12 条快速掠过的白色水线（营造"浪在拍"的动感）
+    for (var s = 0; s < 12; s++) {
+      var sx = a.x + ((t * 520 + s * 173) % a.w);
+      var sy = a.y + ((s * 97 + t * 180) % a.h);
+      var len = 46 + (s % 4) * 16;
+      var dir = s % 2 ? 1 : -1;
+      ctx.strokeStyle = 'rgba(240,253,255,' + (0.16 * k).toFixed(3) + ')';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + len * 0.7 * dir, sy - len * 0.45);
+      ctx.stroke();
+    }
+
+    // 飞溅水柱：4 根随脉冲升起的水柱
+    for (var c = 0; c < 4; c++) {
+      var cx = a.x + a.w * (0.18 + 0.22 * c) + Math.sin(t * 1.4 + c) * 16;
+      var cy = a.y + a.h - 6;
+      var hh = 40 + 46 * Math.abs(Math.sin(t * 1.8 + c * 1.3));
+      var cg = ctx.createLinearGradient(cx, cy - hh, cx, cy);
+      cg.addColorStop(0, 'rgba(235,252,255,' + (0.35 * k).toFixed(3) + ')');
+      cg.addColorStop(1, 'rgba(150,225,255,' + (0.05 * k).toFixed(3) + ')');
+      ctx.fillStyle = cg;
+      ctx.beginPath();
+      ctx.moveTo(cx - 5, cy);
+      ctx.quadraticCurveTo(cx - 2, cy - hh * 0.7, cx + Math.sin(t * 3 + c) * 7, cy - hh);
+      ctx.quadraticCurveTo(cx + 3, cy - hh * 0.6, cx + 6, cy);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+/* 水桶的水滴飞行物（压在单位之上，画在箭矢附近）
+   ------------------------------------------------------------
+   水滴本体 + 拖尾残影 + 末端高光；命中结算在 bucketDropImpact 里 */
+function drawBucketDrops() {
+  for (var i = 0; i < bucketDrops.length; i++) {
+    var d = bucketDrops[i];
+    // 拖尾
+    var tr = d.trail || [];
+    for (var k = 0; k < tr.length; k++) {
+      var alpha = 0.06 + 0.1 * (k / Math.max(1, tr.length));
+      ctx.fillStyle = 'rgba(160,228,255,' + alpha.toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(tr[k].x, tr[k].y, 2 + k * 0.7, 0, TAU);
+      ctx.fill();
+    }
+    // 水滴：朝运动方向的椭圆 + 尖端
+    ctx.save();
+    ctx.translate(d.x, d.y);
+    ctx.rotate(d.ang);
+    ctx.fillStyle = 'rgba(210,244,255,.95)';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 8, 5.6, 0, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-10, 0);
+    ctx.lineTo(-3, -3.4);
+    ctx.lineTo(-3, 3.4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.9)';
+    ctx.beginPath();
+    ctx.arc(2.4, -1.6, 2.1, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+
+    // 外发光
+    var gg = ctx.createRadialGradient(d.x, d.y, 2, d.x, d.y, 15);
+    gg.addColorStop(0, 'rgba(180,238,255,.5)');
+    gg.addColorStop(1, 'rgba(120,210,255,0)');
+    ctx.fillStyle = gg;
+    ctx.beginPath();
+    ctx.arc(d.x, d.y, 15, 0, TAU);
+    ctx.fill();
+  }
+}
 /* 铁砧的落点预警圆：贴地层（在单位之下）
    ------------------------------------------------------------
    · 外圈虚线 = 判定边界（核心区再画一圈细实线）
@@ -1999,20 +2235,29 @@ function drawUnit(u) {
     ctx.stroke();
   }
 
-  // 水桶浸水：蓝色水环；累计满 4 秒后加一圈琥珀色告警脉动（提示即将/正在掉血）
-  if (u.waterT > 0) {
-    var wk = TYPES.bucket.water;
-    var wetK = clamp(u.waterT / wk.wetThreshold, 0, 1);
-    ctx.strokeStyle = 'rgba(127,216,255,' + (0.3 + 0.4 * wetK).toFixed(3) + ')';
-    ctx.lineWidth = 2;
+  // 水桶溺水：蓝色水环，层数越多越粗；满 5 层加一圈琥珀色告警脉动
+  if (u.drownStacks > 0) {
+    var dk = clamp(u.drownStacks / BUCKET_DROWN.maxStacks, 0, 1);
+    ctx.strokeStyle = 'rgba(127,216,255,' + (0.28 + 0.45 * dk).toFixed(3) + ')';
+    ctx.lineWidth = 1.6 + dk * 1.8;
     ctx.beginPath();
     ctx.arc(u.x, u.y, u.r + 7, 0, TAU);
     ctx.stroke();
-    if (wetK >= 1) {
+    // 溺水气泡：沿身子向上冒
+    ctx.fillStyle = 'rgba(180,238,255,.5)';
+    for (var dz = 0; dz < u.drownStacks; dz++) {
+      var da = t * 2.1 + dz * 1.6 + u.seed;
+      var dr = u.r + 3 + Math.sin(t * 2.4 + dz) * 6;
+      ctx.beginPath();
+      ctx.arc(u.x + Math.cos(da) * dr, u.y - 6 + Math.sin(da) * dr * 0.6,
+        2.2 + (dz % 2) * 1.2, 0, TAU);
+      ctx.fill();
+    }
+    if (u.drownStacks >= BUCKET_DROWN.maxStacks) {
       ctx.strokeStyle = 'rgba(255,196,107,' + (0.45 + 0.35 * Math.sin(t * 8)).toFixed(3) + ')';
       ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.arc(u.x, u.y, u.r + 10, 0, TAU);
+      ctx.arc(u.x, u.y, u.r + 11, 0, TAU);
       ctx.stroke();
     }
   }
@@ -2154,10 +2399,9 @@ function drawUnit(u) {
     drawOverBar(bx, bw, stackTop, u.coldStacks / ICE_COLD.maxStacks, '#8ce0ff', '#ffffff', 'ice');
     stackTop -= 7;
   }
-  if (u.waterT > 0) {
-    var ox = TYPES.bucket.water;
-    drawOverBar(bx, bw, stackTop, u.waterT / ox.wetThreshold,
-      '#6fd8ff', '#ffb050', 'water');
+  if (u.drownStacks > 0) {
+    drawOverBar(bx, bw, stackTop, u.drownStacks / BUCKET_DROWN.maxStacks,
+      '#6fd8ff', '#ffb050', 'drown');
     stackTop -= 7;
   }
 
@@ -2240,7 +2484,8 @@ function drawUnit(u) {
   var UT = TYPES[u.key] && TYPES[u.key].ultimate;
   if (UT) {
     var ur = cr + 6;
-    var ready = u.energyMax ? u.energy >= u.energyMax : (u.ultCd || 0) <= 0;
+    var ready = (u.energyMax ? u.energy >= u.energyMax : (u.ultCd || 0) <= 0) &&
+      !(u.st && u.st.milkT > 0);   // 领域期间不显示"就绪"脉冲
     var uk = u.energyMax ? clamp(u.energy / u.energyMax, 0, 1) : clamp(1 - (u.ultCd || 0) / UT.cd, 0, 1);
     ctx.strokeStyle = 'rgba(255,214,122,.12)';
     ctx.lineWidth = 2;
@@ -2598,7 +2843,8 @@ function render() {
   drawFieldGround();   // 场地环境：天气底色 / 局部危险区域 / 随机食物（压在单位之下）
   drawDamagePanels();  // 场地左右留白里的「总伤害」信息条（每帧实时读取）
   drawIcePatches();   // 贴地层：在场地之上、单位与尾迹之下
-  drawWaters();       // 水桶的水面（贴地，压在单位之下）
+  drawWaters();       // 水桶的狂浪（贴地，压在单位之下）
+  drawSurfWaves();    // 大浪淘领域：全场地潮汐 + 浪带 + 抬起的巨浪（贴地）
   drawSeeds();        // 草的种子也贴地
   drawGrassAuras();   // 草「生辉」光环（贴地，压在单位之下）
   drawAnvilMarks();   // 铁砧落点预警圆（贴地）
@@ -2608,6 +2854,7 @@ function render() {
   drawBombs();
   drawFx();
   drawArrows();
+  drawBucketDrops();  // 水桶的水滴飞行物
   drawMilkLinks();    // 野生狗奶领域期间的全域流失连线（贴地，压在单位之下）
 
   var sorted = units.slice().sort(function (a, b) { return a.y - b.y; });
@@ -2616,6 +2863,7 @@ function render() {
   drawAnvilDrops();   // 落下的铁砧压在单位之上
   drawLasers();       // 大狗激光（压在单位之上）
   drawUltBeams();     // 终结技瞬发光束（大狗三重咆哮等）
+  drawSurfSpray();    // 大浪淘顶层浪花 / 水柱（压在单位之上）
   drawFieldSky();     // 场地落雷（压在单位之上）
   drawVines();        // 藤蔓压在最上层
   drawBossCharge();   // 合体前的停顿蓄能 + 核心血条充能

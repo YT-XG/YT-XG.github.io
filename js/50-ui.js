@@ -75,7 +75,7 @@ function rosterStatus(u) {
   if (u.st && u.st.milkT > 0) return '域';
   if (u.bindT > 0) return '定';
   if (u.poisonStacks > 0) return '毒';
-  if (u.waterT > 0) return '水';
+  if (u.drownStacks > 0) return '溺';
   if (typeof fieldHasBuff === 'function' && fieldHasBuff(u)) return '食';
   if (u.st && u.st.shield > 0) return '盾';
   return '';

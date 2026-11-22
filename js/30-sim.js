@@ -425,7 +425,8 @@ function updateBombs(dt) {
     ring(b.x, b.y, 6, b.radius, 0.42, '#ffb14d');
     ring(b.x, b.y, 3, b.radius * 0.55, 0.3, '#fff1c9');
     burst(b.x, b.y, 20, '#ffd166', 300);
-    shake = Math.min(15, shake + 3.5);
+    /* 2026-11-22 用户口径：炸弹连续引爆时不再震屏（红石普攻 5 颗 / 0.4s 一轮会晃到看不清），
+       只保留冲击环与粒子，命中反馈交给飘字与爆炸圆环。 */
     hitStop = Math.max(hitStop, 0.025);
 
     var hits = 0;
@@ -547,7 +548,8 @@ function updateAnvilMarks(dt) {
     ring(m.x, m.y, 10, m.r, 0.5, '#cfd9e8');
     ring(m.x, m.y, 5, m.r * 0.6, 0.3, '#ffffff');
     burst(m.x, m.y, 26, '#dfe8f4', 330);
-    shake = Math.min(15, shake + 6);
+    // 2026-11-22 用户口径：落砧的震感减弱（八连时不再叠到满屏晃）
+    shake = Math.min(6, shake + 1.6);
     hitStop = Math.max(hitStop, 0.03);
 
     // 圆内敌人：最近的一个承受全额，其余只吃 splashMul（避免一次落点同时清场）
@@ -807,63 +809,51 @@ function updateIcePatches(dt) {
 }
 
 /* ============================================================
-   水桶：涌泉水面（从圆心扩散 → 6 秒持续 → 2 秒淡出）
+   水桶：狂浪（原地生成 → 7 秒引力 → 第 7 秒爆炸）
    ------------------------------------------------------------
-   · 水面是**地面力场**：水面向圆心产生引力，越靠圆心拉力越大；
+   · 狂浪是**地面力场**：向圆心产生引力，越靠圆心拉力越大；
      每帧只按 g*dt 拖拽敌方**位置**，不修改 u.ang ——
-     离开水面后仍按原方向继续直线滑行，符合"只有技能/撞墙才转向"的红线
-   · **消散途中仍然生效**：引力、缺氧累积与掉血会一直持续到 hold+fade
-     结束（水面被移除）为止，不是 hold 一结束就停
-   · 缺氧值存在每个单位的 waterT / waterAcc 上（见 addUnit）：
-     在水里累积到 wetThreshold 充满后，每满 dotInterval 秒扣 dotPct 最大生命；
-     离开水面按 oxicDecay 缓慢回落
-   · 百分比伤害走 hurt()：会被护盾吸收、计入 dealt / taken、可触发死亡与羁绊
-   · 水只对敌方单位生效；不伤害种子、不推动己方
+     离开浪面后仍按原方向继续直线滑行，符合"只有技能/撞墙才转向"的红线
+   · 敌方在浪中每 stackEvery 秒叠 1 层「溺水」（上限 5 层，层数存在 u.drownStacks）
+   · 第 7 秒（age >= life）狂浪爆炸：170% 攻击力 + 3 层溺水，随后 fade 秒淡出残影
+   · 溺水每秒结算一次（updateDrowns）：按层数取档位 15/20/25/30/40% 攻击力，
+     不消耗层数，离开浪面后仍然持续
+   · 伤害走 hurt()：会被护盾吸收、计入 dealt / taken、可触发死亡与羁绊
+   · 狂浪只对敌方单位生效；不伤害种子、不推动己方
    ============================================================ */
-function spawnWater(owner, x, y) {
+function spawnWave(owner, x, y) {
   var C = TYPES.bucket.water;
   waters.push({
-    x: x, y: y, r: C.r, age: 0,
+    x: x, y: y, r: C.r, age: 0, boom: false,
     team: owner.team, owner: owner, phase: rand(0, TAU)
   });
   if (waters.length > WATER_MAX) waters.splice(0, waters.length - WATER_MAX);
 }
 
-// 当前可见半径：grow 秒内从 0 扩散到 r，随后保持（消退只淡透明度，不缩圈）
-function waterRadius(w) {
+// 当前可见半径：grow 秒内从 0 扩散到 r；爆炸后只淡出，不缩圈
+function waveRadius(w) {
   var C = TYPES.bucket.water;
   var k = clamp(w.age / C.grow, 0, 1);
   return w.r * (1 - (1 - k) * (1 - k));
 }
 
-function updateWaters(dt) {
+function updateWaves(dt) {
   var C = TYPES.bucket.water;
+  var D = BUCKET_DROWN;
   var i, j;
 
-  // 1) 水面寿命：age >= hold+fade 时才移除；在此之前（含淡出中途）一直生效
+  // 1) 寿命：到 life 立刻爆炸（只炸一次），再由 fade 淡出残影
   for (i = waters.length - 1; i >= 0; i--) {
     var w = waters[i];
     w.age += dt;
-    if (w.age >= C.hold + C.fade) waters.splice(i, 1);
-  }
-
-  // 1b) 多目标衰减：先数当前站在任意敌方水面上的敌方单位数
-  //     （1 个目标 = 原值；2 个目标每人 72%，合计 144%，不再线性翻倍）
-  var wetFoes = 0;
-  for (i = 0; i < units.length; i++) {
-    var wu = units[i];
-    if (!wu.alive) continue;
-    for (j = 0; j < waters.length; j++) {
-      var wp = waters[j];
-      if (wp.team === wu.team) continue;
-      var wrad = waterRadius(wp);
-      var wd = Math.hypot(wu.x - wp.x, wu.y - wp.y);
-      if (wd <= wrad + wu.r * 0.35) { wetFoes++; break; }
+    if (!w.boom && w.age >= C.life) {
+      w.boom = true;
+      if (typeof bucketWaveBoom === 'function') bucketWaveBoom(w);
     }
+    if (w.age >= C.life + C.fade) waters.splice(i, 1);
   }
-  var wetMul = aoeScale(wetFoes);
 
-  // 2) 逐个敌方单位：找脚下的敌方水面（重叠只取最近圆心的一滩） → 引力 + 浸水
+  // 2) 逐个敌方单位：找脚下的敌方浪面（重叠只取最近圆心的一滩） → 引力 + 叠溺水
   for (i = 0; i < units.length; i++) {
     var u = units[i];
     if (!u.alive) continue;
@@ -871,46 +861,65 @@ function updateWaters(dt) {
     var src = null, bestD = 1e9, rr = 0;
     for (j = 0; j < waters.length; j++) {
       var p = waters[j];
-      if (p.team === u.team) continue;
-      // 消散（fade）阶段仍然生效：引力、缺氧累积与掉血会一直持续到水面完全消失
-      var rad = waterRadius(p);
+      if (p.team === u.team || p.boom) continue;   // 已爆炸的残影不再有引力 / 叠层
+      var rad = waveRadius(p);
       var d = Math.hypot(u.x - p.x, u.y - p.y);
       if (d > rad + u.r * 0.35) continue;
       if (d < bestD) { bestD = d; src = p; rr = rad; }
     }
 
     if (!src) {
-      // 离开水面：头顶的「缺氧」值缓慢回落（oxicDecay/s），再次入水会继续累积
-      if (u.waterT > 0) u.waterT = Math.max(0, u.waterT - C.oxicDecay * dt);
-      u.waterAcc = C.dotInterval;
+      u.drownInAcc = 0;
+      // 离开浪面：先给 outGrace 秒宽限，之后每 decayEvery 秒 -1 层（重新入浪会清零计时）
+      if (u.drownStacks > 0) {
+        u.drownOutAcc = (u.drownOutAcc || 0) + dt;
+        if (u.drownOutAcc >= D.outGrace) {
+          u.drownOutAcc = D.outGrace - D.decayEvery;
+          u.drownStacks -= 1;
+          if (u.drownStacks <= 0) {
+            u.drownStacks = 0; u.drownSrc = null; u.drownAtk = 0;
+            u.drownAcc = D.interval; u.drownOutAcc = 0;
+          }
+        }
+      }
       continue;
     }
+    u.drownOutAcc = 0;
 
     // 2a) 引力：边缘接近 0，越靠圆心越大。无敌抖动 / 狗奶引导 / BOSS 视为固定桩，不被拖拽
     if (!isShaking(u) && !isMilkChannel(u) && !isDogChannel(u) && !u.boss && bestD > 0.5) {
-      var g = C.gravity * Math.max(0, 1 - bestD / Math.max(1, rr)) * wetMul;
+      var g = C.gravity * Math.max(0, 1 - bestD / Math.max(1, rr));
       if (g > 0) {
         u.x += (src.x - u.x) / bestD * g * dt;
         u.y += (src.y - u.y) / bestD * g * dt;
       }
-      // 拖拽不能把单位推出墙外（撞墙转向仍由 move() 的 wallBounceAngle 负责）
       u.x = clamp(u.x, ARENA.x + u.r, ARENA.x + ARENA.w - u.r);
       u.y = clamp(u.y, ARENA.y + u.r, ARENA.y + ARENA.h - u.r);
     }
 
-    // 2b) 缺氧值：在水里累积到 wetThreshold 充满；充满期间每满 dotInterval 秒扣一次
-    u.waterT = Math.min(C.wetThreshold, u.waterT + dt);
-    if (u.waterT >= C.wetThreshold) {
-      u.waterAcc -= dt;
-      while (u.waterAcc <= 0 && u.alive) {
-        u.waterAcc += C.dotInterval;
-        hurt(u, u.maxHp * C.dotPct * wetMul, src.owner, { pct: 1, dot: 1 });
-      }
-    } else {
-      u.waterAcc = C.dotInterval;
+    // 2b) 在浪中每 2 秒叠 1 层溺水（离开浪面时清零，避免"跨浪"白嫖计时）
+    u.drownInAcc = (u.drownInAcc || 0) + dt;
+    while (u.drownInAcc >= D.stackEvery) {
+      u.drownInAcc -= D.stackEvery;
+      if ((u.drownStacks || 0) < D.maxStacks) bucketApplyDrown(u, src.owner, 1);
     }
   }
 }
+
+/* 溺水 DoT：每秒按层数档位结算一次（不消耗层数） */
+function updateDrowns(dt) {
+  var D = BUCKET_DROWN;
+  for (var i = 0; i < units.length; i++) {
+    var u = units[i];
+    if (!u.alive || !(u.drownStacks > 0)) continue;
+    u.drownAcc -= dt;
+    while (u.drownAcc <= 0 && u.alive && u.drownStacks > 0) {
+      u.drownAcc += D.interval;
+      hurt(u, (u.drownAtk || 0) * bucketDrownPct(u.drownStacks), u.drownSrc, { dot: 1 });
+    }
+  }
+}
+
 
 /* ============================================================
    召唤物（草的旧种子）/ 藤蔓视觉 / 在种子上复活
@@ -1256,10 +1265,10 @@ function statusText() {
     if (u.st.nukeT >= 0 && u.st.nukeT <= (BALANCE.boss.core.nukeWarn || 8)) {
       parts.push('终末震荡 ' + Math.ceil(u.st.nukeT) + 's');
     }
-    // 水桶：头顶缺氧值（充满后每秒掉血），状态栏显示当前百分比
-    if (u.waterT > 0) {
-      parts.push(u.name + ' 缺氧 ' +
-        Math.round(clamp(u.waterT / TYPES.bucket.water.wetThreshold, 0, 1) * 100) + '%');
+    // 水桶：溺水层数（每秒按档位掉血，上限 5 层）
+    if (u.drownStacks > 0) {
+      parts.push(u.name + ' 溺水 ×' + u.drownStacks +
+        '（' + Math.round(bucketDrownPct(u.drownStacks) * 100) + '% 攻击力/秒）');
     }
     if (u.tetStacks > 0) {
       parts.push(u.name + ' 破伤风 ×' + u.tetStacks);
@@ -1949,6 +1958,7 @@ function tick(dt) {
   updateTetanus(dt);   // 破伤风：每秒结算并消耗 1 层（长矛）
   updateBurns(dt);     // 灼烧：每秒结算并消耗 1 层（红石普攻炸弹）
   updatePoisons(dt);   // 中毒：每秒按层数结算并消耗 1 层（草的捆绑 / 光环）
+  if (typeof updateDrowns === 'function') updateDrowns(dt);   // 溺水：每秒按层数档位结算（水桶狂浪）
   updateField(dt);     // 场地环境：食物拾取 / 局部危险区域 / 全场天气
 
   // 物品自己的每帧被动（青金石光环）
@@ -1967,7 +1977,8 @@ function tick(dt) {
   updateUltChains(dt); // 连刺链在移动前启动下一段冲刺
   for (var b = 0; b < units.length; b++) if (units[b].alive) move(units[b], dt);
 
-  updateWaters(dt);   // 水桶力场：拖拽位置 + 浸水百分比伤害（不改 ang）
+  updateWaves(dt);    // 水桶狂浪：浪心引力 + 叠溺水 + 第 7 秒爆炸（不改 ang）
+  if (typeof updateBucketDrops === 'function') updateBucketDrops(dt);   // 水滴飞行物
   collide();
   updateBombs(dt);
   updateAnvilMarks(dt);

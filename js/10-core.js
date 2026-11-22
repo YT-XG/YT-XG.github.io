@@ -91,7 +91,7 @@ function isBasicHit(u) {
 var units = [], particles = [], rings = [], floaters = [], bombs = [], arrows = [], icePatches = [];
 // 终结技的一次性光束（大狗等）：只做短寿命视觉，伤害在 spawnUltBeam 里立即结算
 var ultBeams = [];
-// 水桶的水面：{x,y,r:220,age,team,owner,phase}，有独立的引力与浸水计时（见 30-sim 的 updateWaters）
+// 水桶的狂浪：{x,y,r:230,age,boom,team,owner,phase}，有独立的引力与溺水叠层计时（见 30-sim 的 updateWaves）
 var waters = [];
 // 铁砧的落点预警圆：生成时锁定坐标，delay 秒后砸落结算
 var anvilMarks = [];
@@ -99,7 +99,7 @@ var anvilMarks = [];
 var seeds = [], vines = [], reviveQueue = [];
 // 冰面数量上限：防止长时间对局铺满场地掉帧（存活期 6s × 落点频率，正常远低于此值）
 var ICE_PATCH_MAX = 120;
-var WATER_MAX = 6;             // 水面上限：CD 8s、水面寿命 8s，单角色最多 1 滩，多角色也不会铺满
+var WATER_MAX = 6;             // 狂浪上限：CD 10s、浪面寿命 7s，单角色最多 1 滩，多角色也不会铺满
 var ANVIL_MARK_MAX = 48;       // 落点圆上限：八连铁砧 + 分身同时出手时也不会挤掉落点
 var SEED_MAX = 6;              // 全场合计种子上限，超出删最早的
 var REVIVE_DELAY = 1.0;        // 草在种子上复活的吟唱时间（秒）
@@ -358,7 +358,8 @@ function addUnit(key, x, y, team) {
     vulnT: 0, vulnMul: 1.2,
     // 大狗技能加攻：已加到 atk 上的数值 / 剩余时间（到期由 tick 还原）
     atkBuffAdd: 0, atkBuffT: 0,
-    waterT: 0, waterAcc: 1.0,   // 浸水累计时长 / 满 1 秒结算一次的累加器（水桶的水面）
+    // 溺水（水桶狂浪）：层数 / 每秒结算累加器 / 施放者与攻击力快照 / 在浪中的叠层计时 / 离浪衰减计时
+    drownStacks: 0, drownAcc: 1.0, drownSrc: null, drownAtk: 0, drownInAcc: 0, drownOutAcc: 0,
     bindT: 0,
     // 中毒：层数 / 每秒结算累加器 / 施放者与生命上限快照（草）
     poisonStacks: 0, poisonAcc: 1.0, poisonSrc: null, poisonMhp: 0,

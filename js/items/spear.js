@@ -168,14 +168,8 @@ function settleDots(v, src) {
     if (pd > 0) { hurt(v, pd, v.poisonSrc || src); total += pd; }
     v.poisonAcc = GRASS_POISON.interval;
   }
-  if (v.waterT > 0 && typeof TYPES.bucket !== 'undefined') {
-    var W = TYPES.bucket.water;
-    if (v.waterT >= W.wetThreshold) {
-      var wd = v.maxHp * W.dotPct;
-      hurt(v, wd, src, { pct: 1 });
-      v.waterAcc = W.dotInterval;
-      total += wd;
-    }
+  if (typeof bucketSettleDrown === 'function') {
+    total += bucketSettleDrown(v, src);   // 溺水（水桶狂浪）
   }
   if (total > 0) floater(v.x, v.y - v.r - 68, '持续伤害结算', '#ffca8a', 13);
   return total;

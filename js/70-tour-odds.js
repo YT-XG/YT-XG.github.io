@@ -17,7 +17,7 @@
 
 /* 规则版本：改碰撞 / 技能结算这类「不改数值也会变结果」的机制时手动 +1，
    让旧缓存整体失效（数值改动则由 oddsFingerprint 里的 TYPES / BALANCE 自动覆盖） */
-var ODDS_RULES = 23;  // 2026-11-22：野生狗奶重做（无普攻/技能，仅奶狗领域终结技）
+var ODDS_RULES = 26;  // 2026-11-22：水桶重做（水滴蒸发 / 狂浪溺水 / 大浪淘）
 
 var ODDS_ENABLED = true;
 var ODDS_DT = 1 / 30;          // 后台模拟步长：实测 1/30 与 1/60 胜率差 ≤ 5 个百分点（40 局样本内）
@@ -157,6 +157,7 @@ function oddsFxRestore() {
 function oddsInitMatch(aRoles, bRoles, swap) {
   units = []; particles = []; rings = []; floaters = []; bombs = []; arrows = []; icePatches = [];
   anvilMarks = []; seeds = []; vines = []; reviveQueue = []; waters = [];
+  if (typeof bucketDrops !== 'undefined') bucketDrops = [];
   resetArena();                       // 场地收窄必须复位，否则第二局起点就错了
   t = 0; roundTime = roundDuration; winner = null;
   suddenDeath = false; deathAcc = 0; suddenStart = 0;
@@ -454,6 +455,7 @@ function previewHash(str) {
 function previewInit(aKeys, bKeys, size, mode, swap, seed) {
   units = []; particles = []; rings = []; floaters = []; bombs = []; arrows = []; icePatches = [];
   anvilMarks = []; seeds = []; vines = []; reviveQueue = []; waters = []; ultBeams = [];
+  if (typeof bucketDrops !== 'undefined') bucketDrops = [];
   resetArena();
   t = 0; roundTime = roundDuration; winner = null;
   suddenDeath = false; deathAcc = 0; suddenStart = 0;

@@ -4,8 +4,9 @@
    三个技能槽：
      · 普攻（3s）   预判敌人走位生成落点，0.8s 后铁砧砸落：
                     125% 攻击力，30% 概率定身 1.5 秒，命中回能 10
-     · 技能（8s）   预判敌人走位，连续砸落 8 个铁砧（每下重新预判）：
-                    每个 39.375% 攻击力，合计 315%，释放回能 50
+     · 技能（0.32s × 8） 预判敌人走位，每 0.32s 砸落 1 个铁砧（每下重新预判）：
+                    每个 39.375% 攻击力，合计 315%，释放回能 50；
+                    8 个全部释放后才开始读 8s CD
      · 终结技       消耗自身一半当前生命，分裂出 2 个铁砧分身：
                     生命 / 攻击 / 防御 60%，持续 8 秒，会放普攻与技能
    落点在生成瞬间锁定坐标（不跟随敌人），延迟结束才砸落：
@@ -20,7 +21,7 @@ var ANVIL_BASIC = {
 };
 
 var ANVIL_SKILL = {
-  cd: 8.0, count: 8, interval: 0.16,
+  cd: 8.0, count: 8, interval: 0.32,
   r: 110, delay: 0.8,
   pctTotal: 3.15,      // 8 个铁砧合计 315% 攻击力
   energyGain: 50       // 释放技能回能 50
@@ -66,6 +67,9 @@ function anvilVolleyTick(u, dt) {
     });
     ring(p.x, p.y, 6, ANVIL_SKILL.r, 0.3, '#cbd8ea');
   }
+  /* 8 个全部释放完才开始读 CD：cast() 预置的冷却已在 onCast 里清零，
+     这里在第 8 个落点生成（或中途无目标）时再写入完整冷却。 */
+  if (u.st.volleyN <= 0) u.cd = ANVIL_SKILL.cd;
 }
 
 /* 普攻 / 分身共用的每帧节奏：分身寿命 → 技能连砸 → 3 秒一次预判落砧 */
@@ -93,8 +97,10 @@ function anvilTick(u, dt) {
   ring(p.x, p.y, 6, B.r, 0.3, '#cbd8ea');
 }
 
-/* 技能释放：开启 8 连砸并立刻回能 50 */
+/* 技能释放：开启 8 连砸并立刻回能 50。
+   cast() 会先把 u.cd 写满 8 秒，这里清零——冷却要等 8 个铁砧全部释放完才从 0 开始读。 */
 function anvilCastVolley(u) {
+  u.cd = 0;
   u.st.volleyN = ANVIL_SKILL.count;
   u.st.volleyT = 0;
   gainEnergy(u, ANVIL_SKILL.energyGain);
@@ -149,7 +155,7 @@ function anvilSplit(u) {
   }
 
   ring(u.x, u.y, u.r, u.r + 90, 0.5, '#e8effa');
-  shake = Math.max(shake, 5);
+  shake = Math.max(shake, 2.5);   // 分身出场只留一点轻震
 }
 
 TYPES.anvil = {
@@ -165,7 +171,8 @@ TYPES.anvil = {
     name: '八连铁砧', cd: ANVIL_SKILL.cd, noTurn: true,
     // 非冲刺型技能：不加速、不转向，只标记落点
     dashTime: 0, dashSpeed: 0, dmgMult: 1,
-    text: '每 8 秒预判敌人走位，连续砸落 8 个铁砧（每下重新预判，各 39.375% 攻击力，合计 315%）；释放回能 50'
+    text: '每 0.32 秒预判敌人走位砸落 1 个铁砧，共 8 个（每下重新预判，各 39.375% 攻击力，合计 315%）；' +
+      '8 个全部释放后才开始 8 秒冷却；释放回能 50'
   },
   ultimate: {
     name: '铁砧分裂',
@@ -185,6 +192,8 @@ TYPES.anvil = {
      · splashMul 圆内除「最近目标」外的其余敌人只吃这个系数 */
   anvil: { markR: ANVIL_BASIC.r, delay: ANVIL_BASIC.delay, coreRatio: 0.55, dmg: ANVIL_BASIC.pct * 100, edgeMul: 0.6, splashMul: 0.46 },
   createState: function () { return { basicCd: 1.0, volleyN: 0, volleyT: 0 }; },
+  // 八连释放期间 cd 为 0，必须靠 canCast 阻止立刻二次施放
+  canCast: function (u) { return !(u.st.volleyN > 0); },
   // 普通撞击不产生伤害：与弓箭 / 冰块一致
   onAttack: function () { return 0; },
   onCast: function (u) { anvilCastVolley(u); },
@@ -204,12 +213,13 @@ TYPES.anvilclone = {
   skill: {
     name: '八连铁砧·分身', cd: ANVIL_SKILL.cd, noTurn: true,
     dashTime: 0, dashSpeed: 0, dmgMult: 1,
-    text: '与本体相同的八连铁砧，但攻击力只有本体的 60%'
+    text: '与本体相同的八连铁砧（0.32 秒间隔，8 个全部释放后进入冷却），但攻击力只有本体的 60%'
   },
   passive: {
     name: '分裂体', text: '由铁砧终结技分裂而来，持续 8 秒后消散；不会释放终结技'
   },
   createState: function () { return { basicCd: 1.0, volleyN: 0, volleyT: 0, lifeT: ANVIL_ULT.cloneLife }; },
+  canCast: function (u) { return !(u.st.volleyN > 0); },
   onAttack: function () { return 0; },
   onCast: function (u) { anvilCastVolley(u); },
   onTick: function (u, dt) { anvilTick(u, dt); },
