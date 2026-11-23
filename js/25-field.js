@@ -36,11 +36,11 @@ var FIELD = {
 var FOOD_DEFS = {
   steak: {
     name: '烤牛肉', color: '#c96a3a', glow: '#ffb28a',
-    text: '回复 18% 生命 · 攻击 +15% 8s', heal: 0.18, atk: 1.15, atkDur: 8
+    text: '回复 9% 生命 · 攻击 +15% 8s', heal: 0.09, atk: 1.15, atkDur: 8
   },
   apple: {
     name: '金苹果', color: '#e7b941', glow: '#ffe08a',
-    text: '回复 8% 生命 · 护盾 12% 生命上限', heal: 0.08, shield: 0.12
+    text: '回复 4% 生命 · 护盾 12% 生命上限', heal: 0.04, shield: 0.12
   },
   pie: {
     name: '南瓜派', color: '#d9852f', glow: '#ffc46b',
@@ -52,7 +52,7 @@ var FOOD_DEFS = {
   },
   cake: {
     name: '蛋糕', color: '#e8d7c6', glow: '#fff3e4',
-    text: '护盾 18% 生命上限 · 回复 6% 生命', heal: 0.06, shield: 0.18
+    text: '护盾 18% 生命上限 · 回复 3% 生命', heal: 0.03, shield: 0.18
   },
   power: {
     name: '力量药水', color: '#c33b4a', glow: '#ff7c8e',
@@ -68,12 +68,12 @@ var FOOD_DEFS = {
   },
   regen: {
     name: '再生药水', color: '#4aa85f', glow: '#9be36f',
-    text: '每秒回复 1.5% 生命 6s', regen: 0.015, regenDur: 6
+    text: '每秒回复 0.75% 生命 6s', regen: 0.0075, regenDur: 6
   },
   godapple: {
     name: '附魔金苹果', color: '#b58bff', glow: '#e1ccff',
-    text: '回复 20% · 攻击 +15% · 受伤 -20% 10s',
-    heal: 0.20, atk: 1.15, atkDur: 10, taken: 0.80, takenDur: 10
+    text: '回复 10% · 攻击 +15% · 受伤 -20% 10s',
+    heal: 0.10, atk: 1.15, atkDur: 10, taken: 0.80, takenDur: 10
   }
 };
 
@@ -829,7 +829,7 @@ function fieldBuffRows(u) {
   if (F.spdT > 0) rows.push(['速', '食物 +' + Math.round((F.spdMul - 1) * 100) + '%', '#8fe6ff']);
   if (F.takenT > 0) rows.push(['减', '受伤 -' + Math.round((1 - F.takenMul) * 100) + '%', '#9fd0ff']);
   if (F.cdT > 0) rows.push(['冷', '技能 -' + Math.round((1 - F.cdMul) * 100) + '%', '#ffe08a']);
-  if (F.regenT > 0) rows.push(['愈', '再生 ' + (F.regen * 100).toFixed(1) + '%/s', '#9be36f']);
+  if (F.regenT > 0) rows.push(['愈', '再生 ' + (F.regen * 100).toFixed(2) + '%/s', '#9be36f']);
   return rows;
 }
 

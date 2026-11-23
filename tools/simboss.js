@@ -11,6 +11,7 @@
      node tools/simboss.js --team spear,bow,dog,anvil,ice
      node tools/simboss.js --all                    # 每套 5 人阵容都跑一遍
      node tools/simboss.js --seed 20261121 --dur 300
+     node tools/simboss.js --boss storm               # 指定 BOSS（duo / storm）
 
    口径：
      · 玩家方 5 个角色（走真实 reset 里的 deployRole / deployBoss 路径）
@@ -43,6 +44,7 @@ const N = Math.max(1, argNum('n', 12));
 const SEED_BASE = argNum('seed', 20261121);
 const DUR = argNum('dur', 300);
 const TEAM_ARG = argStr('team', 'spear,bow,dog,anvil,ice');
+const BOSS_ARG = argStr('boss', 'duo');
 const ALL = argv.includes('--all');
 // 调参用的一次性覆盖：--dmg 0.5 / --take 0.6 / --pct 0.2
 const DMG_ARG = argNum('dmg', NaN);
@@ -94,6 +96,7 @@ sandbox.navigator = { clipboard: null, userAgent: 'node-simboss' };
 sandbox.localStorage = sandbox.window.localStorage;
 sandbox.requestAnimationFrame = sandbox.window.requestAnimationFrame;
 vm.createContext(sandbox);
+sandbox.__bossKey = BOSS_ARG;
 
 function load(rel) {
   const file = path.join(JS_DIR, rel);
@@ -105,6 +108,17 @@ fs.readdirSync(path.join(JS_DIR, 'items'))
   .filter(function (f) { return /\.js$/.test(f) && f !== 'pool.js'; })
   .sort()
   .forEach(function (f) { load(path.join('items', f)); });
+// BOSS 已按「一个 BOSS 一个文件」拆到 items/boss/：先加载共用的 shared.js，再按文件名加载
+var bossDir = path.join(JS_DIR, 'items', 'boss');
+if (fs.existsSync(bossDir)) {
+  var bossFiles = fs.readdirSync(bossDir).filter(function (f) { return /\.js$/.test(f); });
+  bossFiles.sort(function (a, b) {
+    if (a === 'shared.js') return -1;
+    if (b === 'shared.js') return 1;
+    return a < b ? -1 : (a > b ? 1 : 0);
+  });
+  bossFiles.forEach(function (f) { load(path.join('items', 'boss', f)); });
+}
 load(path.join('items', 'pool.js'));
 load('10-core.js');
 load('25-field.js');
@@ -137,8 +151,9 @@ function __bossMatch(keys, seed, dur) {
   seeds = []; vines = []; reviveQueue = [];
 
   bossMode = true;
-  bossRoleKey = 'duo';
+  bossRoleKey = __bossKey;
   bossMerged = false;
+  bossPhase = 1;
   bossMergeFx = null;
   bossMergeAct = null;
   pick = { A: keys.slice(), B: [bossRoleKey] };
@@ -161,13 +176,20 @@ function __bossMatch(keys, seed, dur) {
 
   var guard = 0, maxTicks = Math.ceil((dur + 40) * 60);
   var mergedAt = -1, coreHp = null, aHpMerge = null, aMax = 0;
+  var phaseAt = -1, secondHp = null;
   for (var m0 = 0; m0 < units.length; m0++) if (units[m0].team === 'A') aMax += units[m0].maxHp;
   while (phase === 'fight' && guard < maxTicks) {
     tick(SIM_DT); guard++;
     if (bossMerged && mergedAt < 0) { mergedAt = t; aHpMerge = teamHp('A').cur; }
+    if (bossPhase === 2 && phaseAt < 0) { phaseAt = t; aHpMerge = teamHp('A').cur; }
     if (bossMerged) {
       for (var k = 0; k < units.length; k++) {
         if (units[k].team === 'B' && units[k].alive) coreHp = units[k].hp;
+      }
+    }
+    if (bossPhase === 2) {
+      for (var k2 = 0; k2 < units.length; k2++) {
+        if (units[k2].team === 'B' && units[k2].alive) secondHp = units[k2].hp;
       }
     }
   }
@@ -178,6 +200,7 @@ function __bossMatch(keys, seed, dur) {
   return {
     winner: winner, seconds: t, merged: bossMerged,
     mergedAt: mergedAt, coreHp: coreHp, dealtA: dealtA, aHpMerge: aHpMerge, aMax: aMax,
+    phase2: bossPhase === 2, phaseAt: phaseAt, secondHp: secondHp,
     aHp: teamHp('A').cur, bHp: teamHp('B').cur,
     by: suddenDeath ? 'death' : 'kill', bossMergedEnd: bossMerged
   };
@@ -185,6 +208,15 @@ function __bossMatch(keys, seed, dur) {
 `, sandbox, { filename: 'tools/simboss.js#harness' });
 
 const POOL_KEYS = sandbox.POOL.map(function (p) { return p.key; });
+
+// 当前 BOSS 配置（--boss 指定；duo / storm）
+if (!sandbox.BOSS_ROLES[BOSS_ARG]) {
+  console.error('未知 BOSS：' + BOSS_ARG + '（可用：' + Object.keys(sandbox.BOSS_ROLES).join(',') + '）');
+  process.exit(1);
+}
+vm.runInContext('bossRoleKey = ' + JSON.stringify(BOSS_ARG) + '; bossPhase = 1;', sandbox);
+const BOSS_CFG = sandbox.bossConfig();
+const TWO_BAR = sandbox.bossTwoBar();
 
 const TEAMS = ALL
   ? [
@@ -208,15 +240,20 @@ function pct(n, d) { return d ? (n / d * 100).toFixed(1) + '%' : '—'; }
 function avg(sum, n) { return n ? Math.round(sum / n) : 0; }
 
 console.log('');
-console.log('BOSS 战 5v1 无头模拟 · 每套 ' + N + ' 局 · 时长 ' + DUR + 's');
+console.log('BOSS 战 5v1 无头模拟 · ' + BOSS_CFG.name + ' · 每套 ' + N + ' 局 · 时长 ' + DUR + 's');
 console.log('挑战者：常规数值（无额外加成）｜ BOSS 承伤 ×' + sandbox.BALANCE.boss.dmgTakeMul +
   ' · 百分比 ×' + sandbox.BALANCE.boss.pctTakeMul +
   ' ｜ BOSS 出手 ×' + (sandbox.BALANCE.boss.calibratedDmgMul || sandbox.BALANCE.boss.dmgMul));
-console.log('红青各 ' + sandbox.TYPES.bossred.maxHp + ' HP ｜ 紫晶核心 ' +
-  sandbox.TYPES.bosscore.maxHp + ' HP');
+if (TWO_BAR) {
+  var sd = sandbox.TYPES[BOSS_CFG.units[0]];
+  console.log('两条血：' + sd.phaseHp.join(' / ') + ' HP');
+} else {
+  console.log('红青各 ' + sandbox.TYPES.bossred.maxHp + ' HP ｜ 紫晶核心 ' +
+    sandbox.TYPES.bosscore.maxHp + ' HP');
+}
 console.log('');
 
-let global = { games: 0, wins: 0, sec: 0, deal: 0, merged: 0, timeouts: 0, deaths: 0 };
+let global = { games: 0, wins: 0, sec: 0, deal: 0, merged: 0, phase2: 0, timeouts: 0, deaths: 0 };
 
 TEAMS.forEach(function (team) {
   const bad = team.filter(function (k) { return !POOL_KEYS.includes(k); });
@@ -226,6 +263,7 @@ TEAMS.forEach(function (team) {
   }
 
   let wins = 0, sec = 0, deal = 0, merged = 0, mergedAt = 0, coreLeft = 0, coreN = 0;
+  let phase2 = 0, phaseAt = 0, secondLeft = 0, secondN = 0;
   let aHpMergeSum = 0, aHpMergeN = 0, aMaxSum = 0;
   let timeouts = 0, deaths = 0, minSec = 1e9, maxSec = 0;
 
@@ -235,6 +273,9 @@ TEAMS.forEach(function (team) {
     if (r.winner === 'A') wins++;
     sec += r.seconds; deal += r.dealtA;
     if (r.merged) merged++;
+    if (r.phase2) phase2++;
+    if (r.phaseAt >= 0) phaseAt += r.phaseAt;
+    if (r.phase2 && r.secondHp != null) { secondLeft += r.secondHp; secondN++; }
     if (r.aHpMerge != null) { aHpMergeSum += r.aHpMerge; aHpMergeN++; }
     aMaxSum += r.aMax;
     if (r.mergedAt >= 0) mergedAt += r.mergedAt;
@@ -246,23 +287,27 @@ TEAMS.forEach(function (team) {
   }
 
   global.games += N; global.wins += wins; global.sec += sec; global.deal += deal;
-  global.merged += merged; global.timeouts += timeouts; global.deaths += deaths;
+  global.merged += merged; global.phase2 += phase2;
+  global.timeouts += timeouts; global.deaths += deaths;
 
   console.log('玩家：' + team.join(' + '));
   console.log('  玩家胜率 ' + pct(wins, N) +
     ' ｜ 时长 平均 ' + avg(sec, N) + 's（' + Math.round(minSec) + '–' + Math.round(maxSec) + 's）' +
-    ' ｜ 合体率 ' + pct(merged, N));
+    ' ｜ ' + (TWO_BAR ? ('二阶段率 ' + pct(phase2, N)) : ('合体率 ' + pct(merged, N))));
   console.log('  总伤害 平均 ' + avg(deal, N) +
-    (merged ? (' ｜ 合体时刻 平均 ' + Math.round(mergedAt / merged) + 's') : '') +
-    (coreN ? (' ｜ 核心剩余 ' + avg(coreLeft, coreN) + ' HP') : '') +
-    (aHpMergeN ? (' ｜ 合体时玩家余血 ' + avg(aHpMergeSum, aHpMergeN) + '/' + avg(aMaxSum, N) + '（' + pct(aHpMergeSum, aMaxSum) + '）') : '') +
+    (TWO_BAR
+      ? (phase2 ? (' ｜ 二阶段时刻 平均 ' + Math.round(phaseAt / phase2) + 's') : '') +
+        (secondN ? (' ｜ 第二条血剩余 ' + avg(secondLeft, secondN) + ' HP') : '')
+      : (merged ? (' ｜ 合体时刻 平均 ' + Math.round(mergedAt / merged) + 's') : '') +
+        (coreN ? (' ｜ 核心剩余 ' + avg(coreLeft, coreN) + ' HP') : '')) +
+    (aHpMergeN ? (' ｜ 阶段时玩家余血 ' + avg(aHpMergeSum, aHpMergeN) + '/' + avg(aMaxSum, N) + '（' + pct(aHpMergeSum, aMaxSum) + '）') : '') +
     ' ｜ 决杀结束 ' + deaths + ' 局 ｜ 超时 BOSS 胜 ' + timeouts + ' 局');
   console.log('');
 });
 
 console.log('汇总：' + global.games + ' 局 ｜ 玩家胜率 ' + pct(global.wins, global.games) +
   ' ｜ 平均时长 ' + avg(global.sec, global.games) + 's' +
-  ' ｜ 合体率 ' + pct(global.merged, global.games) +
+  ' ｜ ' + (TWO_BAR ? '二阶段率 ' + pct(global.phase2, global.games) : '合体率 ' + pct(global.merged, global.games)) +
   ' ｜ 平均总伤害 ' + avg(global.deal, global.games) +
   ' ｜ 终末震荡 ' + sandbox.__nukes + ' 次');
 console.log('');

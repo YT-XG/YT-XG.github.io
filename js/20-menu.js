@@ -161,31 +161,55 @@ function lineupBond(keys) {
    两个阶段的血量与技能 + 玩家的胜负条件。 */
 function bossDetailHtml() {
   var B = bossConfig();
+  var D = B.detail || {};
   var html = '<div class="d-side">BOSS</div>' +
     '<div class="d-name">' + deskEsc(B.name) + '</div>' +
-    '<div class="d-meta">红青各 3000 HP · 锁 1 血 · 免疫控制 → 合体 800 HP</div>' +
-    '<div class="d-tags"><span class="d-tag bond">BOSS</span>' +
-      '<span class="d-tag">锁血</span><span class="d-tag">免疫控制</span>' +
-      '<span class="d-tag">硬壳 60%</span><span class="d-tag">合体狂暴</span></div>';
+    '<div class="d-meta">' + deskEsc(D.meta || '') + '</div>' +
+    '<div class="d-tags"><span class="d-tag bond">BOSS</span>';
+  var tags = D.tags || [];
+  for (var ti = 0; ti < tags.length; ti++) {
+    html += '<span class="d-tag">' + deskEsc(tags[ti]) + '</span>';
+  }
+  html += '</div>';
 
-  html += '<div class="d-briefs">' +
-    '<div class="d-brief"><b>阶段 1 · 双生</b><span>红石 / 青金各 3000 HP，血量锁 1，谁都打不死</span></div>' +
-    '<div class="d-brief"><b>阶段 2 · 合体</b><span>两只同时 1 血 → 紫晶核心 800 HP，出生即狂暴</span></div>' +
-    '</div>';
+  var briefs = D.briefs || [];
+  if (briefs.length) {
+    html += '<div class="d-briefs">';
+    for (var bi = 0; bi < briefs.length; bi++) {
+      html += '<div class="d-brief"><b>' + deskEsc(briefs[bi].title) + '</b><span>' +
+        deskEsc(briefs[bi].text) + '</span></div>';
+    }
+    html += '</div>';
+  }
 
   html += '<div class="d-more">';
   for (var i = 0; i < B.units.length; i++) {
     var d = TYPES[B.units[i]];
+    var hpText = d.phaseHp ? ('两条血 ' + d.phaseHp.join(' / ') + ' HP') : (d.maxHp + ' HP');
     html += '<div class="d-unit"><b>' + (i + 1) + '. ' + d.name + '</b>' +
-      '<span>' + deskEsc(d.role) + ' · 锁 1 血</span>' +
-      '<div class="d-stats"><span class="hp">' + d.maxHp + ' HP</span>' +
+      '<span>' + deskEsc(d.role) + (d.bossLock ? ' · 锁 1 血' : '') + '</span>' +
+      '<div class="d-stats"><span class="hp">' + hpText + '</span>' +
       '<span>' + d.baseSpeed + ' px/s</span>' +
       '<span>攻击 ×' + d.atk.toFixed(2) + '</span>' +
-      (d.shieldMax ? '<span>护盾 ' + d.shieldMax + '</span>' : '') + '</div>' +
-      '<p class="d-row"><em class="k skill">技能</em>' + deskEsc(d.skill.name) + '：' + deskEsc(d.skill.text) + '</p>' +
-      (d.ultimate ? '<p class="d-row"><em class="k ult">终结技</em>' + deskEsc(d.ultimate.name) + '：' + deskEsc(d.ultimate.text) + '</p>' : '') +
-      '<p class="d-row"><em class="k pas">被动</em>' + deskEsc(d.passive.name) + '：' + deskEsc(d.passive.text) + '</p>' +
-      '</div>';
+      (d.shieldMax ? '<span>护盾 ' + d.shieldMax + '</span>' : '') + '</div>';
+
+    // 技能：新 BOSS 用 skills 数组（3 个以上），旧 BOSS 仍读单个 skill
+    var sk = (d.skills && d.skills.length) ? d.skills : [d.skill];
+    for (var sj = 0; sj < sk.length; sj++) {
+      html += '<p class="d-row"><em class="k skill">技能' + (sk.length > 1 ? ' ' + (sj + 1) : '') +
+        '</em>' + deskEsc(sk[sj].name) + '：' + deskEsc(sk[sj].text) + '</p>';
+    }
+    // 终结技：同样支持多个
+    var ul = (d.ultimates && d.ultimates.length) ? d.ultimates : (d.ultimate ? [d.ultimate] : []);
+    for (var uj = 0; uj < ul.length; uj++) {
+      html += '<p class="d-row"><em class="k ult">终结技' + (ul.length > 1 ? ' ' + (uj + 1) : '') +
+        '</em>' + deskEsc(ul[uj].name) + '：' + deskEsc(ul[uj].text) + '</p>';
+    }
+    if (d.passive) {
+      html += '<p class="d-row"><em class="k pas">被动</em>' + deskEsc(d.passive.name) + '：' +
+        deskEsc(d.passive.text) + '</p>';
+    }
+    html += '</div>';
   }
   var core = TYPES[B.merged];
   if (core) {
@@ -199,9 +223,10 @@ function bossDetailHtml() {
       '<p class="d-row"><em class="k rage">狂暴</em>' + rageSummary(core.key) + '</p>' +
       '</div>';
   }
-  html += '<div class="d-bond">胜负：击碎紫晶核心即玩家胜利；玩家 5 个单位全灭则 BOSS 胜利。' +
+  html += '<div class="d-bond">' + (D.win || '击破 BOSS 即玩家胜利；玩家 5 个单位全灭则 BOSS 胜利。') +
     '挑战者沿用常规数值（不做任何加成）；BOSS 硬壳：固定伤害 ×' + BALANCE.boss.dmgTakeMul +
-    '、百分比伤害 ×' + BALANCE.boss.pctTakeMul + '；BOSS 出手 ×' + BALANCE.boss.dmgMul +
+    '、百分比伤害 ×' + BALANCE.boss.pctTakeMul + '；BOSS 出手 ×' +
+    (BALANCE.boss.calibratedDmgMul || BALANCE.boss.dmgMul) +
     '。BOSS 战时长固定 ' + (BALANCE.boss.duration / 60) + ' 分钟。</div>';
   return html + '</div>';
 }
@@ -213,13 +238,13 @@ function renderBossCard(card) {
   card.setAttribute('data-team', 'B');
   card.style.color = '#c79bff';
   card.style.background = 'linear-gradient(160deg,rgba(180,120,255,.14),rgba(7,10,16,.94) 62%)';
-  var ico = (typeof iconSvg === 'function') ? iconSvg('duo') : '';
-  card.innerHTML = '<div class="slot-chip boss-slot" data-team="B" data-slot="0" title="BOSS 固定，不可更换">' +
+  var ico = (typeof iconSvg === 'function') ? iconSvg(B.icon || 'duo') : '';
+  card.innerHTML = '<div class="slot-chip boss-slot" data-team="B" data-slot="0" title="点击切换 BOSS">' +
     '<span class="sc-idx">BOSS</span>' +
     (ico ? '<span class="pc-ico">' + ico + '</span>'
       : '<span class="pc-dot" style="background:#b478ff;box-shadow:0 0 14px #b478ff"></span>') +
     '<b>' + deskEsc(B.name) + '</b>' +
-    '<small>' + B.units.length + ' 单位 · 锁 1 血</small>' +
+    '<small>' + deskEsc(B.cardNote || (B.units.length + ' 单位 · 锁 1 血')) + '</small>' +
     '</div>';
 }
 
@@ -467,7 +492,10 @@ function buildMenu() {
   buildDraftPick();
   buildComboPick();
   el.diceA.addEventListener('click', function () { randomTeam('A'); });
-  el.diceB.addEventListener('click', function () { randomTeam('B'); });
+  el.diceB.addEventListener('click', function () {
+    if (bossMode) { cycleBossRole(); syncPick(); return; }   // BOSS 战：循环切换可选 BOSS
+    randomTeam('B');
+  });
   if (el.btnRandom) el.btnRandom.addEventListener('click', function () { randomTeam('A'); randomTeam('B'); });
 }
 
@@ -934,7 +962,8 @@ function syncPick() {
   }
   el.pickSummary.innerHTML = bossMode
     ? '<b>' + modeText + '</b> ｜ ' + SIDE_LABEL.A + ' <b>' + (pick.A || []).length +
-      '</b> 人  VS  BOSS ｜ 对局 <b>' + (BALANCE.boss.duration / 60) + ' 分钟</b> ｜ 击碎紫晶核心即胜利'
+      '</b> 人  VS  BOSS ｜ 对局 <b>' + (BALANCE.boss.duration / 60) + ' 分钟</b> ｜ ' +
+      ((bossConfig().detail && bossConfig().detail.winShort) || '击破 BOSS 即胜利')
     : ('<b>' + modeText + '</b> ｜ ' +
       SIDE_LABEL.A + ' <b>' + (pick.A || []).length + '</b> 人  VS  ' +
       SIDE_LABEL.B + ' <b>' + (pick.B || []).length + '</b> 人 ｜ 对局 <b>' +
@@ -945,11 +974,11 @@ function syncPick() {
   el.nameA.textContent = sideName('A');
   el.nameB.textContent = sideName('B');
 
-  // BOSS 模式：蓝方的随机按钮变成「固定」
+  // BOSS 模式：蓝方的随机按钮变成「切换」，用来循环可选 BOSS
   if (el.diceB) {
-    el.diceB.disabled = !!bossMode;
-    el.diceB.textContent = bossMode ? '固定' : '随机';
-    el.diceB.title = bossMode ? 'BOSS 由模式决定，不可更换' : '随机蓝方阵容';
+    el.diceB.disabled = false;
+    el.diceB.textContent = bossMode ? '切换' : '随机';
+    el.diceB.title = bossMode ? ('切换 BOSS（当前：' + bossConfig().name + '）') : '随机蓝方阵容';
   }
   if (el.btnRandom) {
     el.btnRandom.textContent = bossMode ? '随机红方' : '随机双方';
@@ -976,10 +1005,11 @@ function syncPick() {
 function enterBossPick() {
   bossMode = true;
   bossMerged = false;
+  bossPhase = 1;
   modeKind = 'vs';
   teamSize = 5;
   draftMode = false;
-  if (bossRoleKey !== 'duo' && !BOSS_ROLES[bossRoleKey]) bossRoleKey = 'duo';
+  if (!BOSS_ROLES[bossRoleKey] || !BOSS_ROLES[bossRoleKey].enabled) bossRoleKey = 'duo';
   pick.B = [bossRoleKey];
   seriesBest = 1;
   seriesWins = { A: 0, B: 0 };
@@ -1289,6 +1319,7 @@ function openMenu() {
   waters = [];
   anvilMarks = [];
   seeds = []; vines = []; reviveQueue = [];
+  if (typeof stormBolts !== 'undefined') { stormBolts = []; stormChains = []; stormFlash = 0; }
   t = 0; roundTime = roundDuration; shake = 0; hitStop = 0;
   simAcc = 0;
   suddenDeath = false; deathAcc = 0; suddenStart = 0;

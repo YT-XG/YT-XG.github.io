@@ -146,12 +146,12 @@
 | `deployBoss(team)` / `bossConfig()` / `isBossUnit(u)` | BOSS 方进场（右半场中线上下错开 62px）/ 取当前组合配置 / 是否是 BOSS 单位 |
 | `updateBossMerge(dt)` / `completeBossMerge()` | 两段式合体：锁血判定 → `bossMergeAct` 停手靠拢 → 生成 `bosscore`（`hp = 1` + `st.mergeFill` 充能涨血，期间免伤且不动）（`js/30-sim.js`） |
 | `u.st.mergeFill` / `mergeFillRate` / `u.st.appear` | 核心血条充能剩余时间与每秒涨血量（1.2s 内 1 → 2000）/ 核心浮现放大计时 |
-| `drawBossCharge()` / `drawBossMerge()` / `drawBossBlock()` | 停顿蓄能球 + 能量丝 + 充能进度环 / 残影白闪紫环 / BOSS 方块外观（`js/40-render.js`、`js/items/boss.js`） |
+| `drawBossCharge()` / `drawBossMerge()` / `drawBossBlock()` | 停顿蓄能球 + 能量丝 + 充能进度环 / 残影白闪紫环 / BOSS 方块外观（`js/40-render.js`、`js/items/boss/shared.js`） |
 | 舞台收缩 | `updateShrink()` **在 `bossMode` 下直接 return**、`resetArena()` 固定 `ARENA_FULL`（BOSS 战整局不收缩） |
 
 ### 1.2 仓库构成
 
-- `index.html`（骨架 + HUD 标记）、`css/style.css`（桌面）、`css/mobile.css`（手机紧凑布局 + 竖屏横屏提示遮罩）、`css/mobi.css`（手机横屏 1024×512 独立界面）、`js/*.js`（23 个经典脚本，含 `js/25-field.js` 的场地环境与 `js/45-icons.js` 的内联 SVG 角色图标）、`js/items/*.js`（10 个常规物品 + BOSS 专用的 `boss.js`：`bossred` / `bosslapis` / `bosscore`）、`assets/milk.png`（野生狗奶贴图，唯一的图片资源；本体与选人界面头像共用，本地相对路径、离线可用）、`preview.png`（截图，不参与运行）、`tools/sim.js` / `tools/sim2v2.js` / `tools/simboss.js`（无头模拟：1v1 / 2v2 / BOSS 5v1）。
+- `index.html`（骨架 + HUD 标记）、`css/style.css`（桌面）、`css/mobile.css`（手机紧凑布局 + 竖屏横屏提示遮罩）、`css/mobi.css`（手机横屏 1024×512 独立界面）、`js/*.js`（23 个经典脚本，含 `js/25-field.js` 的场地环境与 `js/45-icons.js` 的内联 SVG 角色图标）、`js/items/*.js`（10 个常规物品）、`js/items/boss/`（按 BOSS 拆文件：`shared.js` 共用工具、`duo.js` 红青三形态、`storm.js` 雷云巨像）、`assets/milk.png`（野生狗奶贴图，唯一的图片资源；本体与选人界面头像共用，本地相对路径、离线可用）、`preview.png`（截图，不参与运行）、`tools/sim.js` / `tools/sim2v2.js` / `tools/simboss.js`（无头模拟：1v1 / 2v2 / BOSS 5v1）。
 - 仓库根目录有 `.git`；`AGENTS.md` 与 `docs/` 目前未纳入版本控制，作为本地参考文档。
 - 没有子仓库、没有 package.json、没有构建产物、没有打包步骤。
 - ⚠️ **拆成多文件后仍可双击打开**：用的是经典 `<script src>`，不是 ES Modules（`type="module"` 在 `file://` 下会被 CORS 拦截）。
@@ -235,7 +235,7 @@ node tools/simboss.js --n 8 --nuke 24 --all                  # 临时覆盖终�
 | **赛事模式：8/16 人锦标赛（平衡抽签 → 小组赛 BO2 → 淘汰赛 BO3 → 决赛 BO5）** | `js/60-tournament.js`（`tourDeal` / `tourBuild` / `tourNextMatch` / `tourOnRoundEnd` / `tourAdvanceBracket`）、`js/30-sim.js`（`finish` 里转交） | `js/60-tournament.js`（`tourRender`）、`index.html`（`#tourPanel` / `#btnTour` / `#tourSize`）、`css/style.css`（`.tb-band` + `tbDeal*` 动画） | [渲染与界面](docs/模块业务逻辑/渲染与界面.md)、[技能与数值](docs/模块业务逻辑/技能与数值.md) |
 | **赔率后台模拟（2v2 无渲染、分片、换边、缓存、降级）** | `js/70-tour-odds.js`（`tourOddsKick` / `tourOddsStop` / `oddsCollect` / `oddsPump` / `oddsStart` / `oddsDegrade` / `oddsFingerprint`）、`js/60-tournament.js`（`tourFxPct` / `tourFxNote`）、`js/30-sim.js`（`finish` 的 `simHeadless` 早退） | 赔率处 `data-prob` 由 `oddsPaint` 局部改写文案（`renderGroups` / `koCard` / `koActBar` / `renderBattleStrip`） | [渲染与界面 §9.2](docs/模块业务逻辑/渲染与界面.md)、[接口列表 §32](docs/接口列表.md) |
 | **交互（重开/暂停/加速/主菜单）** | `js/50-ui.js`（`togglePause` / 键鼠绑定） | `index.html`（按钮） | [渲染与界面](docs/模块业务逻辑/渲染与界面.md) |
-| **BOSS 模式 5v1（红青双子 → 紫晶核心）** | `js/items/boss.js`（三个 BOSS TYPES + `drawBossBlock`）、`js/00-base.js`（`BALANCE.boss`）、`js/10-core.js`（`BOSS_ROLES` / `deployBoss`）、`js/30-sim.js`（`hurt` 三层倍率 / `bossLock` / `updateBossMerge` / `completeBossMerge` / `updateShrink` 早退）、`tools/simboss.js`（无头模拟） | `js/20-menu.js`（`enterBossPick` / `renderBossCard` / `bossDetailHtml`）、`js/50-ui.js`（`bossCry` / 结算 BOSS 阶段）、`js/40-render.js`（`drawBossCharge` / `drawBossMerge`） | [2026-11-21 修改记录 §11](docs/2026-11-21修改记录.md) |
+| **BOSS 模式 5v1（红青双子 / 雷云巨像）** | `js/items/boss/`（`shared.js` 共用工具 + `duo.js` 红青三形态 + `storm.js` 双血雷云巨像）、`js/00-base.js`（`BALANCE.boss`）、`js/10-core.js`（`BOSS_ROLES` / `bossPhase` / `deployBoss`）、`js/30-sim.js`（`hurt` 三层倍率 / `bossLock` / `onLethal` / `phaseShift` / `updateBossMerge`）、`tools/simboss.js`（无头模拟，`--boss` 选择 BOSS） | `js/20-menu.js`（`enterBossPick` / `renderBossCard` / `bossDetailHtml`）、`js/50-ui.js`（`bossCry` / 结算 BOSS 阶段）、`js/40-render.js`（`drawBossCharge` / `drawBossMerge`） | [技能与数值 §6.17](docs/模块业务逻辑/技能与数值.md) |
 ### 2.2 文档索引与新增文档放置规则
 
 > 总索引见 **[docs/README.md](docs/README.md)**（新增/修改文档时**必须登记**）。

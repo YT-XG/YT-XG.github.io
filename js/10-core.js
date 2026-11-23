@@ -17,6 +17,8 @@ function isDogChannel(u) {
 
 function speedOf(u) {
   if (!u || !u.alive) return 0;
+  if (u.st.phaseShift > 0) return 0;       // BOSS 转阶段：无敌停顿
+  if (u.st.actionLock > 0) return 0;       // BOSS 终结技引导：原地施法
   if (isDogChannel(u)) return 0;            // 终极咆哮：原地引导，不移动
   if (u.st.mergeFill > 0) return 0;        // 紫晶核心血条充能中：原地涨血
   if (u.st.nukeCast > 0) return 0;         // 终末震荡演出：BOSS 原地停止
@@ -170,6 +172,7 @@ var activeSlot = 0;     // 当前正在选择的格子（0..teamSize-1）
 var bossMode = false;
 var bossRoleKey = 'duo';
 var bossMerged = false;      // 红青是否已经合体（每局 reset 时清空）
+var bossPhase = 1;           // 单单位 BOSS 的阶段（雷云巨像：1 = 第一条血 / 2 = 第二条血）
 var bossMergeFx = null;      // 合体演出状态 {x,y,ax,ay,bx,by,t,dur}，由 40-render 绘制
 var bossMergeAct = null;     // 合体前的「停顿 + 靠拢」阶段 {a,b,ax,ay,bx,by,mx,my,t,dur}
 var BOSS_ROLES = {
@@ -181,10 +184,67 @@ var BOSS_ROLES = {
     units: ['bossred', 'bosslapis'],
     merged: 'bosscore',
     unitsLabel: '红石 / 青金',
-    enabled: true
+    icon: 'duo',
+    cardNote: '2 单位 · 锁 1 血',
+    enabled: true,
+    detail: {
+      meta: '红青各 4550 HP · 锁 1 血 · 免疫控制 → 合体 5000 HP',
+      tags: ['锁血', '免疫控制', '合体', '终焉一击'],
+      briefs: [
+        { title: '阶段 1 · 双生', text: '红石 / 青金各 4550 HP，血量锁 1，谁都打不死' },
+        { title: '阶段 2 · 合体', text: '两只同时 1 血 → 紫晶核心 5000 HP，出生即狂暴' }
+      ],
+      winShort: '击碎紫晶核心即胜利',
+      win: '击碎紫晶核心即玩家胜利；玩家 5 个单位全灭则 BOSS 胜利。'
+    }
+  },
+  storm: {
+    key: 'storm',
+    name: '雷云巨像',
+    short: '雷云巨像',
+    role: '双阶段 BOSS · 两条血',
+    units: ['stormgolem'],
+    merged: null,
+    unitsLabel: '雷云巨像',
+    icon: 'storm',
+    cardNote: '两条血 · 免疫控制',
+    enabled: true,
+    detail: {
+      meta: '两条血 5500 / 9000 · 免疫控制 · 阶段切换清负面',
+      tags: ['两条血', '阶段变身', '雷暴', '多终结技'],
+      briefs: [
+        { title: '阶段 1 · 积雨', text: '5500 HP，轮换落雷 / 雷线，强度低、节奏慢' },
+        { title: '阶段 2 · 风暴之眼', text: '9000 HP，解锁雷环 / 雷墙 / 磁暴牵引 / 雷牢 / 万雷归一 / 雷神黄昏' }
+      ],
+      winShort: '击破第二条血即胜利',
+      win: '击破第二条血即玩家胜利；玩家 5 个单位全灭则 BOSS 胜利。'
+    }
   }
 };
 function bossConfig() { return BOSS_ROLES[bossRoleKey] || BOSS_ROLES.duo; }
+
+/* 可选 BOSS 列表 + 循环切换（桌面「切换」按钮 / 手机 BOSS 牌共用） */
+function bossRoleKeys() {
+  var out = [];
+  for (var k in BOSS_ROLES) if (BOSS_ROLES[k] && BOSS_ROLES[k].enabled) out.push(k);
+  return out;
+}
+function cycleBossRole() {
+  var keys = bossRoleKeys();
+  if (!keys.length) return bossConfig();
+  var i = keys.indexOf(bossRoleKey);
+  bossRoleKey = keys[(i + 1) % keys.length];
+  bossMerged = false;
+  bossPhase = 1;
+  pick.B = [bossRoleKey];
+  return bossConfig();
+}
+// 当前 BOSS 是否是「单单位 + 两条血」形态（雷云巨像），UI / 结算据此切换文案
+function bossTwoBar() {
+  var B = bossConfig();
+  var T = B && B.units && B.units.length === 1 ? TYPES[B.units[0]] : null;
+  return !!(T && T.phaseHp);
+}
 
 // 该单位是不是 BOSS（免疫控制 / 锁血 / 特殊绘制的统一判定）
 function isBossUnit(u) { return !!(u && u.boss); }
@@ -480,11 +540,13 @@ function reset() {
   waters = [];
   anvilMarks = [];
   seeds = []; vines = []; reviveQueue = [];
+  if (typeof stormBolts !== 'undefined') { stormBolts = []; stormChains = []; stormFlash = 0; }
   resetArena();   // 场地恢复到初始宽度
   if (typeof resetField === 'function') resetField();   // 随机食物 / 危险区域 / 天气计时
   // BOSS 战用自己的时长常量（主菜单的分钟档位不作用于该模式）
   t = 0; roundTime = bossMode ? BALANCE.boss.duration : roundDuration; winner = null;
   bossMerged = false;
+  bossPhase = 1;
   bossMergeFx = null;
   bossMergeAct = null;
   bossCine = null;

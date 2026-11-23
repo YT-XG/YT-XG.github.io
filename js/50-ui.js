@@ -186,7 +186,8 @@ function showResult(winner, sub, by) {
   // BOSS 战只报结果，不念一长串角色名
   if (bossMode) {
     title = winner === 'draw' ? '平局'
-      : (winner === 'A' ? 'BOSS 讨伐成功' : (bossMerged ? '紫晶核心 胜利' : 'BOSS 胜利'));
+      : (winner === 'A' ? 'BOSS 讨伐成功'
+        : (bossMerged ? '紫晶核心 胜利' : (bossConfig().name + ' 胜利')));
   }
 
   var srcLabel = matchSource === 'daily' ? '每日挑战 · '
@@ -203,7 +204,10 @@ function showResult(winner, sub, by) {
   tiles += resultTile('总伤害', dA + ' : ' + dB);
   tiles += resultTile('结束方式', by === 'time' ? '时间到' : (by === 'death' ? '决杀' : '击杀'), true);
   if (isSeries) tiles += resultTile('系列赛', seriesWins.A + ' : ' + seriesWins.B);
-  if (bossMode) tiles += resultTile('BOSS 阶段', bossMerged ? '已合体' : '双生', true);
+  if (bossMode) {
+    tiles += resultTile('BOSS 阶段',
+      bossTwoBar() ? (bossPhase > 1 ? '二阶段' : '一阶段') : (bossMerged ? '已合体' : '双生'), true);
+  }
   el.resStats.innerHTML = tiles;
 
   if (matchSource === 'daily') dailyRecordSave(winner);
@@ -371,8 +375,13 @@ el.btnRestart.addEventListener('click', restartBattle);
 el.btnStart.addEventListener('click', startBattle);
 el.btnMenu.addEventListener('click', openMenu);
 el.cardA.addEventListener('click', function () { if (!draftMode) { activeTeam = 'A'; syncPick(); } });
-// BOSS 模式下蓝方固定，点它不会切到蓝方编辑
-el.cardB.addEventListener('click', function () { if (!draftMode && !bossMode) { activeTeam = 'B'; syncPick(); } });
+// BOSS 模式下点蓝方卡片：循环切换 BOSS（与「切换」按钮同口径）
+el.cardB.addEventListener('click', function () {
+  if (draftMode) return;
+  if (bossMode) { cycleBossRole(); syncPick(); return; }
+  activeTeam = 'B';
+  syncPick();
+});
 el.detailA.addEventListener('click', function () { if (!draftMode) { activeTeam = 'A'; syncPick(); } });
 el.detailB.addEventListener('click', function () { if (!draftMode && !bossMode) { activeTeam = 'B'; syncPick(); } });
 el.btnPause.addEventListener('click', togglePause);

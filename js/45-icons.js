@@ -25,7 +25,16 @@ var ICON_SVG = {
       '</g>' +
     '</svg>',
 
-  /* 长矛：木杆 + 银色矛头 + 护环 + 红色缨穗 */
+  /* 雷云巨像：深色云团 + 中央闪电 */
+  storm:
+    '<svg viewBox="0 0 48 48" aria-hidden="true">' +
+      '<path d="M9 30 Q4 30 4 25 Q4 20 9 19 Q10 12 18 12 Q24 8 31 12 Q40 12 41 20 Q46 21 46 26 Q46 31 40 31 Z" fill="#3c5a8f"/>' +
+      '<path d="M9 30 Q4 30 4 25 Q4 20 9 19 Q10 14 16 13 Q12 18 14 22 Q9 23 9 30 Z" fill="#2a456f"/>' +
+      '<path d="M25 22 L18 34 L23 34 L20 44 L31 30 L25 30 L29 22 Z" fill="#dbe8ff"/>' +
+      '<path d="M25 22 L18 34 L23 34 L21 40 L28 30 L24 30 L28 22 Z" fill="#8fb8ff"/>' +
+    '</svg>',
+
+
   spear:
     '<svg viewBox="0 0 48 48" aria-hidden="true">' +
       '<g transform="rotate(40 24 24)">' +

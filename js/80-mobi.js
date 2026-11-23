@@ -354,12 +354,12 @@ function mobiTeamPane(team) {
   var keys = pick[team] || [];
   var n = Math.max(1, teamSize);
 
-  /* BOSS 模式：蓝方是固定 BOSS，只铺一块不可更换的 BOSS 牌（对齐桌面 renderBossCard） */
+  /* BOSS 模式：蓝方是固定 BOSS 牌，点右上角「切换」循环可选 BOSS */
   if (team === 'B' && bossMode) {
     var B = bossConfig();
-    var bico = (typeof iconSvg === 'function') ? iconSvg('duo') : '';
+    var bico = (typeof iconSvg === 'function') ? iconSvg(B.icon || 'duo') : '';
     return '<div class="m-team b"><div class="m-team-head"><span>BOSS</span>' +
-      '<button type="button" disabled>固定</button></div>' +
+      '<button type="button" data-act="bossnext">切换</button></div>' +
       '<div class="m-slots boss-card">' +
       '<div class="m-slot boss fixed">' +
         (bico ? '<span class="mi-ico boss-ico">' + bico + '</span>'
@@ -995,6 +995,7 @@ function mobiClick(e) {
   if (act === 'round') { mobiSetRound(parseInt(t.getAttribute('data-sec'), 10)); return; }
   if (act === 'randA') { randomTeam('A'); syncPick(); mobiRender(); return; }
   if (act === 'randB') { randomTeam('B'); syncPick(); mobiRender(); return; }
+  if (act === 'bossnext') { cycleBossRole(); syncPick(); mobiRender(); return; }
   if (act === 'randBoth') { randomTeam('A'); randomTeam('B'); syncPick(); mobiRender(); return; }
   if (act === 'randSel') { randomTeam(mobi.activeTeam); syncPick(); mobiRender(); return; }
   if (act === 'slot') {
@@ -1101,10 +1102,11 @@ function mobiEnterSolo() {
 function mobiEnterBoss() {
   bossMode = true;
   bossMerged = false;
+  bossPhase = 1;
   modeKind = 'vs';
   teamSize = 5;
   draftMode = false;
-  if (bossRoleKey !== 'duo' && !BOSS_ROLES[bossRoleKey]) bossRoleKey = 'duo';
+  if (!BOSS_ROLES[bossRoleKey] || !BOSS_ROLES[bossRoleKey].enabled) bossRoleKey = 'duo';
   pick.B = [bossRoleKey];
   seriesBest = 1;
   seriesWins = { A: 0, B: 0 };

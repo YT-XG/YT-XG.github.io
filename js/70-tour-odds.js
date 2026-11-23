@@ -158,6 +158,7 @@ function oddsInitMatch(aRoles, bRoles, swap) {
   units = []; particles = []; rings = []; floaters = []; bombs = []; arrows = []; icePatches = [];
   anvilMarks = []; seeds = []; vines = []; reviveQueue = []; waters = [];
   if (typeof bucketDrops !== 'undefined') bucketDrops = [];
+  if (typeof stormBolts !== 'undefined') { stormBolts = []; stormChains = []; stormFlash = 0; }
   resetArena();                       // 场地收窄必须复位，否则第二局起点就错了
   t = 0; roundTime = roundDuration; winner = null;
   suddenDeath = false; deathAcc = 0; suddenStart = 0;
@@ -456,6 +457,7 @@ function previewInit(aKeys, bKeys, size, mode, swap, seed) {
   units = []; particles = []; rings = []; floaters = []; bombs = []; arrows = []; icePatches = [];
   anvilMarks = []; seeds = []; vines = []; reviveQueue = []; waters = []; ultBeams = [];
   if (typeof bucketDrops !== 'undefined') bucketDrops = [];
+  if (typeof stormBolts !== 'undefined') { stormBolts = []; stormChains = []; stormFlash = 0; }
   resetArena();
   t = 0; roundTime = roundDuration; winner = null;
   suddenDeath = false; deathAcc = 0; suddenStart = 0;

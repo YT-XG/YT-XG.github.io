@@ -195,7 +195,7 @@ var BALANCE = {
        · duration  —— BOSS 战专用时长（主菜单的 1/2/3/5 分钟档位不作用于该模式）
        · dmgTakeMul / pctTakeMul / dmgMul —— BOSS 承伤与出手的三个总开关
        · redBomb / lapis / core —— BOSS 各自的周期技能参数
-     单位血量（红青各 3000、紫晶核心 800）写在 js/items/boss.js 的 TYPES 里。 */
+     单位血量（红青各 4550、紫晶核心 5000）写在 js/items/boss/duo.js 的 TYPES 里。 */
   boss: {
     duration: 300,        // BOSS 战专用时长（主菜单的分钟档位不作用于该模式）
     lockHp: 1,            // 红青锁血线

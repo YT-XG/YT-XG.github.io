@@ -2865,6 +2865,7 @@ function render() {
   drawUltBeams();     // 终结技瞬发光束（大狗三重咆哮等）
   drawSurfSpray();    // 大浪淘顶层浪花 / 水柱（压在单位之上）
   drawFieldSky();     // 场地落雷（压在单位之上）
+  drawStormFx();      // 雷云巨像：华丽雷柱 / 连锁电弧 / 全屏白闪（压在单位之上）
   drawVines();        // 藤蔓压在最上层
   drawBossCharge();   // 合体前的停顿蓄能 + 核心血条充能
   drawBossMerge();    // BOSS 合体演出（残影 / 白闪 / 紫环，最上层）
@@ -3210,4 +3211,92 @@ function drawBossNuke() {
   }
 
   ctx.restore();
+}
+
+/* ============================================================
+   雷云巨像专属华丽演出（纯表现层）
+   ------------------------------------------------------------
+   stormBolts  : 贯穿光柱 + 地面星芒电弧
+   stormChains : 两点折线电弧（连锁雷 / 导雷线）
+   stormFlash  : 全屏青白爆闪
+   数组与采样点由 js/items/boss/storm.js 声明，这里只负责绘制。
+   ============================================================ */
+function drawStormFx() {
+  if (typeof stormBolts === 'undefined') return;
+
+  /* 全屏白闪：中心径向青白爆光 */
+  if (stormFlash > 0) {
+    var fa = Math.min(1, stormFlash / 0.3);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    var fcx = ARENA.x + ARENA.w / 2, fcy = ARENA.y + ARENA.h / 2;
+    var fg = ctx.createRadialGradient(fcx, fcy, 0, fcx, fcy, Math.max(ARENA.w, ARENA.h) * 0.7);
+    fg.addColorStop(0, 'rgba(234,244,255,' + (0.5 * fa).toFixed(3) + ')');
+    fg.addColorStop(1, 'rgba(143,184,255,0)');
+    ctx.fillStyle = fg;
+    ctx.fillRect(ARENA.x, ARENA.y, ARENA.w, ARENA.h);
+    ctx.restore();
+  }
+
+  /* 连锁电弧：外蓝宽线 + 内白芯 */
+  for (var ci = 0; ci < stormChains.length; ci++) {
+    var ch = stormChains[ci];
+    var ca = clamp(ch.life / ch.max, 0, 1);
+    var pts = stormBoltPoints(ch.x1, ch.y1, ch.x2, ch.y2, ch.seed, 4);
+    ctx.save();
+    ctx.globalAlpha = ca;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = rgba(ch.color, 0.5);
+    ctx.lineWidth = ch.wide ? 4 : 2.6;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (var p = 1; p < pts.length; p++) ctx.lineTo(pts[p].x, pts[p].y);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (var p2 = 1; p2 < pts.length; p2++) ctx.lineTo(pts[p2].x, pts[p2].y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* 落雷光柱：外层蓝光柱 + 内白芯 + 地面星芒与裂纹电弧 */
+  for (var bi = 0; bi < stormBolts.length; bi++) {
+    var bt = stormBolts[bi];
+    var bk = clamp(bt.life / bt.max, 0, 1);
+    var top = ARENA.y;
+    ctx.save();
+    ctx.globalAlpha = bk;
+    ctx.strokeStyle = 'rgba(143,184,255,0.55)';
+    ctx.lineWidth = bt.big ? 10 : 6;
+    ctx.beginPath();
+    ctx.moveTo(bt.x + Math.sin(bt.seed) * 20, top);
+    ctx.lineTo(bt.x, bt.y);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(240,248,255,0.95)';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(bt.x + Math.sin(bt.seed) * 14, top);
+    ctx.lineTo(bt.x, bt.y);
+    ctx.stroke();
+
+    var sg = ctx.createRadialGradient(bt.x, bt.y, 2, bt.x, bt.y, bt.r);
+    sg.addColorStop(0, 'rgba(255,255,255,' + (0.4 * bk).toFixed(3) + ')');
+    sg.addColorStop(0.5, 'rgba(143,184,255,' + (0.22 * bk).toFixed(3) + ')');
+    sg.addColorStop(1, 'rgba(143,184,255,0)');
+    ctx.fillStyle = sg;
+    ctx.beginPath(); ctx.arc(bt.x, bt.y, bt.r, 0, TAU); ctx.fill();
+
+    ctx.strokeStyle = 'rgba(219,232,255,' + (0.5 * bk).toFixed(3) + ')';
+    ctx.lineWidth = 1.4;
+    for (var cr = 0; cr < 4; cr++) {
+      var cra = bt.seed + cr * Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(bt.x + Math.cos(cra) * bt.r * 0.3, bt.y + Math.sin(cra) * bt.r * 0.3);
+      ctx.lineTo(bt.x + Math.cos(cra + 0.3) * bt.r * 0.8, bt.y + Math.sin(cra + 0.3) * bt.r * 0.8);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 }

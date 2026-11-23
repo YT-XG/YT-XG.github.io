@@ -116,6 +116,7 @@ function hurt(u, amount, src, opt) {
   /* 合体演出期间的免伤：①两只锁到 1 血后先停顿 0.7 秒（不可打断），
      ②紫晶核心登场后血条从 1 涨到满（mergeFill），充能完才可被击伤。 */
   if (u.st && u.st.mergeFill > 0) return;
+  if (u.st && u.st.phaseShift > 0) return;   // 双血 BOSS 转阶段：锁血演出期间免伤
   if (bossMergeAct && (bossMergeAct.a === u || bossMergeAct.b === u)) return;
   if (!dot && !multi && typeof sfxPlay === 'function') sfxPlay('hit');
 
@@ -192,6 +193,11 @@ function hurt(u, amount, src, opt) {
   }
 
   if (u.hp <= 0) {
+    /* 双血 BOSS：第一条血打空时先走 onLethal 转阶段（锁 1 血、免伤），不当成死亡。
+       返回 true 表示「已接管这次致命伤害」，hurt 不再继续走死亡流程。 */
+    var LT = TYPES[u.key];
+    if (LT && LT.onLethal && LT.onLethal(u)) return;
+
     u.hp = 0;
     u.alive = false;
     burst(u.x, u.y, 34, u.glow, 360);
@@ -1208,7 +1214,19 @@ function laserStrike(u, L) {
 function statusText() {
   var parts = [];
   if (bossMode && phase === 'fight') {
-    if (!bossMerged) {
+    if (bossTwoBar()) {
+      // 单单位双血 BOSS（雷云巨像）：报当前第几条血 / 转阶段 / 终结技读秒
+      var sb = null;
+      for (var si = 0; si < units.length; si++) {
+        if (units[si].alive && units[si].team === 'B') { sb = units[si]; break; }
+      }
+      if (sb) {
+        if (sb.st.phaseShift > 0) parts.push('风暴降临 · 转阶段 ' + sb.st.phaseShift.toFixed(1) + 's');
+        else if (sb.st.ult1) parts.push('万雷归一 · ' + (sb.st.ult1.fired ? '落雷中' : Math.ceil(sb.st.ult1.t) + 's'));
+        else if (sb.st.ult2) parts.push('雷神黄昏 · ' + (sb.st.ult2.active ? '脉冲 ' + (sb.st.ult2.total - sb.st.ult2.left) + '/' + sb.st.ult2.total : Math.ceil(sb.st.ult2.t) + 's'));
+        else parts.push('雷云巨像 · 第 ' + sb.st.phase + ' 条血' + (sb.st.phase === 2 ? ' · 击破即胜利' : ''));
+      }
+    } else if (!bossMerged) {
       // 合体停顿阶段（bossMergeAct）单独提示，避免读数还在跳
       if (bossMergeAct) parts.push('红青锁血完成 · 停手合体中');
       else {
@@ -1462,6 +1480,8 @@ function think(u, dt) {
   if (u.st.ultChain && u.st.ultChain.left > 0) return;
   if (u.st.milkT > 0) return;   // 引导期间站桩，不施放任何技能
   if (u.st.mergeFill > 0) return;   // 紫晶核心血条充能中：不动、不打
+  if (u.st.phaseShift > 0) return;  // 双血 BOSS 转阶段：停手
+  if (u.st.actionLock > 0) return;  // 双血 BOSS 终结技引导：停手
   if (bossMergeAct && (bossMergeAct.a === u || bossMergeAct.b === u)) return;  // 合体前停手
   /* 一阶段锁血：打到 1 HP 的那一只原地停手（不移动也不攻击），等另一只 */
   var BT = TYPES[u.key];
@@ -1814,6 +1834,7 @@ function deathStrike() {
   for (var i = 0; i < units.length; i++) {
     var u = units[i];
     if (!u.alive) continue;
+    if (u.st && u.st.phaseShift > 0) continue;   // 双血 BOSS 转阶段演出：不被决杀跳过
     var loss = u.maxHp * DEATH_DRAIN;
     // BOSS 锁血同样对「决杀」生效：合体前每秒扣血最多扣到 1 HP
     if (TYPES[u.key] && TYPES[u.key].bossLock) {
@@ -1825,6 +1846,9 @@ function deathStrike() {
     floater(u.x + rand(-8, 8), u.y - u.r - 72, '-' + Math.round(loss), '#ff6b5a', 16, { pop: 1 });
     burst(u.x, u.y, 5, '#ff8a6b', 120);
     if (u.hp <= 0) {
+      // 双血 BOSS：第一条血被决杀打空也走转阶段，不直接判死
+      var DT = TYPES[u.key];
+      if (DT && DT.onLethal && DT.onLethal(u)) continue;
       u.alive = false;
       burst(u.x, u.y, 30, u.glow, 340);
       ring(u.x, u.y, 8, 170, 0.6, u.glow);
@@ -2021,6 +2045,18 @@ function fx(dt) {
   for (i = fieldBolts.length - 1; i >= 0; i--) {
     fieldBolts[i].life -= dt;
     if (fieldBolts[i].life <= 0) fieldBolts.splice(i, 1);
+  }
+  // 雷云巨像专属演出：雷柱 / 连锁电弧寿命递减
+  if (typeof stormBolts !== 'undefined') {
+    for (i = stormBolts.length - 1; i >= 0; i--) {
+      stormBolts[i].life -= dt;
+      if (stormBolts[i].life <= 0) stormBolts.splice(i, 1);
+    }
+    for (i = stormChains.length - 1; i >= 0; i--) {
+      stormChains[i].life -= dt;
+      if (stormChains[i].life <= 0) stormChains.splice(i, 1);
+    }
+    if (stormFlash > 0) stormFlash = Math.max(0, stormFlash - dt);
   }
   for (i = floaters.length - 1; i >= 0; i--) {
     var f = floaters[i];

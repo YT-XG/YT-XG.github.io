@@ -1,5 +1,5 @@
 /* ============================================================
-   BOSS 模式专用单位（2026-11-22 重做：红青双子 → 紫晶核心）
+   红青双子 → 紫晶核心（js/items/boss/duo.js）
    ------------------------------------------------------------
    一阶段：红 / 青两个独立单元，各 4550 HP，锁 1 血、免疫控制
      · 红石：3s 普攻环形 6 炸弹；7s 技能锁定敌人投 10 枚炸弹
@@ -9,59 +9,12 @@
    二阶段：紫晶核心，5000 HP，速度 +150%
      · 普攻：每 500ms 原地放 1 颗炸弹（3 秒引信，触碰即引爆并叠 1 层灼烧）
      · 普攻（终焉一击后解锁）：3s 向敌人中距离冲刺，命中 100% 攻击力
-     · 普攻（终焉一击后解锁）：5s 身周一圈 6 颗炸弹，3 秒引信，触碰即引爆并叠 1 层灼烧，每颗 60% 攻击力
-     · 技能：5s 给自己附魔
+     · 普攻（终焉一击后解锁）：5s 身周一圈 6 颗炸弹
+     · 技能：3.5s 给自己附魔
      · 终结技：血量首次低于 50% 时蓄力 8 秒，释放终焉一击
-       （敌方 70% 最大生命 + 10 秒虚弱，所有伤害 -20%）
    三槽结构与常规物品一致：basic / skill / ultimate。
-   数值直接按 2000 HP 口径写死（calibrated）。
    ============================================================ */
 'use strict';
-
-/* 附魔：普攻 / 技能伤害按 1 / 2 / 3 层提升 25% / 45% / 70%；防御单层 +10% */
-var BOSS_ENCHANT = [0, 0.25, 0.45, 0.70];
-
-function bossBasicMul(u) {
-  var n = Math.min(3, (u && u.st && u.st.enchantBasic) || 0);
-  return 1 + BOSS_ENCHANT[n];
-}
-function bossSkillMul(u) {
-  var n = Math.min(3, (u && u.st && u.st.enchantSkill) || 0);
-  return 1 + BOSS_ENCHANT[n];
-}
-
-/* 随机附魔一次：从「未满层」的池子里抽，防御只会有 1 层。
-   noSkill = true 时不再抽「技能伤害」（二阶段核心没有可加成的技能）。 */
-function bossEnchant(u, noSkill) {
-  if (!u || !u.alive) return;
-  var st = u.st;
-  var pool = [];
-  if ((st.enchantBasic || 0) < 3) pool.push(1);
-  if (!noSkill && (st.enchantSkill || 0) < 3) pool.push(2);
-  if (!st.enchantDef) pool.push(3);
-  if (!pool.length) return;
-
-  var pick = pool[Math.floor(rand(0, pool.length))];
-  var label;
-  if (pick === 1) {
-    st.enchantBasic = (st.enchantBasic || 0) + 1;
-    label = '附魔 普攻 +' + Math.round(BOSS_ENCHANT[st.enchantBasic] * 100) + '%';
-  } else if (pick === 2) {
-    st.enchantSkill = (st.enchantSkill || 0) + 1;
-    label = '附魔 技能 +' + Math.round(BOSS_ENCHANT[st.enchantSkill] * 100) + '%';
-  } else {
-    st.enchantDef = 1;
-    u.def = Math.round(u.def * 1.1);
-    label = '附魔 防御 +10%';
-  }
-  ring(u.x, u.y, u.r, u.r + 42, 0.45, '#c79bff');
-  burst(u.x, u.y, 12, '#d9bcff', 200);
-  floater(u.x, u.y - u.r - 18, label, '#c79bff', 13);
-}
-
-function bossLocked(u) {
-  return !!(u && u.hp <= (BALANCE.boss.lockHp == null ? 1 : BALANCE.boss.lockHp) + 0.05);
-}
 
 /* 红色 BOSS：环形炸弹 + 锁定投掷
    ------------------------------------------------------------
@@ -191,7 +144,7 @@ TYPES.bosslapis = {
 
 /* 紫晶核心：红青合体后的最终形态
    ------------------------------------------------------------
-   · 合体演出：血条从 1 充到 4300；从这一刻起可以被击倒
+   · 合体演出：血条从 1 充到 5000；从这一刻起可以被击倒
    · 天赋：移动速度 +150%（×2.5），不可穿透敌方
    · 普攻：每 500ms 在原地放 1 颗炸弹（40 × 普攻附魔）
    · 技能（3.5s）：给自己附魔随机效果
@@ -405,103 +358,4 @@ function coreNuke(u) {
   /* 镜头：先定在 BOSS 身上，随后随冲击波逐层拉远到全场；
      2.9 秒内模拟时间 0.3×（见 50-ui 的 frame），形成整段慢动作。 */
   bossCine = { t: 0, dur: 2.9, slow: 0.3, origin: { x: u.x, y: u.y } };
-}
-
-/* BOSS 的通用外观：方块的放大版 + 旋转棱环 + 王冠尖角
-   （drawBlock 在 40-render.js，运行时才被调用，加载顺序不影响） */
-function drawBossBlock(u) {
-  var r = u.r, x = u.x, y = u.y;
-
-  // 合体核心的浮现：1.15 秒内从 1.28 倍缩放回正常（与 drawBossMerge 的白闪对齐）
-  var ap = (u.st && u.st.appear > 0) ? Math.min(1, u.st.appear / 0.9) : 0;
-  if (ap > 0) {
-    ctx.save();
-    ctx.translate(x, y);
-    var sc = 1 + 0.28 * ap;
-    ctx.scale(sc, sc);
-    ctx.translate(-x, -y);
-  }
-
-  // 外层旋转棱环：让 BOSS 在 5 个单位的混战里一眼可辨
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(t * (u.st.rage ? 0.9 : 0.35) + u.seed);
-  ctx.strokeStyle = rgba(u.glow, 0.55);
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  for (var i = 0; i < 4; i++) {
-    var a = i / 4 * TAU;
-    ctx.lineTo(Math.cos(a) * (r + 9), Math.sin(a) * (r + 9));
-  }
-  ctx.closePath();
-  ctx.stroke();
-  ctx.restore();
-
-  drawBlock(u);
-
-  // 王冠尖角（3 根）
-  ctx.fillStyle = rgba(u.light, 0.9);
-  for (var k = -1; k <= 1; k++) {
-    var bx = x + k * r * 0.42, by = y - r * 0.92;
-    ctx.beginPath();
-    ctx.moveTo(bx - 4, by + 6);
-    ctx.lineTo(bx, by - 8);
-    ctx.lineTo(bx + 4, by + 6);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  // 合体核心：外圈脉动光环
-  if (u.st && u.st.rage) {
-    var pk = 0.5 + 0.5 * Math.sin(t * 5 + u.seed);
-    ctx.strokeStyle = 'rgba(199,155,255,' + (0.3 + 0.35 * pk).toFixed(3) + ')';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(x, y, r + 14 + pk * 4, 0, TAU);
-    ctx.stroke();
-  }
-
-  var st = u.st || {};
-  /* 终焉蓄力：最后 8 秒核心向内收紧蓄能，蓄能环收缩 + 内圈白环收拢 + 向上抽微光柱。 */
-  var warnW = 8;
-  if (st.nukeT >= 0 && st.nukeT <= warnW) {
-    var wp2 = 1 - st.nukeT / warnW;
-    var pulse = 0.5 + 0.5 * Math.sin(t * 10);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.strokeStyle = 'rgba(199,155,255,' + (0.5 + 0.4 * pulse).toFixed(3) + ')';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(x, y, r + 18 - 10 * wp2, 0, TAU);
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 + 0.45 * wp2).toFixed(3) + ')';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(x, y, r + 8 - 4 * wp2, 0, TAU);
-    ctx.stroke();
-    var bg = ctx.createLinearGradient(0, y - r - 46, 0, y - r);
-    bg.addColorStop(0, 'rgba(199,155,255,0)');
-    bg.addColorStop(1, 'rgba(216,180,255,' + (0.35 + 0.3 * pulse).toFixed(3) + ')');
-    ctx.fillStyle = bg;
-    ctx.fillRect(x - 6, y - r - 46, 12, 46);
-    ctx.restore();
-  }
-
-  /* 终焉一击释放演出：核心残留辉光随 nukeCast 消退向外扩散。 */
-  if (st.nukeCast > 0) {
-    var np = 1 - st.nukeCast / 1.8;
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    var ng = ctx.createRadialGradient(x, y, r * 0.4, x, y, r * (2.2 + np * 1.6));
-    ng.addColorStop(0, 'rgba(255,255,255,' + (0.45 * (1 - np)).toFixed(3) + ')');
-    ng.addColorStop(0.5, 'rgba(199,155,255,' + (0.3 * (1 - np)).toFixed(3) + ')');
-    ng.addColorStop(1, 'rgba(122,63,191,0)');
-    ctx.fillStyle = ng;
-    ctx.beginPath();
-    ctx.arc(x, y, r * (2.2 + np * 1.6), 0, TAU);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  if (ap > 0) ctx.restore();
 }
