@@ -175,16 +175,16 @@ body.mobi-mode{overflow:hidden;}
 .m-slot.sel{border-color:#e8483f;box-shadow:0 0 0 1px rgba(232,72,63,.35) inset;}
 .m-team.b .m-slot.sel{border-color:#4a7bf0;box-shadow:0 0 0 1px rgba(74,123,240,.35) inset;}
 
-/* BOSS 战：蓝方固定 BOSS 牌（不可更换、不可点选） */
+/* BOSS 战：蓝方 BOSS 牌（点它切到蓝方，右侧抽屉改为 BOSS 选择） */
 .m-arena.boss .m-team.b .m-slots{grid-template-columns:1fr;}
-.m-slot.boss.fixed{
-  height:100%;border-color:#7a3fbf;cursor:default;
+.m-slot.boss{
+  height:100%;border-color:#7a3fbf;cursor:pointer;
   background:linear-gradient(160deg,rgba(180,120,255,.16),rgba(7,10,16,.94) 62%);
   box-shadow:0 0 22px rgba(122,63,191,.25) inset;
 }
-.m-slot.boss.fixed .mi-ico{width:52px;height:52px;flex:none;}
-.m-slot.boss.fixed b{font-size:17px;color:#d9bcff;}
-.m-slot.boss.fixed em{color:#9a7fc4;}
+.m-slot.boss .mi-ico{width:52px;height:52px;flex:none;}
+.m-slot.boss b{font-size:17px;color:#d9bcff;}
+.m-slot.boss em{color:#9a7fc4;}
 .m-boss-tag{font-size:13px;color:#c79bff;letter-spacing:.06em;}
 .m-static{font-size:13px;color:#c6d3e6;font-weight:600;}
 .m-start.boss{background:linear-gradient(180deg,#9a5cff,#6d2fb8);box-shadow:0 12px 30px -14px rgba(122,63,191,.9);}
@@ -263,6 +263,7 @@ body.mobi-mode{overflow:hidden;}
 }
 .m-pool-item b{font-size:11.5px;}
 .m-pool-item small{font-size:9px;color:#6f7d93;text-align:center;}
+.m-pool-item.selected{border-color:rgba(122,63,191,.8);box-shadow:0 0 0 1px rgba(122,63,191,.35) inset;}
 .m-drawer-f{padding:10px;display:flex;flex-direction:column;gap:8px;border-top:1px solid #1b2230;}
 
 /* 图标 */

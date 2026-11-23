@@ -78,7 +78,13 @@ function mobiRoleShort(key) {
 function mobiIco(key, size) {
   var c = POOL_BY_KEY[key];
   var st = 'width:' + size + 'px;height:' + size + 'px;';
-  if (!c) return '<span class="mi-ico" style="' + st + '"></span>';
+  if (!c) {
+    // BOSS 池键（duo / storm）不在角色池里，用 BOSS 自己的图标
+    var b = (typeof BOSS_ROLES !== 'undefined') ? BOSS_ROLES[key] : null;
+    var bsvg = (b && typeof iconSvg === 'function') ? iconSvg(b.icon || key) : '';
+    if (bsvg) return '<span class="mi-ico" style="' + st + '">' + bsvg + '</span>';
+    return '<span class="mi-ico" style="' + st + '"></span>';
+  }
   if (c.img) return '<span class="mi-ico" style="' + st + '"><img src="' + c.img + '" alt=""></span>';
   var svg = (typeof iconSvg === 'function') ? iconSvg(key) : '';
   if (svg) return '<span class="mi-ico" style="' + st + '">' + svg + '</span>';
@@ -354,14 +360,14 @@ function mobiTeamPane(team) {
   var keys = pick[team] || [];
   var n = Math.max(1, teamSize);
 
-  /* BOSS 模式：蓝方是固定 BOSS 牌，点右上角「切换」循环可选 BOSS */
+  /* BOSS 模式：蓝方是 BOSS 牌，点它切到蓝方，右侧抽屉变成 BOSS 选择 */
   if (team === 'B' && bossMode) {
     var B = bossConfig();
     var bico = (typeof iconSvg === 'function') ? iconSvg(B.icon || 'duo') : '';
-    return '<div class="m-team b"><div class="m-team-head"><span>BOSS</span>' +
-      '<button type="button" data-act="bossnext">切换</button></div>' +
+    var bsel = mobi.activeTeam === 'B' ? ' sel' : '';
+    return '<div class="m-team b"><div class="m-team-head"><span>BOSS</span></div>' +
       '<div class="m-slots boss-card">' +
-      '<div class="m-slot boss fixed">' +
+      '<div class="m-slot boss' + bsel + '" data-act="slot" data-team="B" data-slot="0">' +
         (bico ? '<span class="mi-ico boss-ico">' + bico + '</span>'
           : '<span class="mi-ico" style="background:#b478ff;box-shadow:0 0 12px #b478ff"></span>') +
         '<div class="m-slot-tx"><b>' + mobiEsc(B.name) + '</b>' +
@@ -446,7 +452,8 @@ function mobiSoloHtml() {
 
   /* 两侧滑出条 */
   h += '<button type="button" class="m-tab l" data-act="drawerL">设置</button>';
-  h += '<button type="button" class="m-tab r" data-act="drawerR">角色池</button>';
+  h += '<button type="button" class="m-tab r" data-act="drawerR">' +
+    (bossMode && mobi.activeTeam === 'B' ? 'BOSS' : '角色池') + '</button>';
   return h + '</div>';
 }
 
@@ -494,26 +501,43 @@ function mobiSettingsHtml() {
     '</div>';
 }
 
-/* 右侧角色池抽屉 */
+/* 右侧角色池抽屉：BOSS 战选中蓝方时，内容切换为可选 BOSS */
 function mobiPoolHtml() {
-  var sideTag = bossMode ? '挑战者 · 红方' : (SIDE_LABEL[mobi.activeTeam] + ' · ' + (mobi.activeSlot + 1) + ' 号位');
-  var h = '<div class="m-drawer-h"><b>角色池</b>' +
+  var bossSide = bossMode && mobi.activeTeam === 'B';
+  var sideTag = bossMode
+    ? (bossSide ? '选择讨伐 BOSS' : '挑战者 · 红方')
+    : (SIDE_LABEL[mobi.activeTeam] + ' · ' + (mobi.activeSlot + 1) + ' 号位');
+  var h = '<div class="m-drawer-h"><b>' + (bossSide ? '讨伐目标' : '角色池') + '</b>' +
     '<span>' + sideTag + '</span>' +
     '<button type="button" data-act="closeDrawer">×</button></div>' +
     '<div class="m-pool">';
-  for (var i = 0; i < POOL.length; i++) {
-    var c = POOL[i];
-    var owner = draftMode ? roleOwner(c.key) : '';
-    h += '<button type="button" class="m-pool-item' + (owner ? ' taken' : '') + '"' +
-      (owner ? ' disabled' : '') +
-      ' data-act="pickRole" data-key="' + c.key + '">' +
-      mobiIco(c.key, 40) + '<b>' + mobiEsc(c.short) + '</b>' +
-      '<small>' + (owner ? SIDE_LABEL[owner] + '已选' : mobiEsc(c.role)) + '</small></button>';
+  var i;
+  if (bossSide) {
+    var keys = bossRoleKeys();
+    for (i = 0; i < keys.length; i++) {
+      var B = BOSS_ROLES[keys[i]];
+      h += '<button type="button" class="m-pool-item' + (bossRoleKey === keys[i] ? ' selected' : '') + '"' +
+        ' data-act="pickRole" data-key="' + keys[i] + '">' +
+        mobiIco(keys[i], 40) + '<b>' + mobiEsc(B.name) + '</b>' +
+        '<small>' + mobiEsc(B.role || 'BOSS') + '</small></button>';
+    }
+  } else {
+    for (i = 0; i < POOL.length; i++) {
+      var c = POOL[i];
+      var owner = draftMode ? roleOwner(c.key) : '';
+      h += '<button type="button" class="m-pool-item' + (owner ? ' taken' : '') + '"' +
+        (owner ? ' disabled' : '') +
+        ' data-act="pickRole" data-key="' + c.key + '">' +
+        mobiIco(c.key, 40) + '<b>' + mobiEsc(c.short) + '</b>' +
+        '<small>' + (owner ? SIDE_LABEL[owner] + '已选' : mobiEsc(c.role)) + '</small></button>';
+    }
   }
-  h += '</div><div class="m-drawer-f">' +
-    '<button type="button" class="m-wide m-ghost" data-act="randSel">' +
-    (bossMode ? '随机红方' : '随机这一方') + '</button>' +
-    '<button type="button" class="m-wide m-primary" data-act="closeDrawer">完成</button></div>';
+  h += '</div><div class="m-drawer-f">';
+  if (!bossSide) {
+    h += '<button type="button" class="m-wide m-ghost" data-act="randSel">' +
+      (bossMode ? '随机红方' : '随机这一方') + '</button>';
+  }
+  h += '<button type="button" class="m-wide m-primary" data-act="closeDrawer">完成</button></div>';
   return h;
 }
 
@@ -995,13 +1019,21 @@ function mobiClick(e) {
   if (act === 'round') { mobiSetRound(parseInt(t.getAttribute('data-sec'), 10)); return; }
   if (act === 'randA') { randomTeam('A'); syncPick(); mobiRender(); return; }
   if (act === 'randB') { randomTeam('B'); syncPick(); mobiRender(); return; }
-  if (act === 'bossnext') { cycleBossRole(); syncPick(); mobiRender(); return; }
   if (act === 'randBoth') { randomTeam('A'); randomTeam('B'); syncPick(); mobiRender(); return; }
   if (act === 'randSel') { randomTeam(mobi.activeTeam); syncPick(); mobiRender(); return; }
   if (act === 'slot') {
     if (draftMode) return;   // 征召模式由轮次决定，不能自由切边
     var slotTeam = t.getAttribute('data-team');
-    if (bossMode && slotTeam !== 'A') return;   // BOSS 固定，只允许点红方号位
+    if (bossMode && slotTeam !== 'A') {
+      // 点蓝方 BOSS 牌：切到蓝方并直接展开 BOSS 选择
+      mobi.activeTeam = 'B';
+      mobi.activeSlot = 0;
+      activeTeam = 'B';
+      activeSlot = 0;
+      mobi.drawer = 'r';
+      mobiRender();
+      return;
+    }
     mobi.activeTeam = slotTeam;
     mobi.activeSlot = parseInt(t.getAttribute('data-slot'), 10) || 0;
     activeTeam = mobi.activeTeam;
@@ -1156,6 +1188,15 @@ function mobiSetRound(sec) {
 }
 
 function mobiPickRole(key) {
+  if (bossMode && mobi.activeTeam === 'B') {
+    if (!BOSS_ROLES[key] || !BOSS_ROLES[key].enabled) return;
+    selectBossRole(key);
+    activeTeam = 'B';
+    activeSlot = 0;
+    syncPick();
+    mobiRender();
+    return;
+  }
   if (!POOL_BY_KEY[key]) return;
   if (draftMode) {
     if (draftPickRole(key)) {

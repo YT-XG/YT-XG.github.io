@@ -375,10 +375,9 @@ el.btnRestart.addEventListener('click', restartBattle);
 el.btnStart.addEventListener('click', startBattle);
 el.btnMenu.addEventListener('click', openMenu);
 el.cardA.addEventListener('click', function () { if (!draftMode) { activeTeam = 'A'; syncPick(); } });
-// BOSS 模式下点蓝方卡片：循环切换 BOSS（与「切换」按钮同口径）
+// BOSS 模式下点蓝方卡片：选中蓝方，下方列表切换成 BOSS 池
 el.cardB.addEventListener('click', function () {
   if (draftMode) return;
-  if (bossMode) { cycleBossRole(); syncPick(); return; }
   activeTeam = 'B';
   syncPick();
 });

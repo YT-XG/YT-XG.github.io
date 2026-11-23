@@ -223,20 +223,18 @@ var BOSS_ROLES = {
 };
 function bossConfig() { return BOSS_ROLES[bossRoleKey] || BOSS_ROLES.duo; }
 
-/* 可选 BOSS 列表 + 循环切换（桌面「切换」按钮 / 手机 BOSS 牌共用） */
+/* 可选 BOSS 列表 + 选择（桌面角色池 / 手机抽屉共用） */
 function bossRoleKeys() {
   var out = [];
   for (var k in BOSS_ROLES) if (BOSS_ROLES[k] && BOSS_ROLES[k].enabled) out.push(k);
   return out;
 }
-function cycleBossRole() {
-  var keys = bossRoleKeys();
-  if (!keys.length) return bossConfig();
-  var i = keys.indexOf(bossRoleKey);
-  bossRoleKey = keys[(i + 1) % keys.length];
+function selectBossRole(key) {
+  if (!BOSS_ROLES[key] || !BOSS_ROLES[key].enabled) return bossConfig();
+  bossRoleKey = key;
   bossMerged = false;
   bossPhase = 1;
-  pick.B = [bossRoleKey];
+  pick.B = [key];
   return bossConfig();
 }
 // 当前 BOSS 是否是「单单位 + 两条血」形态（雷云巨像），UI / 结算据此切换文案
@@ -321,6 +319,8 @@ var el = {
   menuMode: document.getElementById('menuMode'),
   btnBackHome: document.getElementById('btnBackHome'),
   pool: document.getElementById('pool'),
+  poolTitle: document.querySelector('.pool-title'),
+  poolHint: document.querySelector('.pool-hint'),
   pickSummary: document.getElementById('pickSummary'),
   cardA: document.getElementById('cardA'),
   cardB: document.getElementById('cardB'),

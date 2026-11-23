@@ -232,14 +232,14 @@ function bossDetailHtml() {
 }
 
 /* 选人页蓝方卡片：BOSS 固定，不显示 5 个格子，只显示一块 BOSS 牌 */
-function renderBossCard(card) {
+function renderBossCard(card, active) {
   var B = bossConfig();
-  card.className = 'pick-card boss' + (teamSize > 1 ? ' multi' : '');
+  card.className = 'pick-card boss' + (active ? ' active' : '') + (teamSize > 1 ? ' multi' : '');
   card.setAttribute('data-team', 'B');
   card.style.color = '#c79bff';
   card.style.background = 'linear-gradient(160deg,rgba(180,120,255,.14),rgba(7,10,16,.94) 62%)';
   var ico = (typeof iconSvg === 'function') ? iconSvg(B.icon || 'duo') : '';
-  card.innerHTML = '<div class="slot-chip boss-slot" data-team="B" data-slot="0" title="点击切换 BOSS">' +
+  card.innerHTML = '<div class="slot-chip boss-slot" data-team="B" data-slot="0" title="点击选中蓝方，再从下方 BOSS 列表选择">' +
     '<span class="sc-idx">BOSS</span>' +
     (ico ? '<span class="pc-ico">' + ico + '</span>'
       : '<span class="pc-dot" style="background:#b478ff;box-shadow:0 0 14px #b478ff"></span>') +
@@ -472,20 +472,65 @@ function makeSlot(c) {
   return slot;
 }
 
-function buildMenu() {
+/* BOSS 池格子：BOSS 战点蓝方后，下方列表由角色切换为可选 BOSS */
+function makeBossSlot(key) {
+  var B = BOSS_ROLES[key];
+  var slot = document.createElement('div');
+  slot.className = 'pool-slot';
+  slot.setAttribute('data-key', key);
+  slot.setAttribute('data-boss', '1');
+  slot.title = B.name + ' · ' + (B.role || 'BOSS');
+  var ico = (typeof iconSvg === 'function') ? iconSvg(B.icon || key) : '';
+  slot.innerHTML =
+    (ico
+      ? '<span class="ps-ico">' + ico + '</span>'
+      : '<span class="ps-dot" style="background:#b478ff;box-shadow:0 0 6px #b478ff"></span>') +
+    '<b>' + deskEsc(B.name) + '</b>' +
+    '<span class="ps-tags"><i class="t-b">BOSS</i></span>';
+  slot.addEventListener('click', function () {
+    if (!bossMode) return;
+    selectBossRole(key);
+    syncPick();
+  });
+  return slot;
+}
+
+var poolMode = '';   // 'roles' = 角色池；'boss' = BOSS 池
+
+/* 按当前选择方重建下方列表：BOSS 战点蓝方时切换成 BOSS 池 */
+function buildPool() {
+  var want = (bossMode && activeTeam === 'B') ? 'boss' : 'roles';
+  if (poolMode === want) return;
+  poolMode = want;
   el.pool.innerHTML = '';
-  // 至少保留 8 格视觉占位；角色池超过 8 个时按实际数量铺开（水桶加入后为 9 个）
-  var slots = Math.max(8, POOL.length);
-  for (var i = 0; i < slots; i++) {
-    if (i < POOL.length) {
-      el.pool.appendChild(makeSlot(POOL[i]));
-    } else {
-      var empty = document.createElement('div');
-      empty.className = 'pool-slot empty';
-      empty.innerHTML = '<span>待加入</span>';
-      el.pool.appendChild(empty);
+  var i;
+  if (want === 'boss') {
+    var keys = bossRoleKeys();
+    for (i = 0; i < keys.length; i++) el.pool.appendChild(makeBossSlot(keys[i]));
+  } else {
+    var slots = Math.max(8, POOL.length);
+    for (i = 0; i < slots; i++) {
+      if (i < POOL.length) {
+        el.pool.appendChild(makeSlot(POOL[i]));
+      } else {
+        var empty = document.createElement('div');
+        empty.className = 'pool-slot empty';
+        empty.innerHTML = '<span>待加入</span>';
+        el.pool.appendChild(empty);
+      }
     }
   }
+  if (el.poolTitle) el.poolTitle.textContent = want === 'boss' ? 'BOSS' : '角色池';
+  if (el.poolHint) {
+    el.poolHint.textContent = want === 'boss'
+      ? '已选中蓝方 · 点下方 BOSS 选择讨伐目标'
+      : '点红/蓝卡片切换选择方，再点角色';
+  }
+}
+
+function buildMenu() {
+  poolMode = '';
+  buildPool();
   buildModePick();
   buildSizePick();
   buildSeriesPick();
@@ -493,7 +538,7 @@ function buildMenu() {
   buildComboPick();
   el.diceA.addEventListener('click', function () { randomTeam('A'); });
   el.diceB.addEventListener('click', function () {
-    if (bossMode) { cycleBossRole(); syncPick(); return; }   // BOSS 战：循环切换可选 BOSS
+    if (bossMode) return;   // BOSS 战蓝方改由下方 BOSS 池选择
     randomTeam('B');
   });
   if (el.btnRandom) el.btnRandom.addEventListener('click', function () { randomTeam('A'); randomTeam('B'); });
@@ -844,10 +889,15 @@ function syncPick() {
   if (document.body && document.body.classList) {
     document.body.classList.toggle('boss-mode', !!bossMode);
   }
+  buildPool();   // BOSS 战点蓝方时，下方列表切换为 BOSS 池
   // 角色池高亮：任一方阵容里出现即点亮
   var slots = el.pool.querySelectorAll('.pool-slot[data-key]');
   for (var i = 0; i < slots.length; i++) {
     var key = slots[i].getAttribute('data-key');
+    if (slots[i].hasAttribute('data-boss')) {
+      slots[i].classList.toggle('picked-b', bossRoleKey === key);
+      continue;
+    }
     var aOn = (pick.A || []).indexOf(key) >= 0;
     var bOn = (pick.B || []).indexOf(key) >= 0;
     slots[i].classList.toggle('picked-a', aOn);
@@ -874,12 +924,12 @@ function syncPick() {
     var card = team === 'A' ? el.cardA : el.cardB;
     var active = activeTeam === team;
 
-    // BOSS 模式：蓝方只有一个不可更换的 BOSS，不铺 5 个空格子
+    // BOSS 模式：蓝方只有一个 BOSS，不铺 5 个空格子
     if (bossMode && team === 'B') {
-      renderBossCard(card);
+      renderBossCard(card, active);
       var bbody = el.detailBodyB;
       if (bbody) bbody.innerHTML = bossDetailHtml();
-      if (el.detailB) el.detailB.classList.remove('active');
+      if (el.detailB) el.detailB.classList.toggle('active', active);
       if (el.detailA) el.detailA.classList.toggle('active', activeTeam === 'A');
       return;
     }
@@ -974,11 +1024,12 @@ function syncPick() {
   el.nameA.textContent = sideName('A');
   el.nameB.textContent = sideName('B');
 
-  // BOSS 模式：蓝方的随机按钮变成「切换」，用来循环可选 BOSS
+  // BOSS 模式：蓝方不使用「随机」，改由下方 BOSS 池选择
   if (el.diceB) {
     el.diceB.disabled = false;
-    el.diceB.textContent = bossMode ? '切换' : '随机';
-    el.diceB.title = bossMode ? ('切换 BOSS（当前：' + bossConfig().name + '）') : '随机蓝方阵容';
+    el.diceB.style.display = bossMode ? 'none' : '';
+    el.diceB.textContent = '随机';
+    el.diceB.title = '随机蓝方阵容';
   }
   if (el.btnRandom) {
     el.btnRandom.textContent = bossMode ? '随机红方' : '随机双方';
