@@ -22,14 +22,14 @@ var GRASS_SKILL = {
   radius: 200, healPct: 0.02, poisonPerSec: 1
 };
 var GRASS_ULT = { healPct: 0.05, hpGainPct: 0.10 };
-/* 中毒：每层每秒按施放者生命上限的 0.5% 结算，结算后消耗 1 层 */
-var GRASS_POISON = { pctPerStack: 0.005, interval: 1.0 };
+/* 中毒：每层每秒按施放者生命上限的 0.5% 结算，结算后消耗 1 层；最多叠 6 层 */
+var GRASS_POISON = { pctPerStack: 0.005, interval: 1.0, maxStacks: 6 };
 
 /* 叠中毒层数：记录施放者生命上限快照（与红石灼烧记录 burnAtk 同理），
    草的终结技提高上限后，新叠的层数会同步变强；旧层数保留叠层时的数值。 */
 function grassApplyPoison(v, src, n) {
   if (!v || !v.alive || !src || !(n > 0)) return;
-  v.poisonStacks = (v.poisonStacks || 0) + n;
+  v.poisonStacks = Math.min((v.poisonStacks || 0) + n, GRASS_POISON.maxStacks);
   v.poisonMhp = src.maxHp || 0;
   v.poisonSrc = src;
   if (!(v.poisonAcc > 0)) v.poisonAcc = GRASS_POISON.interval;

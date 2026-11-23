@@ -1397,7 +1397,6 @@ function openMenu() {
   el.btnPause.textContent = '暂停';
   el.btnSpeed.textContent = '速度 ×1';
   if (typeof hideResult === 'function') hideResult();
-  if (typeof hidePause === 'function') hidePause();
   activeTeam = 'A';
   activeSlot = 0;
 
@@ -1453,6 +1452,5 @@ function applyFightChrome() {
   el.btns.classList.remove('hidden');
   el.btnPause.textContent = '暂停';
   if (typeof hideResult === 'function') hideResult();
-  if (typeof hidePause === 'function') hidePause();
 }
 

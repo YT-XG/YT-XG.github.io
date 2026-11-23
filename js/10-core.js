@@ -372,11 +372,6 @@ var el = {
   ghostStart: document.getElementById('ghostStart'),
   ghostClose: document.getElementById('ghostClose'),
   dailyHint: document.getElementById('dailyHint'),
-  pause: document.getElementById('pause'),
-  pauseResume: document.getElementById('pauseResume'),
-  pauseRestart: document.getElementById('pauseRestart'),
-  pauseSound: document.getElementById('pauseSound'),
-  pauseHome: document.getElementById('pauseHome'),
   btnSound: document.getElementById('btnSound'),
   deskToast: document.getElementById('deskToast'),
   deskNames: document.getElementById('deskNames')

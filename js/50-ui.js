@@ -225,19 +225,14 @@ function showResult(winner, sub, by) {
 }
 
 /* ============================================================
-   暂停层
+   暂停（仅切换 paused 状态与顶部按钮文字，无遮挡卡片）
    ============================================================ */
-function hidePause() {
-  if (el.pause) el.pause.classList.remove('show');
-}
-
 function togglePause() {
   if (phase !== 'fight') return;
   // 后台赔率模拟期间不响应暂停：它自己已经把 paused 置为 true
   if (typeof oddsRunning !== 'undefined' && oddsRunning) return;
   paused = !paused;
   el.btnPause.textContent = paused ? '继续' : '暂停';
-  if (el.pause) el.pause.classList.toggle('show', paused);
 }
 
 function toggleSpeed() {
@@ -312,7 +307,6 @@ function sfxPlay(name) {
 function sfxSync() {
   var text = '音效 ' + (sfx.muted ? '关' : '开');
   if (el.btnSound) el.btnSound.textContent = text;
-  if (el.pauseSound) el.pauseSound.textContent = '音效：' + (sfx.muted ? '关' : '开');
 }
 
 function sfxToggle() {
@@ -408,11 +402,6 @@ if (el.ghostClose) el.ghostClose.addEventListener('click', function () {
   hideGhostInvite();
   clearGhostQuery();
 });
-
-if (el.pauseResume) el.pauseResume.addEventListener('click', togglePause);
-if (el.pauseRestart) el.pauseRestart.addEventListener('click', restartBattle);
-if (el.pauseSound) el.pauseSound.addEventListener('click', sfxToggle);
-if (el.pauseHome) el.pauseHome.addEventListener('click', openMenu);
 
 window.addEventListener('keydown', function (e) {
   if (e.code === 'KeyR') {
