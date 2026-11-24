@@ -86,6 +86,16 @@ var POOL = [
     units: ['bucket'],
     body: '#3f86a8',
     glow: '#7fd8ff'
+  },
+  {
+    key: 'gaga',
+    name: '咕咕嘎嘎',
+    short: '嘎嘎',
+    role: '吼叫 / 反震',
+    units: ['gaga'],
+    body: '#3a3f4a',
+    glow: '#ff9a5c',
+    img: 'assets/gaga.png'
   }
 ];
 var POOL_BY_KEY = {};

@@ -1319,38 +1319,116 @@ function drawBucketDrops() {
    · 外圈虚线 = 判定边界（核心区再画一圈细实线）
    · 剩余时间用一圈顺时针扇形表示；最后 0.6 秒转红并加亮
    ============================================================ */
+/* FX-A：落点预警圆模型接入点（普攻 / 小砧 / 巨砧共用，tier 区分尺寸与配色）
+   华丽层：汇聚光流（外圈 → 核心）+ 核心脉动辉光；巨砧再加旋转亮弧 + 环绕光点；
+   最后 0.6s 叠一圈向边界收缩的冲击预兆环。相位全部由 t 与落点坐标决定（不引随机数）；
+   判定可读性元素（虚线边界 / 核心细圈 / 时间扇形 / 十字准星）保持原样。 */
 function drawAnvilMarks() {
   for (var i = 0; i < anvilMarks.length; i++) {
     var m = anvilMarks[i];
     var k = 1 - m.t / m.max;                 // 0 → 1 预警进度
+    var big = m.tier === 'giant' || m.tier === 'ult';
+    var ult = m.tier === 'ult';
     var urgent = m.t < 0.6;
-    var tint = urgent ? '#ff8f7a' : (m.team === 'A' ? '#ffb4aa' : '#b9cdff');
+    var ph = m.x * 0.017 + m.y * 0.011;      // 确定性相位：不同落点不同步
+    // 巨砧固定走熔金 / 赤金警示色（不分阵营），普攻 / 砧雨保持阵营色
+    var tint = ult ? (urgent ? '#ff7a3d' : '#ffb066')
+      : m.tier === 'giant' ? (urgent ? '#ff9a5c' : '#ffd28a')
+      : urgent ? '#ff8f7a' : (m.team === 'A' ? '#ffb4aa' : '#b9cdff');
 
-    // 地面底色：脉动填充，越接近落地越明显
+    // 地面底色：脉动填充，越接近落地越明显（巨砧更亮）
     var g = ctx.createRadialGradient(m.x, m.y, m.r * 0.2, m.x, m.y, m.r);
-    g.addColorStop(0, rgba(tint, 0.16 + 0.10 * k));
+    g.addColorStop(0, rgba(tint, (big ? 0.24 : 0.16) + 0.10 * k));
     g.addColorStop(1, rgba(tint, 0.02));
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(m.x, m.y, m.r, 0, TAU);
     ctx.fill();
 
+    // 汇聚光流：光点拖短尾从外圈旋入核心，越接近落地越快越亮
+    var streams = big ? 8 : 5;
+    ctx.lineWidth = big ? 2 : 1.4;
+    for (var s = 0; s < streams; s++) {
+      var sa = s / streams * TAU + t * (ult ? 1.7 : 1.1) + ph;
+      var tv = (t * (0.8 + 0.7 * k) + s / streams + ph * 0.3) % 1;   // 0 外圈 → 1 核心
+      var sr = m.r * (1.04 - 0.8 * tv);
+      var tr = m.r * (1.04 - 0.8 * Math.max(0, tv - 0.16));
+      var cs = Math.cos(sa), sn = Math.sin(sa);
+      ctx.strokeStyle = rgba(tint, (0.12 + 0.4 * k) * (1 - tv * 0.45));
+      ctx.beginPath();
+      ctx.moveTo(m.x + cs * tr, m.y + sn * tr);
+      ctx.lineTo(m.x + cs * sr, m.y + sn * sr);
+      ctx.stroke();
+      ctx.fillStyle = rgba(tint, 0.3 + 0.45 * k);
+      ctx.beginPath();
+      ctx.arc(m.x + cs * sr, m.y + sn * sr, big ? 2.2 : 1.6, 0, TAU);
+      ctx.fill();
+    }
+
     // 外圈虚线（判定边界）
     ctx.save();
     ctx.setLineDash([10, 8]);
     ctx.lineDashOffset = -t * 46;
     ctx.strokeStyle = rgba(tint, 0.55 + 0.25 * k);
-    ctx.lineWidth = 2;
+    ctx.lineWidth = big ? 3 : 2;
     ctx.beginPath();
     ctx.arc(m.x, m.y, m.r, 0, TAU);
     ctx.stroke();
     ctx.restore();
 
+    // 巨砧专属：内层反向旋转符文短划 + 脉动辉光圈 + 旋转亮弧 + 环绕光点
+    if (big) {
+      var pu = 0.5 + 0.5 * Math.sin(t * 6 + ph);
+      ctx.save();
+      ctx.setLineDash([3, 9]);
+      ctx.lineDashOffset = t * 30;
+      ctx.strokeStyle = rgba(tint, 0.45 + 0.2 * pu);
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.r * 0.74, 0, TAU);
+      ctx.stroke();
+      ctx.restore();
+      ctx.strokeStyle = rgba(tint, 0.18 + 0.14 * pu);
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.r + 5 + pu * 3, 0, TAU);
+      ctx.stroke();
+      // 两道旋转亮弧：能量沿预警环流动
+      ctx.strokeStyle = rgba(tint, 0.45 + 0.3 * pu);
+      ctx.lineWidth = 2.4;
+      for (var a2 = 0; a2 < 2; a2++) {
+        var a0 = t * (ult ? 2.3 : 1.6) + a2 * Math.PI + ph;
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, m.r + 5 + pu * 3, a0, a0 + 0.9);
+        ctx.stroke();
+      }
+      // 环绕光点：沿符文环反向公转
+      var orbs = ult ? 4 : 3;
+      ctx.fillStyle = rgba(ult ? '#ffd9a0' : '#fff2d4', 0.45 + 0.35 * pu);
+      for (var ob = 0; ob < orbs; ob++) {
+        var oa = -t * 1.9 + ob / orbs * TAU + ph;
+        ctx.beginPath();
+        ctx.arc(m.x + Math.cos(oa) * m.r * 0.74, m.y + Math.sin(oa) * m.r * 0.74, 2.4, 0, TAU);
+        ctx.fill();
+      }
+    }
+
+    // 核心脉动辉光：能量向中心聚集，最后 0.6s 骤然增亮
+    var coreR = m.r * TYPES.anvil.anvil.coreRatio;
+    var pu2 = 0.5 + 0.5 * Math.sin(t * 7 + ph);
+    var cg = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, coreR);
+    cg.addColorStop(0, rgba(tint, (urgent ? 0.30 : 0.10) + 0.10 * k + 0.06 * pu2));
+    cg.addColorStop(1, rgba(tint, 0));
+    ctx.fillStyle = cg;
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, coreR, 0, TAU);
+    ctx.fill();
+
     // 核心区细圈（全额伤害范围）
     ctx.strokeStyle = rgba(tint, 0.30);
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(m.x, m.y, m.r * TYPES.anvil.anvil.coreRatio, 0, TAU);
+    ctx.arc(m.x, m.y, coreR, 0, TAU);
     ctx.stroke();
 
     // 剩余时间扇形：从 12 点顺时针收缩
@@ -1368,46 +1446,294 @@ function drawAnvilMarks() {
     ctx.moveTo(m.x - cr, m.y); ctx.lineTo(m.x + cr, m.y);
     ctx.moveTo(m.x, m.y - cr); ctx.lineTo(m.x, m.y + cr);
     ctx.stroke();
+
+    // 最后 0.6s：冲击预兆环从边界外向边界收缩，暗示「马上砸下来」
+    if (urgent) {
+      var uk = 1 - m.t / 0.6;
+      ctx.strokeStyle = rgba(tint, 0.55 * (1 - uk) + 0.15);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.r * (1.3 - 0.3 * uk), 0, TAU);
+      ctx.stroke();
+    }
+  }
+}
+
+/* 铁砧终结技「熔铁领域」：贴地熔金光池 + 地裂 + 旋转符文环 + 上升火星
+   数据挂在 u.st.forge（结算见 anvilForgeTick / updateAnvilForges），
+   本体阵亡后仍烧满 5s，所以这里不再用 u.alive 过滤；纯表现 */
+/* FX-H：熔铁领域的持续视觉模型接入点（光池 / 地裂 / 符文环 / 时间弧 / 火星） */
+function drawForgeZones() {
+  for (var i = 0; i < units.length; i++) {
+    var u = units[i];
+    var F = u.st && u.st.forge;
+    if (!F) continue;
+    var fade = Math.min(1, F.t / 0.8);       // 最后 0.8 秒淡出
+    var pulse = 0.5 + 0.5 * Math.sin(t * 5);
+
+    // 熔金光池
+    var g = ctx.createRadialGradient(F.x, F.y, F.r * 0.1, F.x, F.y, F.r);
+    g.addColorStop(0, 'rgba(255,150,70,' + ((0.26 + 0.08 * pulse) * fade).toFixed(3) + ')');
+    g.addColorStop(0.65, 'rgba(230,90,40,' + (0.14 * fade).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(200,70,30,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(F.x, F.y, F.r, 0, TAU);
+    ctx.fill();
+
+    // 地裂纹：8 条放射裂缝（角度由坐标决定，不引入随机数）
+    ctx.strokeStyle = 'rgba(255,170,90,' + ((0.30 + 0.15 * pulse) * fade).toFixed(3) + ')';
+    ctx.lineWidth = 1.6;
+    for (var c = 0; c < 8; c++) {
+      var a = c / 8 * TAU + F.x * 0.013;
+      var r1 = F.r * 0.22;
+      var r2 = F.r * (0.6 + 0.25 * Math.sin(c * 2.7 + F.y * 0.01));
+      var mid = (r1 + r2) * 0.55, bend = a + 0.22 * Math.sin(c * 1.9);
+      ctx.beginPath();
+      ctx.moveTo(F.x + Math.cos(a) * r1, F.y + Math.sin(a) * r1);
+      ctx.lineTo(F.x + Math.cos(bend) * mid, F.y + Math.sin(bend) * mid);
+      ctx.lineTo(F.x + Math.cos(a) * r2, F.y + Math.sin(a) * r2);
+      ctx.stroke();
+    }
+
+    // 熔岩气泡：3 个循环鼓起 / 破裂的气泡（相位由坐标决定）
+    for (var bb = 0; bb < 3; bb++) {
+      var bt = (t * 0.55 + bb / 3 + F.x * 0.007) % 1;
+      var ba = bb * 2.4 + F.y * 0.013;
+      var bx = F.x + Math.cos(ba) * F.r * 0.42;
+      var by = F.y + Math.sin(ba) * F.r * 0.3;
+      ctx.strokeStyle = 'rgba(255,200,130,' + ((1 - bt) * 0.5 * fade).toFixed(3) + ')';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(bx, by, 3 + bt * 14, 0, TAU);
+      ctx.stroke();
+    }
+
+    // 熔金涡流：两道反向旋转的亮弧，让光池「流动」起来
+    ctx.strokeStyle = 'rgba(255,190,110,' + (0.35 * fade).toFixed(3) + ')';
+    ctx.lineWidth = 2.2;
+    for (var va = 0; va < 2; va++) {
+      var v0 = t * (va ? -1.2 : 1.6) + va * Math.PI + F.x * 0.01;
+      ctx.beginPath();
+      ctx.arc(F.x, F.y, F.r * (0.48 + va * 0.14), v0, v0 + 1.4);
+      ctx.stroke();
+    }
+
+    // 边界实环 + 反向旋转符文短划
+    ctx.strokeStyle = 'rgba(255,176,102,' + (0.6 * fade).toFixed(3) + ')';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.arc(F.x, F.y, F.r, 0, TAU);
+    ctx.stroke();
+    ctx.save();
+    ctx.setLineDash([5, 11]);
+    ctx.lineDashOffset = -t * 34;
+    ctx.strokeStyle = 'rgba(255,220,160,' + (0.5 * fade).toFixed(3) + ')';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(F.x, F.y, F.r - 7, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+
+    // 旋转符文刻印：6 枚短划符文沿内缘公转（三角 / 交叉 / 十字三种字形）
+    ctx.strokeStyle = 'rgba(255,230,180,' + (0.55 * fade).toFixed(3) + ')';
+    ctx.lineWidth = 1.4;
+    for (var rg = 0; rg < 6; rg++) {
+      var ra = t * 0.5 + rg / 6 * TAU + F.y * 0.01;
+      ctx.save();
+      ctx.translate(F.x + Math.cos(ra) * (F.r - 16), F.y + Math.sin(ra) * (F.r - 16));
+      ctx.rotate(ra + Math.PI / 2);
+      ctx.beginPath();
+      if (rg % 3 === 0) { ctx.moveTo(-3, 4); ctx.lineTo(0, -4); ctx.lineTo(3, 4); }
+      else if (rg % 3 === 1) { ctx.moveTo(-3, -4); ctx.lineTo(3, 4); ctx.moveTo(3, -4); ctx.lineTo(-3, 4); }
+      else { ctx.moveTo(0, -4); ctx.lineTo(0, 4); ctx.moveTo(-3, 0); ctx.lineTo(3, 0); }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 剩余时间弧：从 12 点顺时针收缩
+    ctx.strokeStyle = 'rgba(255,236,200,' + (0.8 * fade).toFixed(3) + ')';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(F.x, F.y, F.r - 2, -Math.PI / 2, -Math.PI / 2 + TAU * (F.t / F.max));
+    ctx.stroke();
+
+    // 上升火星：7 个随 t 循环的光点 + 短尾迹（纯表现，不走粒子数组）
+    for (var d = 0; d < 7; d++) {
+      var ph = (t * 0.7 + d / 7) % 1;
+      var ea = d * 1.9 + F.x * 0.02;
+      var ex = F.x + Math.cos(ea) * F.r * (0.3 + 0.35 * ((d * 0.37) % 1));
+      var ey = F.y + Math.sin(ea) * F.r * 0.4 - ph * 52;
+      ctx.globalAlpha = (1 - ph) * 0.8 * fade;
+      ctx.fillStyle = d % 2 ? '#ffcf8a' : '#ff9a4d';
+      ctx.beginPath();
+      ctx.arc(ex, ey, 2.4 * (1 - ph * 0.4), 0, TAU);
+      ctx.fill();
+      // 短尾迹：往下拖一条渐淡细线
+      ctx.strokeStyle = d % 2 ? 'rgba(255,207,138,.4)' : 'rgba(255,154,77,.4)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(ex, ey + 2);
+      ctx.lineTo(ex, ey + 8 + ph * 6);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
 }
 
 /* 落下的铁砧：只在最后 0.55 秒出现，画在单位之上
    ------------------------------------------------------------
-   从上往下压近，同时地面阴影变大；落地瞬间由 updateAnvilMarks 生成冲击特效 */
+   从上往下压近，同时地面阴影变大；落地瞬间由 updateAnvilMarks 生成冲击特效。
+   砧体大小随落点半径缩放：天陨巨砧冷钢泛金，陨铁巨砧通体熔金 + 火焰尾迹 */
+/* FX-B：砧体下坠模型接入点（tier='giant' / 'ult' 走不同配色与尾迹）
+   华丽层：双层残影 + 下坠微摆 + 临落地能量池；天陨巨砧加冷钢彗尾，
+   陨铁巨砧加侧翼火舌 + 上飘火星。相位由 t 与坐标决定，纯表现不改结算。 */
 function drawAnvilDrops() {
+  // 残影用的简化砧体轮廓（只建路径，不落笔）
+  function anvilPath() {
+    ctx.beginPath();
+    ctx.moveTo(-38, -30); ctx.lineTo(38, -30);
+    ctx.lineTo(32, -12); ctx.lineTo(13, -12);
+    ctx.lineTo(13, 20); ctx.lineTo(30, 20);
+    ctx.lineTo(36, 34); ctx.lineTo(-36, 34);
+    ctx.lineTo(-30, 20); ctx.lineTo(-13, 20);
+    ctx.lineTo(-13, -12); ctx.lineTo(-32, -12);
+    ctx.closePath();
+  }
   for (var i = 0; i < anvilMarks.length; i++) {
     var m = anvilMarks[i];
     if (m.t > 0.55) continue;
     var p = m.t / 0.55;                      // 1 → 0（越接近 0 越低）
-    var dropY = m.y - 22 - p * 240;
-    var sc = 1 + p * 0.2;
+    var bs = m.r / 120;                      // 砧体随落点半径缩放
+    var dropY = m.y - 22 * bs - p * 240 * bs;
+    var sc = bs * (1 + p * 0.2);
+    var ult = m.tier === 'ult', giant = m.tier === 'giant';
+    var ph = m.x * 0.013 + m.y * 0.017;
 
     // 地面阴影
     ctx.globalAlpha = 0.22 + 0.2 * (1 - p);
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.ellipse(m.x, m.y + 6, 34 * (1.4 - p * 0.4), 12 * (1.4 - p * 0.4), 0, 0, TAU);
+    ctx.ellipse(m.x, m.y + 6, 34 * bs * (1.4 - p * 0.4), 12 * bs * (1.4 - p * 0.4), 0, 0, TAU);
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    // 下坠速度线
+    // 临落地能量池：砧体越接近地面，落点中心越亮（预热冲击感）
+    var ic = ult ? '255,150,70' : giant ? '170,200,255' : '200,215,235';
+    var ig = ctx.createRadialGradient(m.x, m.y, 2, m.x, m.y, m.r * 0.5);
+    ig.addColorStop(0, 'rgba(' + ic + ',' + (0.30 * (1 - p)).toFixed(3) + ')');
+    ig.addColorStop(1, 'rgba(' + ic + ',0)');
+    ctx.fillStyle = ig;
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.r * 0.5, 0, TAU);
+    ctx.fill();
+
+    // 巨砧下坠辉光：陨铁熔金 / 天陨冷钢蓝
+    if (ult || giant) {
+      var gc = ult ? '255,150,70' : '170,200,255';
+      var gl = ctx.createRadialGradient(m.x, dropY, 6, m.x, dropY, 90 * bs);
+      gl.addColorStop(0, 'rgba(' + gc + ',' + (0.30 * (1 - p * 0.5)).toFixed(3) + ')');
+      gl.addColorStop(1, 'rgba(' + gc + ',0)');
+      ctx.fillStyle = gl;
+      ctx.beginPath();
+      ctx.arc(m.x, dropY, 90 * bs, 0, TAU);
+      ctx.fill();
+    }
+
+    // 下坠速度线（陨铁再叠三角火焰尾迹 + 侧翼火舌，天陨叠冷钢彗尾）
     ctx.globalAlpha = 0.5 * (1 - p);
-    ctx.strokeStyle = '#dfe8f4';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = ult ? '#ffb066' : '#dfe8f4';
+    ctx.lineWidth = 2 * bs;
     for (var s = -1; s <= 1; s++) {
       ctx.beginPath();
-      ctx.moveTo(m.x + s * 14, dropY - 26);
-      ctx.lineTo(m.x + s * 14, dropY - 66 - p * 40);
+      ctx.moveTo(m.x + s * 14 * bs, dropY - 26 * bs);
+      ctx.lineTo(m.x + s * 14 * bs, dropY - (66 + p * 40) * bs);
       ctx.stroke();
+    }
+    if (ult) {
+      var tg = ctx.createLinearGradient(m.x, dropY - 160 * bs, m.x, dropY);
+      tg.addColorStop(0, 'rgba(255,120,50,0)');
+      tg.addColorStop(1, 'rgba(255,190,110,' + (0.55 * (1 - p * 0.4)).toFixed(3) + ')');
+      ctx.fillStyle = tg;
+      ctx.beginPath();
+      ctx.moveTo(m.x - 20 * bs, dropY - 20 * bs);
+      ctx.lineTo(m.x, dropY - 160 * bs);
+      ctx.lineTo(m.x + 20 * bs, dropY - 20 * bs);
+      ctx.closePath();
+      ctx.fill();
+      // 侧翼火舌：两道随 t 抖动的小火苗
+      var fl = 0.5 + 0.5 * Math.sin(t * 16 + ph);
+      ctx.fillStyle = 'rgba(255,170,90,' + (0.4 * (1 - p * 0.4) * (0.6 + 0.4 * fl)).toFixed(3) + ')';
+      for (var fs = -1; fs <= 1; fs += 2) {
+        ctx.beginPath();
+        ctx.moveTo(m.x + fs * 12 * bs, dropY - 16 * bs);
+        ctx.lineTo(m.x + fs * (26 + 6 * fl) * bs, dropY - (70 + 30 * fl) * bs);
+        ctx.lineTo(m.x + fs * 22 * bs, dropY - 14 * bs);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+    if (giant) {
+      var tg2 = ctx.createLinearGradient(m.x, dropY - 120 * bs, m.x, dropY);
+      tg2.addColorStop(0, 'rgba(150,190,255,0)');
+      tg2.addColorStop(1, 'rgba(200,225,255,' + (0.4 * (1 - p * 0.4)).toFixed(3) + ')');
+      ctx.fillStyle = tg2;
+      ctx.beginPath();
+      ctx.moveTo(m.x - 14 * bs, dropY - 18 * bs);
+      ctx.lineTo(m.x, dropY - 120 * bs);
+      ctx.lineTo(m.x + 14 * bs, dropY - 18 * bs);
+      ctx.closePath();
+      ctx.fill();
     }
     ctx.globalAlpha = 1;
 
-    // 铁砧本体（简化的三段剪影）
+    // 巨砧下坠能量点：陨铁 = 上飘火星，天陨 = 冷钢光屑
+    if (ult || giant) {
+      for (var sp = 0; sp < 5; sp++) {
+        var st2 = (t * 1.4 + sp / 5 + ph) % 1;
+        var sx2 = m.x + Math.sin(sp * 2.3 + ph) * 16 * bs;
+        var sy2 = dropY - 20 * bs - st2 * 120 * bs;
+        ctx.globalAlpha = (1 - st2) * 0.7;
+        ctx.fillStyle = ult ? (sp % 2 ? '#ffcf8a' : '#ff8f5a') : (sp % 2 ? '#e8f2ff' : '#9fc0ff');
+        ctx.beginPath();
+        ctx.arc(sx2, sy2, (ult ? 2.6 : 2) * bs * (1 - st2 * 0.5), 0, TAU);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // 双层残影：滞后在运动方向上方的渐淡剪影，强化下坠速度感
     ctx.save();
     ctx.translate(m.x, dropY);
     ctx.scale(sc, sc);
-    ctx.fillStyle = '#e6edf8';
-    ctx.strokeStyle = 'rgba(20,26,36,.6)';
+    ctx.fillStyle = ult ? '#ff9a4d' : giant ? '#cfe0ff' : '#aebdd4';
+    for (var gh = 1; gh <= 2; gh++) {
+      ctx.save();
+      ctx.translate(0, -gh * 26 * p);
+      ctx.globalAlpha = 0.16 * (1 - p * 0.5) / gh;
+      anvilPath();
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+
+    // 铁砧本体（简化的三段剪影，带轻微下坠摆动）
+    ctx.save();
+    ctx.translate(m.x, dropY);
+    ctx.rotate(Math.sin(t * 9 + ph) * 0.05 * p);
+    ctx.scale(sc, sc);
+    if (ult) {
+      var bg = ctx.createLinearGradient(0, -30, 0, 34);
+      bg.addColorStop(0, '#fff1cf');
+      bg.addColorStop(0.5, '#ff9a4d');
+      bg.addColorStop(1, '#8a3c1e');
+      ctx.fillStyle = bg;
+      ctx.strokeStyle = 'rgba(70,26,10,.7)';
+    } else {
+      ctx.fillStyle = giant ? '#f2f6ff' : '#e6edf8';
+      ctx.strokeStyle = giant ? 'rgba(96,84,44,.65)' : 'rgba(20,26,36,.6)';
+    }
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(-38, -30); ctx.lineTo(38, -30);
@@ -1419,6 +1745,15 @@ function drawAnvilDrops() {
     ctx.moveTo(-30, 20); ctx.lineTo(30, 20);
     ctx.lineTo(36, 34); ctx.lineTo(-36, 34);
     ctx.closePath(); ctx.fill(); ctx.stroke();
+    // 陨铁灼热裂纹：两道亮金裂缝
+    if (ult) {
+      ctx.strokeStyle = 'rgba(255,240,190,.9)';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(-18, -24); ctx.lineTo(-4, -14); ctx.lineTo(-10, 2);
+      ctx.moveTo(12, -22); ctx.lineTo(4, -8); ctx.lineTo(14, 8);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 }
@@ -1685,14 +2020,26 @@ function drawDog(u) {
 /* 铁砧：深铁灰方块 + 铁砧剪影（顶面宽、腰部收、底座宽） */
 function drawAnvil(u) {
   var r = u.r, x = u.x, y = u.y;
+  // 陨核引导 / 熔铁领域期间：本体转入灼热状态（熔金光晕 + 脉动环）
+  var charged = !!(u.st && (u.st.meteorN > 0 || u.st.forge));
+  var glowC = charged ? '#ff9a4d' : u.glow;
 
   var gl = ctx.createRadialGradient(x, y, r * 0.3, x, y, r * 2.4);
-  gl.addColorStop(0, rgba(u.glow, 0.3));
-  gl.addColorStop(1, rgba(u.glow, 0));
+  gl.addColorStop(0, rgba(glowC, charged ? 0.42 : 0.3));
+  gl.addColorStop(1, rgba(glowC, 0));
   ctx.fillStyle = gl;
   ctx.beginPath();
   ctx.arc(x, y, r * 2.4, 0, TAU);
   ctx.fill();
+
+  if (charged) {
+    var pu = 0.5 + 0.5 * Math.sin(t * 8);
+    ctx.strokeStyle = 'rgba(255,170,90,' + (0.35 + 0.3 * pu).toFixed(3) + ')';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 8 + pu * 3, 0, TAU);
+    ctx.stroke();
+  }
 
   var body = ctx.createLinearGradient(x - r, y - r, x + r, y + r);
   body.addColorStop(0, u.light);
@@ -1810,6 +2157,143 @@ function drawMilk(u) {
     ctx.lineWidth = 2;
     ctx.stroke();
   }
+}
+
+/* 像素咕咕嘎嘎：像素贴图本体 + 旋转 / 反震蓄力两层表现
+   ------------------------------------------------------------
+   · 贴图走 assets/gaga.png，绘制时关闭 imageSmoothing，保持像素块硬边
+   · 旋转期间贴图做横向翻折（原地打转的读感），叠加贴地旋涡与速度线
+   · 蓄力期间画收缩金环 + 进度刻度，刻度满即反震 */
+function drawGaga(u) {
+  var r = u.r, x = u.x, y = u.y;
+  var S = u.st || {};
+  var spinning = S.spinT > 0;
+  var charging = S.chargeT > 0;
+
+  // 底光
+  var gl = ctx.createRadialGradient(x, y, r * 0.3, x, y, r * 2.4);
+  gl.addColorStop(0, rgba(u.glow, 0.24));
+  gl.addColorStop(1, rgba(u.glow, 0));
+  ctx.fillStyle = gl;
+  ctx.beginPath();
+  ctx.arc(x, y, r * 2.4, 0, TAU);
+  ctx.fill();
+
+  // 旋转：贴地旋涡 + 扫击半径提示 + 速度线
+  if (spinning) {
+    var kk = clamp(S.spinT / GAGA_SPIN.dur, 0, 1);
+    ctx.save();
+    ctx.translate(x, y + r * 0.72);
+    ctx.scale(1, 0.4);
+    for (var i = 0; i < 3; i++) {
+      var ph = (t * 1.6 + i / 3) % 1;
+      ctx.globalAlpha = 0.5 * (1 - ph) * (0.45 + 0.55 * kk);
+      ctx.strokeStyle = i === 1 ? '#fff1cf' : '#ffb066';
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * (0.7 + ph * 1.6),
+        S.spinAng * 0.9 + i * 2.1, S.spinAng * 0.9 + i * 2.1 + Math.PI * 1.15);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+
+    // 贴身扫击环（旋转本身没有范围伤害，这里只做「转着走」的读感）
+    ctx.strokeStyle = 'rgba(255,176,102,.3)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 12, 0, TAU);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,241,207,.5)';
+    ctx.lineWidth = 2;
+    for (var s = 0; s < 6; s++) {
+      var a2 = S.spinAng + s * TAU / 6;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a2) * (r + 10), y + Math.sin(a2) * (r + 10));
+      ctx.lineTo(x + Math.cos(a2) * (r + 26), y + Math.sin(a2) * (r + 26));
+      ctx.stroke();
+    }
+  }
+
+  // 反震蓄力：内外两层收缩环 + 进度刻度
+  if (charging) {
+    var pk = clamp(1 - S.chargeT / GAGA_ULT.charge, 0, 1);
+    var pl = 0.55 + 0.45 * Math.sin(t * 9);
+    ctx.strokeStyle = 'rgba(255,154,92,' + (0.45 + 0.4 * pl).toFixed(3) + ')';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 16 + 48 * (1 - pk), 0, TAU);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,214,102,.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 8 + 18 * (1 - pk), 0, TAU);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ffe9b0';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 30, -Math.PI / 2, -Math.PI / 2 + TAU * pk);
+    ctx.stroke();
+  }
+
+  // 本体贴图（本地资源）：高度等比适配；朝左时水平翻转
+  if (GAGA_SPRITE.ok) {
+    var im = GAGA_SPRITE.img;
+    var iw = im.naturalWidth, ih = im.naturalHeight;
+    var maxH = r * 3.0, maxW = r * 3.2;
+    var sc = maxH / ih;
+    if (iw * sc > maxW) sc = maxW / iw;
+    var dw = iw * sc, dh = ih * sc;
+    ctx.save();
+    ctx.translate(x, y + r * 0.22);
+    ctx.imageSmoothingEnabled = false;   // 像素贴图不糊
+    var flip = Math.cos(u.ang) < 0 ? -1 : 1;
+    if (spinning) {
+      // 原地高速旋转：横向翻折 + 轻微纵向抖动，读成「打转」
+      var sw = Math.cos(S.spinAng * 1.7);
+      ctx.scale(flip * (0.3 + 0.7 * Math.abs(sw)), 1 + 0.06 * Math.sin(S.spinAng * 3.4));
+    } else if (charging) {
+      var br = 0.92 + 0.08 * Math.sin(t * 22);
+      ctx.scale(flip * br, br);
+    } else {
+      ctx.scale(flip, 1);
+    }
+    ctx.drawImage(im, -dw / 2, -dh * 0.82, dw, dh);
+    ctx.restore();
+  } else {
+    // 贴图未就绪 / 加载失败：纯色剪影兜底
+    ctx.fillStyle = u.body;
+    roundRect(x - r, y - r * 0.9, r * 2, r * 1.8, r * 0.42);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(90,64,38,.45)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#f6f1e6';
+    ctx.beginPath();
+    ctx.ellipse(x, y + r * 0.16, r * 0.6, r * 0.72, 0, 0, TAU);
+    ctx.fill();
+  }
+}
+
+/* 咕咕嘎嘎的口水：黄绿色水滴，旋转 + 渐隐；与箭矢同层（单位之后绘制） */
+function drawGagaDrops() {
+  for (var i = 0; i < gagaDrops.length; i++) {
+    var d = gagaDrops[i];
+    var k = clamp(d.life / d.max, 0, 1);
+    ctx.globalAlpha = 0.35 + 0.6 * k;
+    ctx.fillStyle = '#eaf58f';
+    ctx.beginPath();
+    ctx.ellipse(d.x, d.y, d.r * 1.15, d.r * 0.85, d.spin, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,240,.75)';
+    ctx.beginPath();
+    ctx.arc(d.x - Math.cos(d.spin) * 2.4, d.y - Math.sin(d.spin) * 2.4, d.r * 0.32, 0, TAU);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 }
 
 /* 野生狗奶的「全域流失」连线：从引导者拉向每个敌人 / 敌方种子
@@ -2847,6 +3331,7 @@ function render() {
   drawSurfWaves();    // 大浪淘领域：全场地潮汐 + 浪带 + 抬起的巨浪（贴地）
   drawSeeds();        // 草的种子也贴地
   drawGrassAuras();   // 草「生辉」光环（贴地，压在单位之下）
+  drawForgeZones();   // 铁砧「熔铁领域」（贴地，压在预警圆之下）
   drawAnvilMarks();   // 铁砧落点预警圆（贴地）
   drawSpearGroundFx(); // 长矛地裂（贴地，压在单位之下）
 
@@ -2854,6 +3339,7 @@ function render() {
   drawBombs();
   drawFx();
   drawArrows();
+  drawGagaDrops();
   drawBucketDrops();  // 水桶的水滴飞行物
   drawMilkLinks();    // 野生狗奶领域期间的全域流失连线（贴地，压在单位之下）
 

@@ -28,6 +28,7 @@ function speedOf(u) {
   var BT = TYPES[u.key];
   if (BT && BT.bossLock && u.hp <= (BALANCE.boss.lockHp == null ? 1 : BALANCE.boss.lockHp) + 0.05) return 0;
   if (u.st.milkT > 0) return 0;   // 野生狗奶引导中：原地站桩（不改朝向）
+  if (isGagaPinned(u)) return 0;  // 咕咕嘎嘎：反震蓄力期间原地站桩（旋转已改为沿原方向移动）
   if (u.bindT > 0) return 0;      // 被藤蔓捆绑：定身（只停速度，不改朝向）
   var sp;
   if (u.st.rage) {
@@ -42,6 +43,9 @@ function speedOf(u) {
   } else {
     sp = u.dashT > 0 ? u.dashSpeed : u.baseSpeed;
   }
+  /* 咕咕嘎嘎的技能「咕咕」：旋转期间移速倍率（物品私有状态，其他角色没有这个字段）。
+     只放大速度大小，不改 u.ang，方向仍只由撞墙 / 技能改变。 */
+  if (u.st && u.st.spinSpeedMul > 0) sp *= u.st.spinSpeedMul;
   // 附魔移速（青金石 4 号附魔）：叠加式乘区，只放大常速与冲刺，不改变直线运动规则
   if (u.st && u.st.speedAdd) sp *= 1 + u.st.speedAdd;
   // 场地食物 / 恶劣环境：只改速度大小，不改 u.ang（与冰面 / 水面同一口径）
@@ -112,7 +116,7 @@ var seeds = [], vines = [], reviveQueue = [];
 // 冰面数量上限：防止长时间对局铺满场地掉帧（存活期 6s × 落点频率，正常远低于此值）
 var ICE_PATCH_MAX = 120;
 var WATER_MAX = 6;             // 狂浪上限：CD 10s、浪面寿命 7s，单角色最多 1 滩，多角色也不会铺满
-var ANVIL_MARK_MAX = 48;       // 落点圆上限：八连铁砧 + 分身同时出手时也不会挤掉落点
+var ANVIL_MARK_MAX = 48;       // 落点圆上限：多个铁砧同时放砧雨 / 陨核天裁时也不会挤掉落点
 var SEED_MAX = 6;              // 全场合计种子上限，超出删最早的
 var REVIVE_DELAY = 1.0;        // 草在种子上复活的吟唱时间（秒）
 var t = 0, roundTime = 180, phase = 'menu', winner = null;
@@ -545,6 +549,7 @@ function reset() {
   waters = [];
   anvilMarks = [];
   seeds = []; vines = []; reviveQueue = [];
+  if (typeof gagaDrops !== 'undefined') gagaDrops = [];   // 咕咕嘎嘎的口水（items/gaga.js）
   if (typeof stormBolts !== 'undefined') { stormBolts = []; stormChains = []; stormFlash = 0; }
   resetArena();   // 场地恢复到初始宽度
   if (typeof resetField === 'function') resetField();   // 随机食物 / 危险区域 / 天气计时

@@ -146,7 +146,7 @@ paused = false;
 function __bossMatch(keys, seed, dur) {
   units = []; particles = []; rings = []; floaters = []; bombs = []; arrows = [];
   icePatches = []; ultBeams = []; waters = []; anvilMarks = [];
-  seeds = []; vines = []; reviveQueue = [];
+  seeds = []; vines = []; reviveQueue = []; gagaDrops = [];
 
   bossMode = true;
   bossRoleKey = __bossKey;

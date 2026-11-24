@@ -152,7 +152,7 @@ paused = false;
 function __simMatch(ka, kb, seed, dur) {
   units = []; particles = []; rings = []; floaters = []; bombs = []; arrows = [];
   icePatches = []; ultBeams = []; waters = []; anvilMarks = [];
-  seeds = []; vines = []; reviveQueue = [];
+  seeds = []; vines = []; reviveQueue = []; gagaDrops = [];
   resetArena();
   t = 0; roundTime = dur; winner = null;
   suddenDeath = false; deathAcc = 0; suddenStart = 0;
@@ -187,7 +187,7 @@ function __simMatch(ka, kb, seed, dur) {
 function __simProbe(ka, kb, seed, dur, every) {
   units = []; particles = []; rings = []; floaters = []; bombs = []; arrows = [];
   icePatches = []; ultBeams = []; waters = []; anvilMarks = [];
-  seeds = []; vines = []; reviveQueue = [];
+  seeds = []; vines = []; reviveQueue = []; gagaDrops = [];
   resetArena();
   t = 0; roundTime = dur; winner = null;
   suddenDeath = false; deathAcc = 0; suddenStart = 0;

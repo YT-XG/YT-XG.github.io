@@ -155,7 +155,7 @@ paused = false;
 function __sim2v2Init(a, b, seed, dur, dt) {
   units = []; particles = []; rings = []; floaters = []; bombs = []; arrows = [];
   icePatches = []; ultBeams = []; waters = []; anvilMarks = [];
-  seeds = []; vines = []; reviveQueue = [];
+  seeds = []; vines = []; reviveQueue = []; gagaDrops = [];
   // 先写阵容再复位场地：arenaStartBox() 按 pickUnitCount() 决定开局尺寸
   pick = { A: a.slice(0, 2), B: b.slice(0, 2) };
   teamSize = 2;

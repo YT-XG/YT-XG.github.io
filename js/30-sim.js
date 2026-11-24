@@ -85,8 +85,9 @@ function hurt(u, amount, src, opt) {
   /* multi：多段激光的每一段都单独飘字（不合并、不播命中音效），用于大狗终结技 */
   var multi = !!(opt && opt.multi);
   /* 新数值体系（红青组合）标记 calibrated：伤害已按 2000 HP 口径校准，
-     不再乘 dmgScale；旧角色没有这个标记，行为完全不变。 */
-  var cal = !!(src && TYPES[src.key] && TYPES[src.key].calibrated);
+     不再乘 dmgScale；旧角色没有这个标记，行为完全不变。
+     opt.cal：自伤 / 反噬这类没有施放者的伤害，也能声明「已校准」。 */
+  var cal = !!(src && TYPES[src.key] && TYPES[src.key].calibrated) || !!(opt && opt.cal);
   /* 虚弱（终末震荡）：出手方 10 秒内普攻 / 技能 / 终结技伤害 -20% */
   if (src && src.weakT > 0) amount *= (src.weakMul || 0.8);
   /* 场地食物：攻击增益只放大非百分比伤害（与 1v1 solo.dmgMul 同口径） */
@@ -101,6 +102,14 @@ function hurt(u, amount, src, opt) {
   if (opt && opt.basic && u.st && u.st.rage && u.st.rage.phase === 'rage') {
     var RT = TYPES[u.key];
     if (RT && RT.rage && RT.rage.basicTakenMul != null) amount *= RT.rage.basicTakenMul;
+  }
+  /* 物品自身的分类承伤减免（咕咕嘎嘎：技能 -10% / 终结技 -20%）。
+     只按伤害分类标记生效，普攻与 DoT 不减免；与脆弱的 +20% 是两个独立乘区。
+     opt.self（自伤 / 反噬）不吃自己的减免，避免「反噬越打越轻」。 */
+  var DTR = TYPES[u.key] && TYPES[u.key].takenReduce;
+  if (DTR && opt && !opt.self) {
+    if (opt.skill && DTR.skill) amount *= 1 - DTR.skill;
+    if (opt.ult && DTR.ult) amount *= 1 - DTR.ult;
   }
   /* 防御减伤：比值式 DEF/(DEF+defK)，边际递减、永远不为负。def=0 的旧角色跳过。 */
   if (u.def > 0) amount *= BALANCE.defK / (BALANCE.defK + u.def);
@@ -143,6 +152,14 @@ function hurt(u, amount, src, opt) {
   // 羁绊狂暴前的 3 秒：原地无敌
   if (u.st.rage && u.st.rage.phase === 'shake') {
     if (!periodic && !multi) floater(u.x, u.y - u.r - 14, '无敌', '#ffe08a', 12);
+    return;
+  }
+
+  /* 物品自身的「完全吸收」（咕咕嘎嘎：终结技蓄力 / 被控期间）：
+     返回 true 表示这一下完全不掉血，吸收量由物品自己记账（不进 u.taken）。 */
+  var ABS = TYPES[u.key];
+  if (ABS && ABS.onAbsorb && ABS.onAbsorb(u, amount, src, opt)) {
+    if (!periodic && !multi) floater(u.x, u.y - u.r - 12, '吸收 ' + Math.round(amount), '#ffd166', 12);
     return;
   }
 
@@ -541,8 +558,10 @@ function interruptMilk(u) {
    · 伤害统一走 hurt()（护盾可吸收 / 无敌抖动免疫），与炸弹一致
    · 不推人、不改 ang，只做伤害与表现，符合匀速直线运动红线
    ============================================================ */
-// cfg 可选：{ r, delay, dmg, energy, bindChance, bindTime }
-// 普攻 / 技能 / 分身可以各用一套落点参数
+// cfg 可选：{ r, delay, dmg, energy, bindChance, bindTime, tier, forge }
+// 普攻 / 技能 / 终结技可以各用一套落点参数
+// tier：'' 普攻 | 'rain' 砧雨小砧 | 'giant' 天陨巨砧 | 'ult' 陨铁巨砧（决定砸落特效档位）
+// forge：{ r, life } 砸落处展开熔铁领域（写在 owner.st.forge，逻辑见 updateAnvilForges）
 function spawnAnvilMark(owner, x, y, cfg) {
   var C = TYPES.anvil.anvil;
   var r = (cfg && cfg.r) || C.markR;
@@ -554,6 +573,8 @@ function spawnAnvilMark(owner, x, y, cfg) {
     basic: !!(cfg && cfg.basic),
     skill: !!(cfg && cfg.skill),
     ult: !!(cfg && cfg.ult),
+    tier: (cfg && cfg.tier) || '',
+    forge: (cfg && cfg.forge) || null,
     energy: (cfg && cfg.energy) || 0,
     bindChance: (cfg && cfg.bindChance) || 0,
     bindTime: (cfg && cfg.bindTime) || 0,
@@ -572,13 +593,56 @@ function updateAnvilMarks(dt) {
     if (m.t > 0) continue;
     anvilMarks.splice(i, 1);
 
-    // 砸落表现：地面冲击环 + 碎石粒子（不改变任何单位的位置/朝向）
-    ring(m.x, m.y, 10, m.r, 0.5, '#cfd9e8');
-    ring(m.x, m.y, 5, m.r * 0.6, 0.3, '#ffffff');
-    burst(m.x, m.y, 26, '#dfe8f4', 330);
-    // 2026-11-22 用户口径：落砧的震感减弱（八连时不再叠到满屏晃）
-    shake = Math.min(6, shake + 1.6);
-    hitStop = Math.max(hitStop, 0.03);
+    // 砸落表现按落点档位分级（不改变任何单位的位置/朝向）
+    // 普攻 / 砧雨保持轻震（2026-11-22 用户口径：八连时不再叠到满屏晃）；
+    // 天陨巨砧 / 陨铁巨砧是低频重击，允许更强的冲击环、粒子与震屏
+    if (m.tier === 'ult') {
+      /* FX-E：陨铁巨砧命中（外圈冲击波 + 熔金三环 + 白闪 / 三 burst / 强震屏 / 顿帧） */
+      ring(m.x, m.y, 18, m.r * 1.6, 0.75, '#ff9a4d');
+      ring(m.x, m.y, 12, m.r * 1.25, 0.6, '#ff9a4d');
+      ring(m.x, m.y, 8, m.r * 0.85, 0.45, '#ffd9a0');
+      ring(m.x, m.y, 4, m.r * 0.45, 0.28, '#fff6e0');
+      ring(m.x, m.y, 2, m.r * 0.25, 0.16, '#ffffff');
+      burst(m.x, m.y, 34, '#ffc06b', 420);
+      burst(m.x, m.y, 14, '#ff7a3d', 300);
+      burst(m.x, m.y, 10, '#fff1cf', 360);
+      shake = Math.min(9, shake + 4.5);
+      hitStop = Math.max(hitStop, 0.07);
+    } else if (m.tier === 'giant') {
+      /* FX-D：天陨巨砧命中（冷钢蓝冲击波 / 金环 / 白闪 / 震屏） */
+      ring(m.x, m.y, 16, m.r * 1.5, 0.7, '#9fc0ff');
+      ring(m.x, m.y, 12, m.r * 1.2, 0.55, '#cfe0ff');
+      ring(m.x, m.y, 8, m.r * 0.8, 0.4, '#ffd28a');
+      ring(m.x, m.y, 4, m.r * 0.4, 0.26, '#ffffff');
+      burst(m.x, m.y, 30, '#e8f2ff', 390);
+      burst(m.x, m.y, 10, '#9fc0ff', 260);
+      burst(m.x, m.y, 8, '#ffd28a', 240);
+      shake = Math.min(8, shake + 3.5);
+      hitStop = Math.max(hitStop, 0.05);
+    } else {
+      /* FX-C：普攻 / 砧雨小砧命中（轻冲击环 + 白闪 + 钢火粒子 + 轻震屏） */
+      ring(m.x, m.y, 10, m.r, 0.5, '#cfd9e8');
+      ring(m.x, m.y, 5, m.r * 0.6, 0.3, '#ffffff');
+      ring(m.x, m.y, 2, m.r * 0.3, 0.18, '#fff6e0');
+      burst(m.x, m.y, 26, '#dfe8f4', 330);
+      burst(m.x, m.y, 8, '#ffd9a0', 220);
+      shake = Math.min(6, shake + 1.6);
+      hitStop = Math.max(hitStop, 0.03);
+    }
+
+    // 陨铁巨砧附带熔铁领域：落地即展开，之后由 updateAnvilForges 全局推进；
+    // 本体阵亡也不会提前消失（acc 从 0 起，落地当帧结算首跳）
+    if (m.forge && m.owner && m.owner.st) {
+      m.owner.st.forge = {
+        x: m.x, y: m.y, r: m.forge.r,
+        t: m.forge.life, max: m.forge.life, acc: 0
+      };
+      /* FX-H：领域展开的登场双环 / 火星 / 飘字（持续视觉见 40-render drawForgeZones） */
+      ring(m.x, m.y, 20, m.forge.r, 0.6, '#ffb066');
+      ring(m.x, m.y, 8, m.forge.r * 0.55, 0.4, '#ffd9a0');
+      burst(m.x, m.y, 16, '#ffc06b', 260);
+      floater(m.x, m.y - 44, '熔铁领域', '#ffc46b', 13);
+    }
 
     // 圆内敌人：最近的一个承受全额，其余只吃 splashMul（避免一次落点同时清场）
     // 伤害优先读该落点自己的 dmg（普攻 / 技能 / 终结技各不相同）
@@ -610,7 +674,10 @@ function updateAnvilMarks(dt) {
         if (!bv.alive || bv.boss) continue;
         if (srand(0, 1) >= m.bindChance) continue;
         bv.bindT = Math.max(bv.bindT || 0, m.bindTime);
+        /* FX-F：定身命中（双环 + 冰蓝光屑 + 飘字；第 4 颗小砧的必定身也走这里） */
         ring(bv.x, bv.y, bv.r, bv.r + 28, 0.3, '#cfe0ff');
+        ring(bv.x, bv.y, bv.r * 0.5, bv.r + 14, 0.22, '#ffffff');
+        burst(bv.x, bv.y, 8, '#cfe0ff', 180);
         floater(bv.x, bv.y - bv.r - 16, '定身 ' + m.bindTime + 's', '#cfe0ff', 12);
       }
     }
@@ -1672,8 +1739,8 @@ function collide() {
 
       if (!pass) {
         // 无敌抖动 / 野生狗奶引导 / 大狗终结技引导 / BOSS：原地不动，只推另一方
-        var aFixed = isShaking(a) || isMilkChannel(a) || isDogChannel(a) || (a.boss && !b.boss);
-        var bFixed = isShaking(b) || isMilkChannel(b) || isDogChannel(b) || (b.boss && !a.boss);
+        var aFixed = isShaking(a) || isMilkChannel(a) || isDogChannel(a) || isGagaPinned(a) || (a.boss && !b.boss);
+        var bFixed = isShaking(b) || isMilkChannel(b) || isDogChannel(b) || isGagaPinned(b) || (b.boss && !a.boss);
         if (!aFixed) {
           var ka = bFixed ? 1 : 0.5;
           a.x -= nx * overlap * ka;
@@ -1700,8 +1767,8 @@ function collide() {
       if (!pass) {
         // 等质量弹性碰撞：交换法线方向的速度分量，大小各自保持不变。
         // 引导中的野生狗奶视为"不可推动的桩"，只反弹对方，自己不改朝向。
-        if (!isMilkChannel(a) && !isDogChannel(a)) a.ang = Math.atan2(vay + rel * ny, vax + rel * nx);
-        if (!isMilkChannel(b) && !isDogChannel(b)) b.ang = Math.atan2(vby - rel * ny, vbx - rel * nx);
+        if (!isMilkChannel(a) && !isDogChannel(a) && !isGagaPinned(a)) a.ang = Math.atan2(vay + rel * ny, vax + rel * nx);
+        if (!isMilkChannel(b) && !isDogChannel(b) && !isGagaPinned(b)) b.ang = Math.atan2(vby - rel * ny, vbx - rel * nx);
       }
 
       var impact = -rel;
@@ -2055,7 +2122,9 @@ function tick(dt) {
   collide();
   updateBombs(dt);
   updateAnvilMarks(dt);
+  if (typeof updateAnvilForges === 'function') updateAnvilForges(dt);   // 熔铁领域：本体阵亡后仍烧满 5s
   updateArrows(dt);
+  updateGagaDrops(dt);   // 咕咕嘎嘎的口水（飞行物，见 items/gaga.js）
   updateIcePatches(dt);
   updateSeeds(dt);
   updateVines(dt);

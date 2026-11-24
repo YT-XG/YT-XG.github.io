@@ -2526,3 +2526,6 @@ h1 em{font-size:11px;letter-spacing:.04em;color:#6f7d93;margin-left:12px;}
 /* BOSS 模式：选人页不显示预测胜率与赛制（第 98 条） */
 body.boss-mode .pick-odds,
 body.boss-mode .series-pick{display:none;}
+
+/* 像素贴图（咕咕嘎嘎）：选人卡 / 阵容格 / 图鉴里保持硬边，不要被平滑糊掉 */
+img[src*="gaga.png"]{image-rendering:pixelated;}

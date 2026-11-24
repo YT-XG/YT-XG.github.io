@@ -73,6 +73,8 @@ function rosterStatus(u) {
   if (u.st && u.st.rage) return u.st.rage.phase === 'shake' ? '抖' : '狂';
   if (u.boss && TYPES[u.key] && TYPES[u.key].bossLock && u.hp <= 1.05) return '锁';
   if (u.st && u.st.milkT > 0) return '域';
+  if (u.st && u.st.spinT > 0) return '旋';
+  if (u.st && u.st.chargeT > 0) return '吸';
   if (u.bindT > 0) return '定';
   if (u.poisonStacks > 0) return '毒';
   if (u.drownStacks > 0) return '溺';
