@@ -5,6 +5,8 @@
    ============================================================ */
 'use strict';
 
+var damageTagWarned = false;   // 首条未分类伤害只告警一次，避免刷屏
+
 /* ============================================================
    特效
    ------------------------------------------------------------
@@ -60,8 +62,14 @@ function gainEnergy(u, amt) {
    ============================================================ */
 /* 伤害统一入口
    ------------------------------------------------------------
-   · opt = { pct: 1 }  —— 按目标最大生命算的百分比伤害，不乘全局倍率
-   · opt = { dot: 1 }  —— 持续伤害（冰面 / 中毒 / 浸水 / 狗奶引导）：
+   · 伤害分类（所有实际伤害必须至少携带一种）：
+     opt = { basic: 1 }  普攻伤害
+     opt = { skill: 1 }  技能伤害
+     opt = { ult: 1 }    终结技伤害
+     opt = { dot: 1 }    持续伤害
+     分类标记回答“伤害从哪来”；同一段伤害可同时是技能 + dot。
+   · opt = { pct: 1 }  —— 按最大生命计算的百分比伤害，不乘全局倍率 / 食物攻击
+   · opt = { periodic: 1 } —— 周期跳伤（冰面 / 中毒 / 浸水 / 狗奶引导）：
                         不播音效、不爆粒子、不逐跳飘字，改为每满 1 秒汇总一条小飘字
    · opt = { multi: 1 } —— 多段激光（大狗终结技）：每段单独飘字、不合并、不播命中音效
    · 其余（撞击 / 箭矢 / 落点 / 炸弹 / 终结技 / 种子被撞）都走绝对值口径，
@@ -69,6 +77,11 @@ function gainEnergy(u, amt) {
 function hurt(u, amount, src, opt) {
   var pct = !!(opt && opt.pct);
   var dot = !!(opt && opt.dot);
+  var periodic = !!(opt && opt.periodic);
+  if (amount > 0 && !(opt && (opt.basic || opt.skill || opt.ult || opt.dot)) && !damageTagWarned) {
+    damageTagWarned = true;
+    if (typeof console !== 'undefined') console.warn('[hurt] 未分类伤害：所有实际伤害必须带 basic / skill / ult / dot');
+  }
   /* multi：多段激光的每一段都单独飘字（不合并、不播命中音效），用于大狗终结技 */
   var multi = !!(opt && opt.multi);
   /* 新数值体系（红青组合）标记 calibrated：伤害已按 2000 HP 口径校准，
@@ -95,14 +108,8 @@ function hurt(u, amount, src, opt) {
   // 百分比伤害（狗奶 / 缺氧 / 决杀）不缩放，避免二次放大
   if (!pct && src && soloMode()) amount *= (BALANCE.solo.dmgMul[src.key] || 1);
   if (pct && src && soloMode()) amount *= (BALANCE.solo.pctMul[src.key] || 1);
-  /* BOSS 出手的整体倍率：挑战者不做任何血量加成（沿用常规数值），
-     对局时长完全靠压低 BOSS 输出来换，新增角色时无需再补数值。
-     已标记 calibrated 的 BOSS（新体系）数值已在自身配置里算好，不再走这层。 */
-  if (!pct && src && src.boss && bossMode && BALANCE.boss.dmgMul &&
-      !(TYPES[src.key] && TYPES[src.key].calibrated)) amount *= BALANCE.boss.dmgMul;
-  /* 新体系 BOSS（calibrated）：技能系数按设定写死，出手强度用独立旋钮整体缩放 */
-  if (!pct && src && src.boss && bossMode && BALANCE.boss.calibratedDmgMul &&
-      (TYPES[src.key] && TYPES[src.key].calibrated)) amount *= BALANCE.boss.calibratedDmgMul;
+  /* BOSS 出手不做额外难度缩放：技能系数就是最终数值。
+     仅保留挑战者侧与全局伤害口径，不再存在 BOSS 总出手倍率。 */
   if (!pct && !cal) amount *= BALANCE.dmgScale;
   /* BOSS 硬壳：非百分比伤害再乘一层 dmgTakeMul。
      8 倍血量的 BOSS 如果按常规 DPS 结算，5 个玩家 35 秒就能把它打到合体；
@@ -118,14 +125,14 @@ function hurt(u, amount, src, opt) {
   if (u.st && u.st.mergeFill > 0) return;
   if (u.st && u.st.phaseShift > 0) return;   // 双血 BOSS 转阶段：锁血演出期间免伤
   if (bossMergeAct && (bossMergeAct.a === u || bossMergeAct.b === u)) return;
-  if (!dot && !multi && typeof sfxPlay === 'function') sfxPlay('hit');
+  if (!periodic && !multi && typeof sfxPlay === 'function') sfxPlay('hit');
 
   // 野生狗奶：领域期间受击先扣「打断护盾」（500 点）；护盾存在时不掉血，打空立即中断
   if (u.st && u.st.milkT > 0) {
     var absorbed = Math.min(u.st.shield, amount);
     u.st.shield -= absorbed;
-    u.taken += amount;       // 承伤统计照常累加（含被护盾吸收的部分）
-    if (!dot && !multi) {
+    u.taken += absorbed;     // 只记录真正被护盾吸收的部分；超出护盾的溢出不会落到 HP，也不计入承伤
+    if (!periodic && !multi) {
       floater(u.x, u.y - u.r - 12, '护盾 ' + Math.ceil(Math.max(0, u.st.shield)), '#93b6ff', 12);
       ring(u.x, u.y, u.r + 4, u.r + 30, 0.2, '#93b6ff');
     }
@@ -135,7 +142,7 @@ function hurt(u, amount, src, opt) {
 
   // 羁绊狂暴前的 3 秒：原地无敌
   if (u.st.rage && u.st.rage.phase === 'shake') {
-    if (!dot && !multi) floater(u.x, u.y - u.r - 14, '无敌', '#ffe08a', 12);
+    if (!periodic && !multi) floater(u.x, u.y - u.r - 14, '无敌', '#ffe08a', 12);
     return;
   }
 
@@ -146,7 +153,7 @@ function hurt(u, amount, src, opt) {
     var absorbed2 = Math.min(u.st.shield, amount);
     u.st.shield -= absorbed2;
     amount -= absorbed2;
-    if (absorbed2 > 0 && !dot && !multi) floater(u.x, u.y - u.r - 12, '吸收 ' + Math.round(absorbed2), '#93b6ff', 12);
+    if (absorbed2 > 0 && !periodic && !multi) floater(u.x, u.y - u.r - 12, '吸收 ' + Math.round(absorbed2), '#93b6ff', 12);
     if (u.st.shield <= 0.01) {
       u.st.shield = 0; u.st.shieldT = 0;
       ring(u.x, u.y, u.r, 128, 0.45, '#8fb4ff');
@@ -155,39 +162,50 @@ function hurt(u, amount, src, opt) {
   }
 
   if (amount > 0) {
+    var incoming = amount;
     /* BOSS 锁血：合体前的红青双血条不会降到 1 以下（TYPES[key].bossLock）。
-       这里先按「最多扣到 1 血」截断，再把剩余量记进 dealt —— 伤害统计不会虚高。 */
+       截断后剩余量不再计入承伤，避免锁血阶段把“未实际损失的伤害”也算进去。 */
     if (TYPES[u.key] && TYPES[u.key].bossLock) {
       var lockCap = Math.max(0, (BALANCE.boss.lockHp == null ? 1 : BALANCE.boss.lockHp) - 0);
       var canLose = Math.max(0, u.hp - lockCap);
       if (amount > canLose) {
         amount = canLose;
         u.st.locked = true;   // 锁血后不再被敌人锁定（铁砧等指向性技能会跳过）
-        if (!dot && !multi && !(u.st.lockFxT > 0)) {
+        if (!periodic && !multi && !(u.st.lockFxT > 0)) {
           u.st.lockFxT = 0.8;
           ring(u.x, u.y, u.r, u.r + 52, 0.45, '#ffe08a');
           floater(u.x, u.y - u.r - 30, '锁血 ' + lockCap + ' HP', '#ffe08a', 13);
         }
       }
     }
-    if (amount <= 0) return;
+    if (amount <= 0) {
+      u.taken = Math.max(0, u.taken - incoming);
+      return;
+    }
+
+    /* 溢出伤害：伤害统计与飘字都只记录实际扣除的 HP。
+       目标只剩 10 HP 时，83.3 点伤害只记 10，不再把 73.3 计入 dealt / taken。 */
+    var hpBefore = Math.max(0, u.hp);
+    var actualHpLoss = Math.min(amount, hpBefore);
     u.hp -= amount;
-    if (src) src.dealt += amount;
-    if (dot && !multi) {
-      // 持续伤害不逐跳表现：累加到 dotAmt，由 tick() 每秒合并成一条小飘字
-      u.dotAmt = (u.dotAmt || 0) + amount;
+    if (src) src.dealt += actualHpLoss;
+    u.taken = Math.max(0, u.taken - (incoming - actualHpLoss));
+
+    if (periodic && !multi) {
+      // 周期持续伤害不逐跳表现：累加到 dotAmt，由 tick() 每秒合并成一条小飘字
+      u.dotAmt = (u.dotAmt || 0) + actualHpLoss;
       if (!(u.dotT > 0)) u.dotT = 1.0;
       if (u.flash < 0.25) u.flash = 0.25;
     } else if (multi) {
       // 多段激光：每一段都单独飘字，位置贴近目标，避免数字飞得太高
       u.flash = Math.max(u.flash, 0.35);
       floater(u.x + rand(-14, 14), u.y - u.r - 34 + rand(-5, 5),
-        '-' + Math.round(amount), '#ffd166', 16, { pop: 1 });
+        '-' + Math.round(actualHpLoss), '#ffd166', 16, { pop: 1 });
       burst(u.x, u.y, 4, '#fff4d6', 150);
       shake = Math.min(8, shake + 0.4);   // 每段都有一点震感
     } else {
       u.flash = 1;
-      floater(u.x + rand(-9, 9), u.y - u.r - 72, '-' + Math.round(amount), '#ffd166', 22, { pop: 1 });
+      floater(u.x + rand(-9, 9), u.y - u.r - 72, '-' + Math.round(actualHpLoss), '#ffd166', 22, { pop: 1 });
       burst(u.x, u.y, 7, '#ffb199', 170);
     }
   }
@@ -293,7 +311,7 @@ function updateRage(u, dt) {
 /* 炸弹唯一生成入口：{x,y,fuse,max,radius,dmg,team,owner,spin}
    ------------------------------------------------------------
    红石普攻 / 红石终结技 / BOSS 的投弹都走这里：
-   { fuse, radius, dmg }，可选 { energy, budget } 用于命中回能；
+   { fuse, radius, dmg, basic|skill|ult }，可选 { energy, budget } 用于命中回能；
    { touch:1 } 让敌方触碰立即引爆，{ burn:n } 让命中者叠 n 层灼烧 */
 function spawnBomb(owner, x, y, cfg) {
   bombs.push({
@@ -301,7 +319,8 @@ function spawnBomb(owner, x, y, cfg) {
     fuse: cfg.fuse, max: cfg.fuse,
     radius: cfg.radius, dmg: cfg.dmg,
     energy: cfg.energy || 0, budget: cfg.budget || null,
-    basic: !!cfg.basic, touch: !!cfg.touch, burn: cfg.burn || 0,
+    basic: !!cfg.basic, skill: !!cfg.skill, ult: !!cfg.ult,
+    touch: !!cfg.touch, burn: cfg.burn || 0,
     team: owner.team, owner: owner, spin: rand(0, TAU)
   });
 }
@@ -436,11 +455,12 @@ function updateBombs(dt) {
     hitStop = Math.max(hitStop, 0.025);
 
     var hits = 0;
+    var bombOpt = b.basic ? { basic: 1 } : (b.skill ? { skill: 1 } : (b.ult ? { ult: 1 } : null));
     for (var k = 0; k < units.length; k++) {
       var v = units[k];
       if (!v.alive || v.team === b.team) continue;
       if (Math.hypot(v.x - b.x, v.y - b.y) < b.radius + v.r) {
-        hurt(v, b.dmg, b.owner, b.basic ? { basic: 1 } : null);
+        hurt(v, b.dmg, b.owner, bombOpt);
         /* 命中灼烧：普攻炸弹默认 1 层，BOSS 二阶段炸弹由 burn 显式声明 */
         var burnN = b.burn || (b.basic ? 1 : 0);
         if (burnN > 0 && v.alive) redApplyBurn(v, b.owner, burnN);
@@ -463,7 +483,7 @@ function updateBombs(dt) {
       var sd = seeds[q];
       if (sd.team === b.team) continue;
       if (Math.hypot(sd.x - b.x, sd.y - b.y) >= b.radius + sd.r) continue;
-      hurtSeed(sd, b.dmg, b.owner);
+      hurtSeed(sd, b.dmg, b.owner, bombOpt);
       if (sd.hp <= 0) destroySeed(q, '种子被炸碎');
     }
   }
@@ -490,12 +510,12 @@ function milkDrain(u, D) {
   for (i = 0; i < units.length; i++) {
     var v = units[i];
     if (!v.alive || v.team === u.team) continue;
-    hurt(v, v.maxHp * D.pctPerSec * mul, u, { pct: 1, dot: 1 });
+    hurt(v, v.maxHp * D.pctPerSec * mul, u, { ult: 1, pct: 1, dot: 1, periodic: 1 });
   }
   for (i = seeds.length - 1; i >= 0; i--) {
     var s = seeds[i];
     if (s.team === u.team) continue;
-    hurtSeed(s, s.maxHp * D.pctPerSec * mul, u, { pct: 1, dot: 1 });
+    hurtSeed(s, s.maxHp * D.pctPerSec * mul, u, { ult: 1, pct: 1, dot: 1, periodic: 1 });
     if (s.hp <= 0) destroySeed(i, '种子枯萎');
   }
 }
@@ -532,6 +552,8 @@ function spawnAnvilMark(owner, x, y, cfg) {
     t: delay, max: delay,
     dmg: (cfg && cfg.dmg != null) ? cfg.dmg : C.dmg,
     basic: !!(cfg && cfg.basic),
+    skill: !!(cfg && cfg.skill),
+    ult: !!(cfg && cfg.ult),
     energy: (cfg && cfg.energy) || 0,
     bindChance: (cfg && cfg.bindChance) || 0,
     bindTime: (cfg && cfg.bindTime) || 0,
@@ -570,11 +592,12 @@ function updateAnvilMarks(dt) {
       hits.push({ v: v, d: d });
     }
     hits.sort(function (a, b) { return a.d - b.d; });
+    var markOpt = m.basic ? { basic: 1 } : (m.skill ? { skill: 1 } : (m.ult ? { ult: 1 } : null));
     for (var h = 0; h < hits.length; h++) {
       var dmg = markDmg;
       if (hits[h].d > m.r * C.coreRatio) dmg *= C.edgeMul;   // 边缘区减伤
       if (h > 0) dmg *= C.splashMul;                          // 非最近目标只吃溅射
-      hurt(hits[h].v, dmg, m.owner, m.basic ? { basic: 1 } : null);
+      hurt(hits[h].v, dmg, m.owner, markOpt);
     }
 
     /* 命中回能：一个落点只结算一次（多目标不翻倍），与红石炸弹的 budget 口径一致 */
@@ -600,7 +623,7 @@ function updateAnvilMarks(dt) {
       if (sdD > m.r + sd.r * 0.5) continue;
       var sdDmg = markDmg * C.splashMul;
       if (sdD > m.r * C.coreRatio) sdDmg *= C.edgeMul;
-      hurtSeed(sd, sdDmg, m.owner);
+      hurtSeed(sd, sdDmg, m.owner, markOpt);
       if (sd.hp <= 0) destroySeed(q, '种子被砸碎');
     }
   }
@@ -653,7 +676,8 @@ function fireArrow(u, cfg) {
     kind: C.kind || 'normal', color: C.color || '#c9f59b',
     dmg: C.dmg || 0, hitR: C.hitR || 5, big: !!C.big,
     energy: C.energy || 0, budget: C.budget || null,
-    basic: !!C.basic, settle: !!C.settle,
+    basic: !!C.basic, skill: !!C.skill, ult: !!C.ult,
+    settle: !!C.settle,
     team: u.team, owner: u, hit: []
   });
 
@@ -688,8 +712,10 @@ function arrowEnergy(a) {
 
 function updateArrows(dt) {
   var A = ARENA;
+  var arrowOpt = null;
   for (var i = arrows.length - 1; i >= 0; i--) {
     var a = arrows[i];
+    arrowOpt = a.basic ? { basic: 1 } : (a.skill ? { skill: 1 } : (a.ult ? { ult: 1 } : null));
     a.life -= dt;
     if (a.life <= 0) { arrows.splice(i, 1); continue; }
 
@@ -704,7 +730,7 @@ function updateArrows(dt) {
       if (segDist(v.x, v.y, a.px, a.py, a.x, a.y) > v.r + a.hitR) continue;
 
       a.hit.push(v);
-      hurt(v, a.dmg, a.owner, a.basic ? { basic: 1 } : null);
+      hurt(v, a.dmg, a.owner, arrowOpt);
       arrowEnergy(a);
       applyArrowEffects(v, a);
       ring(v.x, v.y, 3, a.big ? 60 : 26, a.big ? 0.4 : 0.22, a.color);
@@ -720,7 +746,7 @@ function updateArrows(dt) {
         if (sd.team === a.team) continue;
         if (segDist(sd.x, sd.y, a.px, a.py, a.x, a.y) > sd.r + a.hitR) continue;
 
-        hurtSeed(sd, a.dmg, a.owner);
+        hurtSeed(sd, a.dmg, a.owner, arrowOpt);
         ring(sd.x, sd.y, 3, 24, 0.2, a.color);
         burst(sd.x, sd.y, 4, a.color, 180);
         if (sd.hp <= 0) destroySeed(q, '种子被射落');
@@ -801,7 +827,7 @@ function updateIcePatches(dt) {
         v.coldAtk = srcPatch.owner.atk || 0;
       }
       if (v.coldStacks > 0) {
-        hurt(v, v.coldStacks * ICE_COLD.pctPerLayer * (v.coldAtk || 0), v.coldSrc, { dot: 1 });
+        hurt(v, v.coldStacks * ICE_COLD.pctPerLayer * (v.coldAtk || 0), v.coldSrc, { skill: 1, dot: 1, periodic: 1 });
       }
       if (!onTrap && v.coldStacks > 0) v.coldStacks -= 1;
     }
@@ -921,7 +947,7 @@ function updateDrowns(dt) {
     u.drownAcc -= dt;
     while (u.drownAcc <= 0 && u.alive && u.drownStacks > 0) {
       u.drownAcc += D.interval;
-      hurt(u, (u.drownAtk || 0) * bucketDrownPct(u.drownStacks), u.drownSrc, { dot: 1 });
+      hurt(u, (u.drownAtk || 0) * bucketDrownPct(u.drownStacks), u.drownSrc, { skill: 1, dot: 1, periodic: 1 });
     }
   }
 }
@@ -939,18 +965,23 @@ function updateDrowns(dt) {
    ============================================================ */
 
 // 种子受伤：统一入口。种子不参与 dealt 排行以外的单位结算，但伤害仍计入攻击方 dealt
-// opt 口径与 hurt() 一致：{pct:1} 百分比不缩放；{dot:1} 持续伤害不逐跳飘字 / 爆粒子
+// opt 口径与 hurt() 一致：{pct:1} 百分比不缩放；{periodic:1} 合并跳伤不飘字
 function hurtSeed(s, amount, src, opt) {
   var cal = !!(src && TYPES[src.key] && TYPES[src.key].calibrated);
   if (!(opt && opt.pct) && !cal) amount *= BALANCE.dmgScale;
   if (!s || s.hp <= 0 || amount <= 0) return;
-  var dot = !!(opt && opt.dot);
-  s.hp -= amount;
+  if (!(opt && (opt.basic || opt.skill || opt.ult || opt.dot)) && !damageTagWarned) {
+    damageTagWarned = true;
+    if (typeof console !== 'undefined') console.warn('[hurtSeed] 未分类伤害：所有实际伤害必须带 basic / skill / ult / dot');
+  }
+  var periodic = !!(opt && opt.periodic);
+  var actualHpLoss = Math.min(amount, s.hp);
+  s.hp = Math.max(0, s.hp - amount);
   s.flash = 0.22;
   s.lastHit = t;
-  if (src && typeof src.dealt === 'number') src.dealt += amount;
-  if (!dot) {
-    floater(s.x, s.y - s.r - 22, '-' + Math.round(amount), '#ffb1a0', 14, { pop: 1 });
+  if (src && typeof src.dealt === 'number') src.dealt += actualHpLoss;
+  if (!periodic) {
+    floater(s.x, s.y - s.r - 22, '-' + Math.round(actualHpLoss), '#ffb1a0', 14, { pop: 1 });
     burst(s.x, s.y, 4, '#c8f5b0', 120);
   }
 }
@@ -1002,7 +1033,8 @@ function updateSeeds(dt) {
       if (ddx * ddx + ddy * ddy > reach * reach) continue;
       if (s.hitCd > 0) continue;
       s.hitCd = S.hitCd;
-      hurtSeed(s, dmgOf(v, v.dashSpeed, s), v);
+      var seedImpactDmg = dmgOf(v, v.dashSpeed, s);
+      hurtSeed(s, seedImpactDmg, v, attackDamageOpt(v, seedImpactDmg));
     }
     if (s.hp <= 0) { destroySeed(i, '种子被击碎'); continue; }
 
@@ -1189,7 +1221,13 @@ function laserStrike(u, L) {
   // 多目标衰减：一道光束同时扫到多个目标时，每段伤害不再线性翻倍
   var mul = aoeScale(hitUnits.length + hitSeeds.length);
   // L.multi：多段激光逐段飘字；L.slowMul：命中后减速（大狗终结技 -50%）
-  var hitOpt = L.multi ? { multi: 1 } : (L.basic ? { dot: 1, basic: 1 } : { dot: 1 });
+  // 类型标记与表现分离：dot 表示持续伤害类型，periodic 才表示合并跳伤。
+  var hitOpt = L.basic ? { basic: 1 } : (L.ult ? { ult: 1 } : { skill: 1 });
+  if (L.multi) hitOpt.multi = 1;
+  else { hitOpt.dot = 1; hitOpt.periodic = 1; }
+  var seedOpt = L.basic ? { basic: 1 } : (L.ult ? { ult: 1 } : { skill: 1 });
+  seedOpt.periodic = 1;
+  if (!L.multi) seedOpt.dot = 1;
   for (var k = 0; k < hitUnits.length; k++) {
     var hit = hitUnits[k];
     hurt(hit, L.dmg * mul, u, hitOpt);
@@ -1201,7 +1239,7 @@ function laserStrike(u, L) {
   }
   for (var q = hitSeeds.length - 1; q >= 0; q--) {
     var s2 = hitSeeds[q];
-    hurtSeed(s2, L.dmg * mul, u, { dot: 1 });
+    hurtSeed(s2, L.dmg * mul, u, seedOpt);
     if (s2.hp <= 0) {
       var at = seeds.indexOf(s2);
       if (at >= 0) destroySeed(at, '种子被激光烧毁');
@@ -1335,7 +1373,10 @@ function cast(u, target) {
   var S = T.skill;
   var aim = Math.atan2(target.y - u.y, target.x - u.x);
   if (typeof sfxPlay === 'function') sfxPlay('cast');
-  if (u.st) u.st.basicAtk = false;   // 主动技能不是普攻：清掉撞击伤害的普攻标记
+  if (u.st) {
+    u.st.basicAtk = false;       // 主动技能不是普攻：清掉撞击伤害的普攻标记
+    u.st.attackKind = 'skill';   // 本次冲刺若撞击，伤害归类为技能伤害
+  }
 
   // 远程技能声明 noTurn 时只瞄准、不改自身运动方向（方向仍只由撞墙 / 其他技能改变）
   if (!S.noTurn) u.ang = aim;   // 转向
@@ -1387,6 +1428,7 @@ function updateUltChains(dt) {
     u.dashT = c.time;
     u.dashSpeed = c.speed;
     u.dmgMult = c.mul;
+    if (u.st) u.st.attackKind = 'ult';
     c.left--;
     c.gap = c.interval;
     ring(u.x, u.y, u.r, u.r + 54, 0.22, '#ffe08a');
@@ -1396,12 +1438,13 @@ function updateUltChains(dt) {
   }
 }
 
-// 终结技光束：一次性画一条光柱并立即结算沿途敌人与敌方种子（不做持续追踪）
+// 一次性光束（当前仅大狗技能「长激光」）：立即结算沿途敌人与敌方种子
 function spawnUltBeam(owner, ang, cfg) {
   var x2 = owner.x + Math.cos(ang) * cfg.len;
   var y2 = owner.y + Math.sin(ang) * cfg.len;
   var color = cfg.color || '#ffcf8a';
   var life = cfg.life || 0.45;
+  var beamOpt = cfg.basic ? { basic: 1 } : (cfg.ult ? { ult: 1 } : { skill: 1 });
   ultBeams.push({
     x1: owner.x, y1: owner.y, x2: x2, y2: y2,
     life: life, max: life, color: color, width: cfg.width
@@ -1410,14 +1453,14 @@ function spawnUltBeam(owner, ang, cfg) {
     var v = units[i];
     if (!v.alive || v.team === owner.team) continue;
     if (segDist(v.x, v.y, owner.x, owner.y, x2, y2) > cfg.width * 0.5 + v.r) continue;
-    hurt(v, cfg.dmg, owner);
+    hurt(v, cfg.dmg, owner, beamOpt);
     burst(v.x, v.y, 8, color, 200);
   }
   for (var s = seeds.length - 1; s >= 0; s--) {
     var sd = seeds[s];
     if (sd.team === owner.team) continue;
     if (segDist(sd.x, sd.y, owner.x, owner.y, x2, y2) > cfg.width * 0.5 + sd.r) continue;
-    hurtSeed(sd, cfg.dmg, owner);
+    hurtSeed(sd, cfg.dmg, owner, beamOpt);
     if (sd.hp <= 0) destroySeed(s, '种子被光束烧毁');
   }
 }
@@ -1432,7 +1475,10 @@ function castUltimate(u) {
   u.ultT = 0;
   u.ultAim = null;
   if (typeof sfxPlay === 'function') sfxPlay('ult');
-  if (u.st) u.st.basicAtk = false;   // 终结技不是普攻：清掉撞击伤害的普攻标记
+  if (u.st) {
+    u.st.basicAtk = false;       // 终结技不是普攻：清掉撞击伤害的普攻标记
+    u.st.attackKind = 'ult';     // 终结技连撞 / 光束按终结技伤害归类
+  }
   ring(u.x, u.y, u.r + 4, u.r + 150, 0.55, '#ffe08a');
   ring(u.x, u.y, u.r + 4, u.r + 92, 0.4, '#fff6d8');
   burst(u.x, u.y, 26, '#ffe9a8', 330);
@@ -1672,8 +1718,8 @@ function collide() {
       var da = dmgOf(b, impact, a);
       var db = dmgOf(a, impact, b);
       // 普通攻击标记：只有本次冲刺是普攻时才带上 basic，供「普攻承伤」类天赋识别
-      var ba = isBasicHit(b);
-      var bb = isBasicHit(a);
+      var oa = attackDamageOpt(b, da);
+      var ob = attackDamageOpt(a, db);
 
       /* 先算伤害再决定表现：弓箭 / 冰块 / 铁砧 / 狗奶的普通撞击伤害恒为 0，
          过去这种「零伤害碰撞」也会放全套震屏 + 顿帧 + 粒子，看着像打中了却不掉血，
@@ -1686,8 +1732,8 @@ function collide() {
         hitStop = Math.max(hitStop, 0.045);
       }
 
-      hurt(a, da, b, ba ? { basic: 1 } : null);
-      hurt(b, db, a, bb ? { basic: 1 } : null);
+      hurt(a, da, b, oa);
+      hurt(b, db, a, ob);
 
       // 物品自己的撞击被动（红石溅射）
       var TA = TYPES[a.key], TB = TYPES[b.key];
@@ -1714,15 +1760,17 @@ function teamHp(team) {
     return { cur: cur, max: max };
   }
   var keys = pick[team] || [];
-  // 分母 = 全阵容的总生命；分子 = 已在场单位的剩余生命 + 还没上场的单位按满血计
+  // 分母 = 全阵容的总生命；分子 = 已在场单位的剩余生命 + 还没上场的单位按满血计。
+  // 已在场单位的 maxHp 读实时值（草终结技会永久抬高自身生命上限），不能再读 TYPES 初始值。
   for (var i = 0; i < keys.length; i++) {
     var role = POOL_BY_KEY[keys[i]];
     if (!role) continue;
     var pending = modeKind === 'relay' && i > lineupIndex[team];
     for (var j = 0; j < role.units.length; j++) {
+      if (!pending) continue;
       var m = TYPES[role.units[j]].maxHp;
       max += m;
-      if (pending) cur += m;
+      cur += m;
     }
   }
   for (var k = 0; k < units.length; k++) {
@@ -1730,6 +1778,7 @@ function teamHp(team) {
        否则分身会让 cur 超过 max，血条直接溢出。 */
     if (units[k].team !== team || units[k].isSummon) continue;
     cur += Math.max(0, units[k].hp);
+    max += Math.max(0, units[k].maxHp);
   }
   return { cur: cur, max: max };
 }

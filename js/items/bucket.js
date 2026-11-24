@@ -66,7 +66,7 @@ function bucketSettleDrown(v, src) {
   if (!v || !v.alive || !(v.drownStacks > 0)) return 0;
   var dmg = (v.drownAtk || 0) * bucketDrownPct(v.drownStacks);
   if (dmg > 0) {
-    hurt(v, dmg, v.drownSrc || src);
+    hurt(v, dmg, v.drownSrc || src, { dot: 1 });
     v.drownAcc = BUCKET_DROWN.interval;
     floater(v.x, v.y - v.r - 16, '溺水结算', '#7fd8ff', 12);
   }
@@ -89,7 +89,7 @@ function bucketWaveBoom(w) {
   var mul = aoeScale(victims.length);
   for (i = 0; i < victims.length; i++) {
     var e = victims[i];
-    hurt(e, (w.owner && w.owner.atk ? w.owner.atk : 0) * S.boomPct * mul, w.owner);
+    hurt(e, (w.owner && w.owner.atk ? w.owner.atk : 0) * S.boomPct * mul, w.owner, { skill: 1 });
     bucketApplyDrown(e, w.owner, 3);
     ring(e.x, e.y, e.r, e.r + 60, 0.34, '#d8f6ff');
     burst(e.x, e.y, 14, '#cdefff', 300);
@@ -110,7 +110,7 @@ function bucketWaveBoom(w) {
 /* 水滴命中：70% +（有灼烧时）消耗 1 层打出 260% 蒸发 */
 function bucketDropImpact(u, e) {
   var B = TYPES.bucket.basic;
-  hurt(e, u.atk * B.pct, u);
+  hurt(e, u.atk * B.pct, u, { basic: 1 });
   gainEnergy(u, B.energy);
   ring(e.x, e.y, e.r, e.r + 26, 0.24, '#9fe4ff');
   burst(e.x, e.y, 7, '#cdefff', 170);
@@ -121,7 +121,7 @@ function bucketDropImpact(u, e) {
       e.burnStacks = 0; e.burnSrc = null; e.burnAtk = 0;
       e.burnAcc = (typeof RED_BURN !== 'undefined') ? RED_BURN.interval : 1.0;
     }
-    hurt(e, u.atk * B.evap, u);
+    hurt(e, u.atk * B.evap, u, { basic: 1 });
     // 蒸发表现：白雾爆开 + 双层冲击环 + 上升蒸汽
     ring(e.x, e.y, e.r * 0.4, e.r + 74, 0.42, '#ffffff');
     ring(e.x, e.y, e.r * 0.4, e.r + 46, 0.3, '#ffd9a0');
@@ -169,7 +169,7 @@ function bucketSurfSlam(u) {
   var mul = aoeScale(victims.length);
   for (i = 0; i < victims.length; i++) {
     var e = victims[i];
-    hurt(e, u.atk * U.pct * mul, u);
+    hurt(e, u.atk * U.pct * mul, u, { ult: 1 });
     ring(e.x, e.y, e.r, e.r + 54, 0.3, '#cdefff');
     burst(e.x, e.y, 8, '#e8fbff', 220);
   }

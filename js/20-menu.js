@@ -225,9 +225,8 @@ function bossDetailHtml() {
   }
   html += '<div class="d-bond">' + (D.win || '击破 BOSS 即玩家胜利；玩家 5 个单位全灭则 BOSS 胜利。') +
     '挑战者沿用常规数值（不做任何加成）；BOSS 硬壳：固定伤害 ×' + BALANCE.boss.dmgTakeMul +
-    '、百分比伤害 ×' + BALANCE.boss.pctTakeMul + '；BOSS 出手 ×' +
-    (BALANCE.boss.calibratedDmgMul || BALANCE.boss.dmgMul) +
-    '。BOSS 战时长固定 ' + (BALANCE.boss.duration / 60) + ' 分钟。</div>';
+    '、百分比伤害 ×' + BALANCE.boss.pctTakeMul +
+    '。BOSS 出手不做整体缩放，技能系数即最终伤害；BOSS 战时长固定 ' + (BALANCE.boss.duration / 60) + ' 分钟。</div>';
   return html + '</div>';
 }
 

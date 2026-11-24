@@ -63,7 +63,7 @@ TYPES.bossred = {
         var tx = tgt ? tgt.x : u.x, ty = tgt ? tgt.y : u.y;
         var base = idx < 5 ? 60 : (idx < 9 ? 90 : 125);
         spawnBomb(u, tx + rand(-16, 16), ty + rand(-16, 16),
-          { fuse: 0.55, radius: 95, dmg: base * bossSkillMul(u) });
+          { fuse: 0.55, radius: 95, dmg: base * bossSkillMul(u), skill: true });
         u.st.volleyN--;
       }
     }
@@ -77,7 +77,7 @@ TYPES.bossred = {
     for (var i = 0; i < B.count; i++) {
       var a = i / B.count * TAU + t * 0.25;
       spawnBomb(u, u.x + Math.cos(a) * B.radius, u.y + Math.sin(a) * B.radius,
-        { fuse: B.fuse, radius: B.bombR, dmg: B.dmg * mul });
+        { fuse: B.fuse, radius: B.bombR, dmg: B.dmg * mul, basic: true });
     }
     ring(u.x, u.y, 8, B.radius + 34, 0.36, '#ffb14d');
   },
@@ -111,7 +111,7 @@ TYPES.bosslapis = {
     if (bossLocked(u)) return 0;
     return u.dashT > 0 ? (u.st.basicDmg || 0) : 0;
   },
-  onHit: function (u) { u.st.basicDmg = 0; },
+  onHit: function (u) { u.st.basicDmg = 0; u.st.basicAtk = false; },
   onCast: function (u) {
     var pool = [];
     for (var i = 0; i < units.length; i++) {
@@ -122,7 +122,7 @@ TYPES.bosslapis = {
   },
   onTick: function (u, dt) {
     if (bossLocked(u)) return;
-    if (u.dashT <= 0) u.st.basicDmg = 0;
+    if (u.dashT <= 0) { u.st.basicDmg = 0; u.st.basicAtk = false; }
     var B = TYPES.bosslapis.basic;
     u.st.basicCd -= dt;
     if (u.st.basicCd > 0) return;
@@ -136,6 +136,7 @@ TYPES.bosslapis = {
     u.ang = Math.atan2(e.y - u.y, e.x - u.x);
     u.dashT = B.dashTime;
     u.dashSpeed = B.dashSpeed;
+    u.st.basicAtk = true;
     u.st.basicDmg = u.atk * B.pct * bossBasicMul(u);
     ring(u.x, u.y, u.r, u.r + 40, 0.3, '#8fb4ff');
   },
@@ -197,7 +198,7 @@ TYPES.bosscore = {
     if (u.st.mergeFill > 0 || u.st.nukeCast > 0) return 0;
     return u.dashT > 0 ? (u.st.dashDmg || 0) : 0;
   },
-  onHit: function (u) { u.st.dashDmg = 0; },
+  onHit: function (u) { u.st.dashDmg = 0; u.st.basicAtk = false; },
   onCast: function (u) {
     bossEnchant(u, true);   // 二阶段只抽普攻 / 防御
     ring(u.x, u.y, u.r, u.r + 50, 0.4, '#c79bff');
@@ -251,7 +252,7 @@ TYPES.bosscore = {
     /* 终焉一击释放后才解锁：1.5 秒冲撞 + 3 秒环形炸弹 */
     if (u.st.nukeDone) {
     // 普攻 ②：1.5 秒中距离冲撞，命中 100% 攻击力
-    if (u.dashT <= 0) u.st.dashDmg = 0;
+    if (u.dashT <= 0) { u.st.dashDmg = 0; u.st.basicAtk = false; }
     u.st.dashCd -= dt;
     if (u.st.dashCd <= 0) {
       var e = nearestEnemy(u);
@@ -266,6 +267,7 @@ TYPES.bosscore = {
           u.ang = Math.atan2(e.y - u.y, e.x - u.x);
           u.dashT = B.dashTime;
           u.dashSpeed = B.dashSpeed;
+          u.st.basicAtk = true;
           u.st.dashDmg = u.atk * B.dashPct * bossBasicMul(u);
           ring(u.x, u.y, u.r, u.r + 40, 0.3, '#c79bff');
         }
@@ -280,7 +282,7 @@ TYPES.bosscore = {
       for (var i = 0; i < B.ringCount; i++) {
         var a = i / B.ringCount * TAU - t * 0.3;
         spawnBomb(u, u.x + Math.cos(a) * B.ringRadius, u.y + Math.sin(a) * B.ringRadius,
-          { fuse: B.ringFuse, radius: B.ringBombR, dmg: B.ringPct * u.atk * rm, touch: true, burn: 1 });
+          { fuse: B.ringFuse, radius: B.ringBombR, dmg: B.ringPct * u.atk * rm, touch: true, burn: 1, basic: true });
       }
       ring(u.x, u.y, 8, B.ringRadius + 34, 0.36, '#c79bff');
     }
@@ -291,7 +293,7 @@ TYPES.bosscore = {
     if (u.st.basicCd <= 0) {
       u.st.basicCd += B.cd;
       spawnBomb(u, u.x, u.y, {
-        fuse: B.fuse, radius: B.radius, dmg: B.dmg * bossBasicMul(u), touch: true, burn: 1
+        fuse: B.fuse, radius: B.radius, dmg: B.dmg * bossBasicMul(u), touch: true, burn: 1, basic: true
       });
     }
   },
@@ -342,7 +344,7 @@ function coreNuke(u) {
   for (var i = 0; i < units.length; i++) {
     var v = units[i];
     if (!v.alive || v.team === u.team) continue;
-    hurt(v, v.maxHp * pct, u, { pct: 1 });
+    hurt(v, v.maxHp * pct, u, { ult: 1, pct: 1 });
     v.weakT = Math.max(v.weakT || 0, weakDur);
     v.weakMul = C.weakMul == null ? 0.80 : C.weakMul;
     floater(v.x, v.y - v.r - 12, '-' + Math.round(v.maxHp * pct), '#ff9aa8', 32);
@@ -352,7 +354,7 @@ function coreNuke(u) {
   }
   for (var s = seeds.length - 1; s >= 0; s--) {
     if (seeds[s].team === u.team) continue;
-    hurtSeed(seeds[s], seeds[s].maxHp * pct, u, { pct: 1 });
+    hurtSeed(seeds[s], seeds[s].maxHp * pct, u, { ult: 1, pct: 1 });
   }
 
   /* 镜头：先定在 BOSS 身上，随后随冲击波逐层拉远到全场；

@@ -276,7 +276,7 @@ function fieldStrike(x, y, r, pct) {
     var u = units[i];
     if (!u.alive) continue;
     if (Math.hypot(u.x - x, u.y - y) > r + u.r) continue;
-    hurt(u, u.maxHp * pct, null, { pct: 1 });
+    hurt(u, u.maxHp * pct, null, { dot: 1, pct: 1 });
   }
 }
 
@@ -498,7 +498,7 @@ function updateField(dt) {
       var guard = 0;
       while (u.field.envAcc <= 0 && guard++ < 4 && u.alive) {
         u.field.envAcc += 1.0;
-        hurt(u, u.maxHp * Math.min(FIELD.maxEnvDps, u.field.envDps), null, { pct: 1, dot: 1 });
+        hurt(u, u.maxHp * Math.min(FIELD.maxEnvDps, u.field.envDps), null, { pct: 1, dot: 1, periodic: 1 });
       }
     } else {
       u.field.envAcc = 1.0;

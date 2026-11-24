@@ -87,6 +87,16 @@ function isBasicHit(u) {
   return !!(u && u.st && u.st.basicAtk && u.dashT > 0);
 }
 
+/* 撞击伤害分类：普攻冲刺 → basic；主动技能冲刺 → skill；终结技连撞 → ult。
+   没有显式标记的普通撞击按普攻处理，保证所有正伤害都带分类。 */
+function attackDamageOpt(u, dmg) {
+  if (!(dmg > 0)) return null;
+  if (isBasicHit(u)) return { basic: 1 };
+  if (u && u.st && u.st.attackKind === 'skill') return { skill: 1 };
+  if (u && u.st && u.st.attackKind === 'ult') return { ult: 1 };
+  return { basic: 1 };
+}
+
 /* ============================================================
    状态
    ============================================================ */

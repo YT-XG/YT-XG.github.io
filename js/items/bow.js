@@ -63,7 +63,7 @@ TYPES.bow = {
     var budget = { left: BOW_SKILL.energy };
     for (var i = 0; i < order.length; i++) {
       bowShoot(u, BOW_ARROW[order[i]], {
-        energy: BOW_SKILL.energy, budget: budget,
+        energy: BOW_SKILL.energy, budget: budget, skill: 1,
         spread: (i - 1) * BOW_SKILL.spread
       });
     }
@@ -75,7 +75,7 @@ TYPES.bow = {
       kind: 'rocket', name: '大火箭', pct: BOW_ULT.pct,
       speed: BOW_ULT.speed, life: BOW_ULT.life, hitR: BOW_ULT.hitR,
       color: '#ff8a4d'
-    }, { settle: true, big: true });
+    }, { settle: true, big: true, ult: 1 });
     ring(u.x, u.y, u.r, u.r + 80, 0.4, '#ff9a5f');
     burst(u.x, u.y, 16, '#ffb066', 240);
   },
@@ -100,7 +100,8 @@ function bowShoot(u, C, opts) {
     kind: C.kind, dmg: u.atk * C.pct,
     speed: C.speed, life: C.life, hitR: C.hitR, color: C.color,
     energy: o.energy || 0, budget: o.budget || null,
-    settle: !!o.settle, big: !!o.big, basic: o.basic ? 1 : 0,
+    settle: !!o.settle, big: !!o.big,
+    basic: o.basic ? 1 : 0, skill: o.skill ? 1 : 0, ult: o.ult ? 1 : 0,
     spread: o.spread || 0
   });
 }

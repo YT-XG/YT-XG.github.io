@@ -55,7 +55,7 @@ TYPES.ice = {
       v = units[i];
       if (!v.alive || v.team === u.team || !(v.coldStacks > 0)) continue;
       var atk = v.coldAtk || (v.coldSrc && v.coldSrc.atk) || u.atk;
-      hurt(v, v.coldStacks * ICE_COLD.pctPerLayer * atk, v.coldSrc || u, { dot: 1 });
+      hurt(v, v.coldStacks * ICE_COLD.pctPerLayer * atk, v.coldSrc || u, { ult: 1, dot: 1 });
       ring(v.x, v.y, v.r, v.r + 52, 0.4, '#c8f6ff');
     }
     for (i = 0; i < units.length; i++) {

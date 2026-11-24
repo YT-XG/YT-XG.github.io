@@ -116,7 +116,7 @@ TYPES.spear = {
 /* ============================================================
    破伤风：叠层型 DoT
    ------------------------------------------------------------
-   · 每层每秒扣 10% 施加者攻击力，走 hurt(..., {dot:1})
+   · 每层每秒扣 10% 施加者攻击力，走 hurt(..., {dot:1, periodic:1})
    · 每结算一次伤害消耗 1 层（不设总持续时间）
    ============================================================ */
 function spearApplyTetanus(v, src, n) {
@@ -134,7 +134,7 @@ function updateTetanus(dt) {
     u.tetAcc -= dt;
     while (u.tetAcc <= 0 && u.alive && u.tetStacks > 0) {
       u.tetAcc += SPEAR_TET.interval;
-      hurt(u, u.tetStacks * SPEAR_TET.pct * (u.tetAtk || 0), u.tetSrc, { dot: 1 });
+      hurt(u, u.tetStacks * SPEAR_TET.pct * (u.tetAtk || 0), u.tetSrc, { dot: 1, periodic: 1 });
       u.tetStacks -= 1;   // 每结算一次伤害降低 1 层
     }
     if (u.tetStacks <= 0) {
@@ -155,17 +155,17 @@ function settleDots(v, src) {
 
   if ((v.tetStacks || 0) > 0) {
     var td = v.tetStacks * SPEAR_TET.pct * (v.tetAtk || 0);
-    if (td > 0) { hurt(v, td, v.tetSrc || src); total += td; }
+    if (td > 0) { hurt(v, td, v.tetSrc || src, { dot: 1 }); total += td; }
     v.tetAcc = SPEAR_TET.interval;
   }
   if ((v.burnStacks || 0) > 0) {
     var bd = v.burnStacks * RED_BURN.pctPerLayer * (v.burnAtk || 0);
-    if (bd > 0) { hurt(v, bd, v.burnSrc || src); total += bd; }
+    if (bd > 0) { hurt(v, bd, v.burnSrc || src, { dot: 1 }); total += bd; }
     v.burnAcc = RED_BURN.interval;
   }
   if ((v.poisonStacks || 0) > 0) {
     var pd = v.poisonStacks * GRASS_POISON.pctPerStack * (v.poisonMhp || 0);
-    if (pd > 0) { hurt(v, pd, v.poisonSrc || src); total += pd; }
+    if (pd > 0) { hurt(v, pd, v.poisonSrc || src, { pct: 1, dot: 1 }); total += pd; }
     v.poisonAcc = GRASS_POISON.interval;
   }
   if (typeof bucketSettleDrown === 'function') {
@@ -205,7 +205,7 @@ function spearCastClones(u) {
       var v = units[j];
       if (!v.alive || v.team === u.team) continue;
       if (segDist(v.x, v.y, sx, sy, ex, ey) > C.hitWidth * 0.5 + v.r) continue;
-      hurt(v, dmg, u);
+      hurt(v, dmg, u, { skill: 1 });
       spearApplyTetanus(v, u, C.stacks);
       ring(v.x, v.y, v.r, v.r + 32, 0.22, '#f0a070');
     }
@@ -254,7 +254,7 @@ function spearCastFissure(u) {
     if (!v.alive || v.team === u.team) continue;
     if (segDist(v.x, v.y, sx, sy, ex, ey) > C.width * 0.5 + v.r) continue;
 
-    hurt(v, dmg, u);
+    hurt(v, dmg, u, { ult: 1 });
     spearApplyTetanus(v, u, C.stacks);
     if (!v.boss) v.bindT = Math.max(v.bindT || 0, C.bind);
     settleDots(v, u);

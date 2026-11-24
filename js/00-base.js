@@ -151,7 +151,7 @@ var BALANCE = {
      否则固定伤害角色会被相对削弱，而百分比机制（狗奶领域 7%/s、水桶 8%/s、
      决杀 5%/s）自动跟随生命上限、被动变强。
      实现位置：hurt() / hurtSeed() —— 默认所有伤害都乘这个系数；
-     传 {pct:true} 的百分比伤害（按目标 maxHp 计算）不乘，避免二次放大。
+     传 {pct:true} 的百分比伤害（凡按最大生命计算，来源或目标均可）不乘，避免二次放大。
      改生命上限时只改这一个常数，不用再翻 9 个物品文件。 */
   dmgScale: 1.6,
   // 撞击伤害公式：dmg = (dmgBase + min(impact, impactCap) * dmgPerImpact) * 攻击方 atk * 攻击方 dmgMult
@@ -190,29 +190,21 @@ var BALANCE = {
   /* BOSS 模式（5v1，2026-11-21 第 98 条）
      ------------------------------------------------------------
      这一整块只在 BOSS 模式被读取（10-core 的 bossMode），常规对局完全不读。
-     设计约定：**挑战者（玩家方）不新增任何数值修正**，难度全部由 BOSS 侧倍率控制。
-     这样以后每加一个角色，BOSS 战不用为它单独补维护一套血量 / 伤害。
+     设计约定：**挑战者（玩家方）不新增任何数值修正，BOSS 出手也不做整体缩放**；
+     对局难度由 BOSS 血条与各技能自身系数决定。
        · duration  —— BOSS 战专用时长（主菜单的 1/2/3/5 分钟档位不作用于该模式）
-       · dmgTakeMul / pctTakeMul / dmgMul —— BOSS 承伤与出手的三个总开关
+       · dmgTakeMul / pctTakeMul —— BOSS 承伤的两个总开关
        · redBomb / lapis / core —— BOSS 各自的周期技能参数
      单位血量（红青各 4550、紫晶核心 5000）写在 js/items/boss/duo.js 的 TYPES 里。 */
   boss: {
     duration: 300,        // BOSS 战专用时长（主菜单的分钟档位不作用于该模式）
     lockHp: 1,            // 红青锁血线
-    /* 下面三个倍率只作用在 BOSS 身上，挑战者完全沿用常规数值。
-       这样以后新增角色时，BOSS 战不需要再为每个新角色补维护一套数值：
+    /* 下面两个倍率只作用在 BOSS 承伤上，挑战者完全沿用常规数值：
        · dmgTakeMul —— BOSS 受到的固定伤害倍率（拉长 TTK）
-       · pctTakeMul —— BOSS 受到的百分比伤害倍率（狗奶 / 缺氧，防止"引导秒杀"）
-       · dmgMul     —— BOSS 出手的整体倍率（挑战者不加血，靠压 BOSS 输出来拉长对局） */
+       · pctTakeMul —— BOSS 受到的百分比伤害倍率（防止百分比机制绕过 BOSS 血量）
+       BOSS 出手没有总倍率，技能系数即最终伤害。 */
     dmgTakeMul: 0.79,
-    /* 新体系 BOSS（calibrated）的出手总倍率：技能系数已按用户设定写死，
-       这里只做整体难度旋钮，避免再回去改每个技能的百分比。 */
-    calibratedDmgMul: 0.68,
     pctTakeMul: 0.20,
-    /* 0.62：一阶段锁血后停手、二阶段核心登场有免伤充能窗口，
-       BOSS 的实际输出窗口小于纯 DPS 计算；保留这个倍率只影响未标记
-       calibrated 的旧 BOSS，新体系 BOSS 的伤害已在自身配置里写死。 */
-    dmgMul: 0.62,
     redBomb: { interval: 5.0, count: 2, fuse: 1.4, radius: 100, dmg: 90 },
     lapis: { auraR: 170, shield: 150, shieldInterval: 6.0 },
     /* core：紫晶核心（二阶段）

@@ -46,8 +46,7 @@ const DUR = argNum('dur', 300);
 const TEAM_ARG = argStr('team', 'spear,bow,dog,anvil,ice');
 const BOSS_ARG = argStr('boss', 'duo');
 const ALL = argv.includes('--all');
-// 调参用的一次性覆盖：--dmg 0.5 / --take 0.6 / --pct 0.2
-const DMG_ARG = argNum('dmg', NaN);
+// 调参用的一次性覆盖：--take 0.6 / --pct 0.2
 const TAKE_ARG = argNum('take', NaN);
 const PCT_ARG = argNum('pct', NaN);
 const NUKE_ARG = argNum('nuke', NaN);
@@ -132,7 +131,6 @@ vm.runInContext(`
   })();
 `, sandbox);
 
-if (Number.isFinite(DMG_ARG)) vm.runInContext('BALANCE.boss.dmgMul = ' + DMG_ARG + '; BALANCE.boss.calibratedDmgMul = ' + DMG_ARG + ';', sandbox);
 if (Number.isFinite(TAKE_ARG)) vm.runInContext('BALANCE.boss.dmgTakeMul = ' + TAKE_ARG + ';', sandbox);
 if (Number.isFinite(PCT_ARG)) vm.runInContext('BALANCE.boss.pctTakeMul = ' + PCT_ARG + ';', sandbox);
 if (Number.isFinite(NUKE_ARG)) vm.runInContext('BALANCE.boss.core.nukeDelay = ' + NUKE_ARG + ';', sandbox);
@@ -175,13 +173,18 @@ function __bossMatch(keys, seed, dur) {
   phase = 'fight';
 
   var guard = 0, maxTicks = Math.ceil((dur + 40) * 60);
-  var mergedAt = -1, coreHp = null, aHpMerge = null, aMax = 0;
-  var phaseAt = -1, secondHp = null;
-  for (var m0 = 0; m0 < units.length; m0++) if (units[m0].team === 'A') aMax += units[m0].maxHp;
+  var mergedAt = -1, coreHp = null, aHpMerge = null, aMaxStart = 0;
+  var phaseAt = -1, secondHp = null, aMaxPhase = null;
+  function aMaxNow() {
+    var total = 0;
+    for (var mi = 0; mi < units.length; mi++) if (units[mi].team === 'A') total += Math.max(0, units[mi].maxHp);
+    return total;
+  }
+  for (var m0 = 0; m0 < units.length; m0++) if (units[m0].team === 'A') aMaxStart += units[m0].maxHp;
   while (phase === 'fight' && guard < maxTicks) {
     tick(SIM_DT); guard++;
-    if (bossMerged && mergedAt < 0) { mergedAt = t; aHpMerge = teamHp('A').cur; }
-    if (bossPhase === 2 && phaseAt < 0) { phaseAt = t; aHpMerge = teamHp('A').cur; }
+    if (bossMerged && mergedAt < 0) { mergedAt = t; aHpMerge = teamHp('A').cur; aMaxPhase = aMaxNow(); }
+    if (bossPhase === 2 && phaseAt < 0) { phaseAt = t; aHpMerge = teamHp('A').cur; aMaxPhase = aMaxNow(); }
     if (bossMerged) {
       for (var k = 0; k < units.length; k++) {
         if (units[k].team === 'B' && units[k].alive) coreHp = units[k].hp;
@@ -199,7 +202,7 @@ function __bossMatch(keys, seed, dur) {
   for (var q = 0; q < units.length; q++) if (units[q].team === 'A') dealtA += units[q].dealt;
   return {
     winner: winner, seconds: t, merged: bossMerged,
-    mergedAt: mergedAt, coreHp: coreHp, dealtA: dealtA, aHpMerge: aHpMerge, aMax: aMax,
+    mergedAt: mergedAt, coreHp: coreHp, dealtA: dealtA, aHpMerge: aHpMerge, aMax: aMaxPhase == null ? aMaxStart : aMaxPhase,
     phase2: bossPhase === 2, phaseAt: phaseAt, secondHp: secondHp,
     aHp: teamHp('A').cur, bHp: teamHp('B').cur,
     by: suddenDeath ? 'death' : 'kill', bossMergedEnd: bossMerged
@@ -243,7 +246,7 @@ console.log('');
 console.log('BOSS 战 5v1 无头模拟 · ' + BOSS_CFG.name + ' · 每套 ' + N + ' 局 · 时长 ' + DUR + 's');
 console.log('挑战者：常规数值（无额外加成）｜ BOSS 承伤 ×' + sandbox.BALANCE.boss.dmgTakeMul +
   ' · 百分比 ×' + sandbox.BALANCE.boss.pctTakeMul +
-  ' ｜ BOSS 出手 ×' + (sandbox.BALANCE.boss.calibratedDmgMul || sandbox.BALANCE.boss.dmgMul));
+  ' ｜ BOSS 出手不做整体缩放');
 if (TWO_BAR) {
   var sd = sandbox.TYPES[BOSS_CFG.units[0]];
   console.log('两条血：' + sd.phaseHp.join(' / ') + ' HP');
@@ -276,8 +279,7 @@ TEAMS.forEach(function (team) {
     if (r.phase2) phase2++;
     if (r.phaseAt >= 0) phaseAt += r.phaseAt;
     if (r.phase2 && r.secondHp != null) { secondLeft += r.secondHp; secondN++; }
-    if (r.aHpMerge != null) { aHpMergeSum += r.aHpMerge; aHpMergeN++; }
-    aMaxSum += r.aMax;
+    if (r.aHpMerge != null) { aHpMergeSum += r.aHpMerge; aHpMergeN++; aMaxSum += r.aMax; }
     if (r.mergedAt >= 0) mergedAt += r.mergedAt;
     if (r.merged && r.coreHp != null) { coreLeft += r.coreHp; coreN++; }
     if (r.by === 'death') deaths++;
@@ -300,7 +302,7 @@ TEAMS.forEach(function (team) {
         (secondN ? (' ｜ 第二条血剩余 ' + avg(secondLeft, secondN) + ' HP') : '')
       : (merged ? (' ｜ 合体时刻 平均 ' + Math.round(mergedAt / merged) + 's') : '') +
         (coreN ? (' ｜ 核心剩余 ' + avg(coreLeft, coreN) + ' HP') : '')) +
-    (aHpMergeN ? (' ｜ 阶段时玩家余血 ' + avg(aHpMergeSum, aHpMergeN) + '/' + avg(aMaxSum, N) + '（' + pct(aHpMergeSum, aMaxSum) + '）') : '') +
+    (aHpMergeN ? (' ｜ 阶段时玩家余血 ' + avg(aHpMergeSum, aHpMergeN) + '/' + avg(aMaxSum, aHpMergeN) + '（' + pct(aHpMergeSum, aMaxSum) + '）') : '') +
     ' ｜ 决杀结束 ' + deaths + ' 局 ｜ 超时 BOSS 胜 ' + timeouts + ' 局');
   console.log('');
 });

@@ -63,7 +63,8 @@ function anvilVolleyTick(u, dt) {
     spawnAnvilMark(u, p.x, p.y, {
       r: ANVIL_SKILL.r,
       delay: ANVIL_SKILL.delay,
-      dmg: u.atk * ANVIL_SKILL.pctTotal / ANVIL_SKILL.count
+      dmg: u.atk * ANVIL_SKILL.pctTotal / ANVIL_SKILL.count,
+      skill: 1
     });
     ring(p.x, p.y, 6, ANVIL_SKILL.r, 0.3, '#cbd8ea');
   }

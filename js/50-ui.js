@@ -386,7 +386,14 @@ if (el.resNext) el.resNext.addEventListener('click', continueSeries);
 if (el.resChange) el.resChange.addEventListener('click', function () {
   var wasBoss = bossMode;
   openMenu();
-  if (wasBoss) enterBossPick(); else enterPick(teamSize);
+  if (wasBoss) {
+    // 手机端的 BOSS 选人页是独立的 mobi 界面，桌面 enterBossPick 会被 body.mobi-mode 隐藏，
+    // 必须走 mobiEnterBoss 才会真正切到手机选人页
+    if (typeof mobiEnterBoss === 'function' && typeof mobiIsMobile === 'function' && mobiIsMobile()) mobiEnterBoss();
+    else enterBossPick();
+  } else {
+    enterPick(teamSize);
+  }
 });
 if (el.resGhost) el.resGhost.addEventListener('click', function () {
   copyText(ghostUrl());

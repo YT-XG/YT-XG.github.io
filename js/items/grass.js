@@ -11,7 +11,8 @@
    ------------------------------------------------------------
    中毒是层数制 DoT：每层每秒造成「施放者生命上限 0.5%」的伤害，
    每秒结算一次并消耗 1 层（与红石灼烧 / 长矛破伤风同一节奏）。
-   与所有 hurt() 伤害一样，中毒会先被目标防御减伤，再吃虚弱 / 脆弱 / BOSS 承伤倍率。
+   与所有 hurt() 伤害一样，中毒会先被目标防御减伤，再吃虚弱 / 脆弱 / BOSS 百分比承伤倍率。
+   捆绑与中毒都按最大生命计算，统一标记 pct：不乘食物攻击，也走 BOSS 百分比承伤口径。
    捆绑只做伤害 + 中毒，不附带定身——用户需求里没有给控制时长。
    技能不冲刺、不转向（noTurn）；普通撞击伤害为 0。 */
 'use strict';
@@ -44,7 +45,7 @@ function updatePoisons(dt) {
     while (u.poisonAcc <= 0 && u.alive && u.poisonStacks > 0) {
       u.poisonAcc += GRASS_POISON.interval;
       hurt(u, u.poisonStacks * GRASS_POISON.pctPerStack * (u.poisonMhp || 0),
-        u.poisonSrc, { dot: 1 });
+        u.poisonSrc, { pct: 1, dot: 1, periodic: 1 });
       u.poisonStacks -= 1;
     }
     if (u.poisonStacks <= 0) {
@@ -89,7 +90,7 @@ function grassBind(u) {
   if (!e) return false;
   if (Math.hypot(e.x - u.x, e.y - u.y) > GRASS_BASIC.range + e.r) return false;
 
-  hurt(e, u.maxHp * GRASS_BASIC.dmgPct, u, { basic: 1 });
+  hurt(e, u.maxHp * GRASS_BASIC.dmgPct, u, { basic: 1, pct: 1 });
   grassApplyPoison(e, u, GRASS_BASIC.poison);
 
   vines.push({ x1: u.x, y1: u.y, x2: e.x, y2: e.y, life: 0.45, max: 0.45, hit: true });

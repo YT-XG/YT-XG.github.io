@@ -27,29 +27,30 @@
 var STORM = {
   phaseHp: [5500, 9000],
   speedAdd2: 0.5,          // baseSpeed 140 → 210
-  p1: { atkCd: 5.0, marks: 2, warn: 1.10, r: 90, pct: 0.60 },
-  p2: { atkCd: 3.6, marks: 3, warn: 0.95, r: 95, pct: 1.05,
-        chain: 2, chainRange: 280, chainPct: 0.60 },
-  line: { len: 880, width: 108, warn: 1.15, cdMul: 0.95, pctMul: 1.08 },
-  ring: { inner: 120, outer: 340, warn: 1.25, cdMul: 1.05, pctMul: 1.00 },
+  p1: { atkCd: 5.0, marks: 2, warn: 1.10, r: 90, atkMul: 1.70 },
+  p2: { atkCd: 3.6, marks: 3, warn: 0.95, r: 95, atkMul: 3.00,
+        chain: 2, chainRange: 280, chainAtkMul: 0.56 },
+  line: { len: 880, width: 108, warn: 1.15, cdMul: 0.95, mul: 1.08 },
+  ring: { inner: 120, outer: 340, warn: 1.25, cdMul: 1.05, mul: 1.00 },
   cloud: {
     cd1: 10.0, cd2: 9.0, life: 7.0, r: 170, speed: 55,
-    pulse1: 2.2, pulse2: 1.8, pct1: 0.32, pct2: 0.48,
+    pulse1: 2.2, pulse2: 1.8, atkMul1: 0.68, atkMul2: 1.02,
     slowMul: 0.82, slowT: 0.4
   },
   domain: {
-    cd: 9.0, life: 5.0, r: 300, pulse: 1.8, pct: 0.48,
+    cd: 9.0, life: 5.0, r: 300, pulse: 1.8, atkMul: 1.02,
     gap: 0.55, slowMul: 0.72, slowT: 0.5
   },
   wall: {
     cd: 13.0, warn: 1.2, life: 4.4, speed: 285, width: 112,
-    gapHalf: 84, pct: 0.40, hitCd: 0.65
+    gapHalf: 84, atkMul: 0.85, hitCd: 0.65
   },
-  pull: { cd: 15.0, time: 1.6, force: 105, pct: 0.45 },
-  cage: { warn: 5.0, time: 5.0, half0: 250, half1: 110, tick: 0.8, pct: 0.08 },
-  ult1: { warn: 6.0, count: 8, ringR: 220, markR: 110, pct: 0.28, resolve: 0.9, slowT: 1.0 },
-  ult2: { warn: 4.0, pulses: 5, interval: 0.5, pct: 0.12, safeR0: 220, safeR1: 70, slowT: 0.8 },
-  trans: { time: 3.0, pulseAt: 1.2, pct: 0.11 }
+  pull: { cd: 15.0, time: 1.6, force: 105, atkMul: 0.94 },
+  cage: { warn: 5.0, time: 5.0, half0: 250, half1: 110, tick: 0.8, atkMul: 1.40 },
+  ult1: { warn: 6.0, count: 8, ringR: 220, markR: 110, atkMul: 32.0, resolve: 0.9, slowT: 1.0 },
+  ult2: { warn: 4.0, pulses: 5, interval: 0.5, atkMul: 13.3, safeR0: 220, safeR1: 70, slowT: 0.8 },
+  trans: { time: 3.0, pulseAt: 1.2, atkMul: 8.5 },
+  ultCycle: { gap: 10.0 }
 };
 
 var STORM_SKILLS = [
@@ -60,14 +61,14 @@ var STORM_SKILLS = [
   { name: '雷暴领域', text: '二阶段每 9 秒展开半径 300 的雷暴领域，每 1.8 秒落雷，边缘留 2 个安全缺口' },
   { name: '雷墙', text: '二阶段每 13 秒推出一道横扫全场的雷墙，墙上留 2 个缺口；碰墙持续掉血' },
   { name: '磁暴牵引', text: '二阶段每 15 秒把挑战者缓慢拉向雷暴中心，牵引结束后引爆一圈雷环' },
-  { name: '连锁雷', text: '二阶段普攻命中后，闪电跳向附近 2 名挑战者，造成 60% 攻击力' }
+  { name: '连锁雷', text: '二阶段普攻命中后，闪电跳向附近 2 名挑战者，造成 56% 攻击力' }
 ];
 
 var STORM_ULTS = [
-  { name: '风暴降临', text: '第一条血击破时全屏雷击（11% 最大生命），随后进入第二条血' },
-  { name: '雷牢', text: '二阶段 70% 血触发：四角雷柱连成正方形牢笼，安全区从 250 收缩到 110，牢外每 0.8 秒扣 8% 最大生命' },
-  { name: '万雷归一', text: '二阶段 40% 血触发：蓄力 6 秒，环形雷点依次落下，每点 28% 最大生命，留 2 个安全区' },
-  { name: '雷神黄昏', text: '二阶段 10% 血触发：蓄力 4 秒，5 次全屏脉冲，每次 12% 最大生命，安全区逐次收缩；结束后自身虚弱 6 秒' }
+  { name: '风暴降临', text: '第一条血击破时全屏雷击（850% 攻击力），随后进入第二条血' },
+  { name: '雷牢', text: '二阶段 70% 血触发：四角雷柱连成正方形牢笼，安全区从 250 收缩到 110，牢外每 0.8 秒扣 140% 攻击力' },
+  { name: '万雷归一', text: '二阶段 40% 血触发：蓄力 6 秒，环形雷点依次落下，每点 3200% 攻击力，留 2 个安全区' },
+  { name: '雷神黄昏', text: '二阶段 10% 血触发：蓄力 4 秒，5 次全屏脉冲，每次 1330% 攻击力，安全区逐次收缩；结束后自身虚弱 6 秒，并进入终结技循环（每招结束等待 10 秒）' }
 ];
 
 /* ============================================================
@@ -116,7 +117,7 @@ TYPES.stormgolem = {
   impact: false,
   phaseHp: STORM.phaseHp,
   body: '#3c5a8f', light: '#dbe8ff', dark: '#16233d', glow: '#8fb8ff',
-  basic: { cd: 5.0, marks: 2, warn: 1.10, r: 90, pct: 0.45 },
+  basic: { cd: 5.0, marks: 2, warn: 1.10, r: 90, atkMul: 1.70 },
   skills: STORM_SKILLS,
   skill: {
     name: '追踪雷云', cd: STORM.cloud.cd1, noTurn: true, windup: 0.2,
@@ -127,7 +128,7 @@ TYPES.stormgolem = {
   ultimate: { name: '万雷归一', text: STORM_ULTS[2].text },
   passive: {
     name: '静电蓄能 / 风眼',
-    text: '一阶段落雷攒静电（满 5 层追加一道雷）；二阶段抱团减伤 20%、散开提速 15%，并轮换雷线 / 雷环'
+    text: '一阶段落雷攒静电（满 5 层追加一道雷）；二阶段抱团减伤 20%、散开提速 15%，并轮换雷线 / 雷环；雷神黄昏后按雷牢、万雷归一、雷神黄昏循环，每招结束等待 10 秒'
   },
   ultBlocked: function () { return true; },   // 四个终结技都由血量阈值触发
 
@@ -157,6 +158,9 @@ TYPES.stormgolem = {
       ult2: null,
       ult1Done: false,
       ult2Done: false,
+      ultCycle: false,
+      ultCycleCd: 0,
+      ultCycleIx: 0,
       transPulsed: false,
       speedAdd: 0
     };
@@ -208,7 +212,7 @@ TYPES.stormgolem = {
       st.phaseShift = Math.max(0, st.phaseShift - dt);
       if (!st.transPulsed && st.phaseShift <= STORM.trans.time - STORM.trans.pulseAt) {
         st.transPulsed = true;
-        stormArenaPulse(u, STORM.trans.pct, '风暴降临');
+        stormArenaPulse(u, STORM.trans.atkMul, '风暴降临');
       }
       if (st.phaseShift <= 0) stormFinishPhase2(u);
       return;
@@ -224,6 +228,20 @@ TYPES.stormgolem = {
     if (st.cage) { stormUpdateCage(u, dt); return; }
     if (st.ult1) { stormUpdateUlt1(u, dt); return; }
     if (st.ult2) { stormUpdateUlt2(u, dt); return; }
+
+    /* ---------- 终结技循环：上一招完全结束后归零，再等满 10 秒放下一招 ---------- */
+    if (st.phase === 2 && st.ultCycle) {
+      if (st.ultCycleCd > 0) st.ultCycleCd = Math.max(0, st.ultCycleCd - dt);
+      if (st.ultCycleCd <= 0) {
+        var cyc = st.ultCycleIx % 3;
+        st.ultCycleIx = (cyc + 1) % 3;
+        st.ultCycleCd = STORM.ultCycle.gap;
+        if (cyc === 0) { stormStartCage(u); return; }
+        if (cyc === 1) { stormStartUlt1(u); return; }
+        stormStartUlt2(u);
+        return;
+      }
+    }
 
     stormUpdateCloud(u, dt);
     stormUpdateDomain(u, dt);
@@ -306,6 +324,9 @@ function stormFinishPhase2(u) {
   st.cageDone = false;
   st.ult1Done = false;
   st.ult2Done = false;
+  st.ultCycle = false;
+  st.ultCycleCd = 0;
+  st.ultCycleIx = 0;
 
   u.maxHp = STORM.phaseHp[1];
   u.hp = u.maxHp;
@@ -344,7 +365,7 @@ function stormCastMarks(u) {
 
   for (var i = 0; i < targets.length; i++) {
     stormAddMark(u, targets[i].x, targets[i].y, {
-      warn: P.warn, r: P.r, pct: P.pct, basic: true,
+      warn: P.warn, r: P.r, atkMul: P.atkMul, basic: true,
       chain: st.phase === 2, source: 'bolt'
     });
   }
@@ -352,7 +373,7 @@ function stormCastMarks(u) {
     var e = nearestEnemy(u);
     if (e) {
       stormAddMark(u, e.x, e.y, {
-        warn: P.warn, r: P.r, pct: P.pct, basic: true,
+        warn: P.warn, r: P.r, atkMul: P.atkMul, basic: true,
         chain: false, source: 'overload'
       });
       floater(e.x, e.y - e.r - 26, '静电过载 · 追加落雷', '#dbe8ff', 14);
@@ -373,6 +394,7 @@ function stormAddMark(u, x, y, cfg) {
     x: x, y: y, r: r,
     t: warn, max: warn,
     pct: cfg.pct || 0,
+    atkMul: cfg.atkMul || 0,
     basic: !!cfg.basic,
     chain: !!cfg.chain,
     ult: !!cfg.ult,
@@ -407,8 +429,10 @@ function stormResolveMark(u, m) {
 
   for (var h = 0; h < hits.length; h++) {
     var t = hits[h].v;
-    var dmg = m.pct > 0 ? t.maxHp * m.pct : u.atk * (m.basic ? 1 : 0.6);
-    hurt(t, dmg, u, m.pct > 0 ? { pct: 1 } : (m.basic ? { basic: 1 } : null));
+    var dmg = m.pct > 0 ? t.maxHp * m.pct : u.atk * m.atkMul;
+    var markOpt = m.basic ? { basic: 1 } : (m.ult ? { ult: 1 } : { skill: 1 });
+    if (m.pct > 0) markOpt.pct = 1;
+    hurt(t, dmg, u, markOpt);
     if (m.slowT > 0 && !t.bossImmune) {
       t.slowT = Math.max(t.slowT || 0, m.slowT);
       t.slowMul = Math.min(t.slowMul || 1, 0.72);
@@ -429,8 +453,8 @@ function stormResolveMark(u, m) {
       var w = units[j];
       if (!w.alive || w.team === u.team || w === first) continue;
       if (Math.hypot(w.x - first.x, w.y - first.y) > P.chainRange) continue;
-      var cdmg = u.atk * P.chainPct;
-      hurt(w, cdmg, u, { basic: 1 });
+      var cdmg = u.atk * P.chainAtkMul;
+      hurt(w, cdmg, u, { skill: 1 });
       floater(w.x, w.y - w.r - 20, '连锁 -' + Math.round(cdmg), '#b9d4ff', 15);
       /* [FX] 连锁：从主目标拉一条折线电弧到跳跃目标 */
       stormPushChain(first.x, first.y, w.x, w.y, '#b9d4ff', false);
@@ -483,7 +507,7 @@ function stormCastLine(u) {
     y2: u.y + Math.sin(ang) * len,
     w: STORM.line.width,
     t: STORM.line.warn, max: STORM.line.warn,
-    pct: P.pct * STORM.line.pctMul,
+    atkMul: P.atkMul * STORM.line.mul,
     basic: true
   });
   st.atkCd = P.atkCd * STORM.line.cdMul;
@@ -511,8 +535,8 @@ function stormResolveLine(u, l) {
     var v = units[i];
     if (!v.alive || v.team === u.team) continue;
     if (segDist(v.x, v.y, l.x1, l.y1, l.x2, l.y2) > l.w * 0.5 + v.r * 0.6) continue;
-    var dmg = u.atk * l.pct;
-    hurt(v, dmg, u, l.basic ? { basic: 1 } : null);
+    var dmg = u.atk * l.atkMul;
+    hurt(v, dmg, u, l.basic ? { basic: 1 } : { skill: 1 });
     v.slowT = Math.max(v.slowT || 0, 0.35);
     v.slowMul = Math.min(v.slowMul || 1, 0.85);
     floater(v.x, v.y - v.r - 18, '-' + Math.round(dmg), '#dbe8ff', 18);
@@ -540,7 +564,7 @@ function stormCastRing(u) {
     inner: STORM.ring.inner,
     outer: STORM.ring.outer,
     t: STORM.ring.warn, max: STORM.ring.warn,
-    pct: P.pct * STORM.ring.pctMul,
+    atkMul: P.atkMul * STORM.ring.mul,
     basic: true
   });
   st.atkCd = P.atkCd * STORM.ring.cdMul;
@@ -570,8 +594,8 @@ function stormResolveRing(u, r) {
     if (!v.alive || v.team === u.team) continue;
     var d = Math.hypot(v.x - r.x, v.y - r.y);
     if (d < r.inner - v.r * 0.5 || d > r.outer + v.r * 0.5) continue;
-    var dmg = u.atk * r.pct;
-    hurt(v, dmg, u, r.basic ? { basic: 1 } : null);
+    var dmg = u.atk * r.atkMul;
+    hurt(v, dmg, u, r.basic ? { basic: 1 } : { skill: 1 });
     v.slowT = Math.max(v.slowT || 0, 0.4);
     v.slowMul = Math.min(v.slowMul || 1, 0.82);
     floater(v.x, v.y - v.r - 18, '-' + Math.round(dmg), '#dbe8ff', 18);
@@ -644,14 +668,14 @@ function stormUpdateCloud(u, dt) {
 }
 
 function stormCloudPulse(u, c, phase2) {
-  var pct = phase2 ? STORM.cloud.pct2 : STORM.cloud.pct1;
-  var dmg = u.atk * pct;
+  var atkMul = phase2 ? STORM.cloud.atkMul2 : STORM.cloud.atkMul1;
+  var dmg = u.atk * atkMul;
   var hit = 0;
   for (var i = 0; i < units.length; i++) {
     var v = units[i];
     if (!v.alive || v.team === u.team) continue;
     if (Math.hypot(v.x - c.x, v.y - c.y) > c.r + v.r) continue;
-    hurt(v, dmg, u, { dot: 1 });
+    hurt(v, dmg, u, { skill: 1, dot: 1, periodic: 1 });
     if (!v.bossImmune) {
       v.slowT = Math.max(v.slowT || 0, STORM.cloud.slowT);
       v.slowMul = Math.min(v.slowMul || 1, STORM.cloud.slowMul);
@@ -699,7 +723,7 @@ function stormUpdateDomain(u, dt) {
 }
 
 function stormDomainPulse(u, d) {
-  var dmg = u.atk * STORM.domain.pct;
+  var dmg = u.atk * STORM.domain.atkMul;
   var hit = 0;
   for (var i = 0; i < units.length; i++) {
     var v = units[i];
@@ -709,7 +733,7 @@ function stormDomainPulse(u, d) {
     var a = Math.atan2(v.y - d.y, v.x - d.x);
     if (Math.abs(angDiff(a, d.safeAng)) < STORM.domain.gap) continue;
     if (Math.abs(angDiff(a, d.safeAng + Math.PI)) < STORM.domain.gap) continue;
-    hurt(v, dmg, u, { dot: 1 });
+    hurt(v, dmg, u, { skill: 1, dot: 1, periodic: 1 });
     if (!v.bossImmune) {
       v.slowT = Math.max(v.slowT || 0, STORM.domain.slowT);
       v.slowMul = Math.min(v.slowMul || 1, STORM.domain.slowMul);
@@ -777,7 +801,7 @@ function stormUpdateWall(u, dt) {
     if (Math.abs(rel - w.gaps[1]) <= STORM.wall.gapHalf) continue;
     if (v.stormWallCd > 0) continue;
     v.stormWallCd = STORM.wall.hitCd;
-    hurt(v, u.atk * STORM.wall.pct, u, { dot: 1 });
+    hurt(v, u.atk * STORM.wall.atkMul, u, { skill: 1, dot: 1, periodic: 1 });
     /* [FX] 雷墙命中：墙面擦过时在该单位身上炸出一束小雷柱 */
     stormPushBolt(v.x, v.y, v.r + 20, false);
     ring(v.x, v.y, v.r, v.r + 30, 0.28, '#dbe8ff');
@@ -831,7 +855,7 @@ function stormUpdatePull(u, dt) {
       inner: STORM.ring.inner * 0.55,
       outer: STORM.ring.outer * 0.85,
       t: 0.35, max: 0.35,
-      pct: STORM.pull.pct,
+      atkMul: STORM.pull.atkMul,
       basic: false
     });
     ring(p.x, p.y, 8, 200, 0.5, '#ffffff');
@@ -908,10 +932,11 @@ function stormCagePulse(u, c) {
     if (!v.alive || v.team === u.team) continue;
     if (Math.abs(v.x - cx) <= half + v.r * 0.5 &&
         Math.abs(v.y - cy) <= half + v.r * 0.5) continue;
-    hurt(v, v.maxHp * STORM.cage.pct, u, { pct: 1 });
+    var dmg = u.atk * STORM.cage.atkMul;
+    hurt(v, dmg, u, { ult: 1, dot: 1, periodic: 1 });
     v.slowT = Math.max(v.slowT || 0, 0.4);
     v.slowMul = Math.min(v.slowMul || 1, 0.82);
-    floater(v.x, v.y - v.r - 18, '-' + Math.round(v.maxHp * STORM.cage.pct), '#eaf4ff', 20);
+    floater(v.x, v.y - v.r - 18, '-' + Math.round(dmg), '#eaf4ff', 20);
     /* [FX] 雷牢脉冲：牢外单位被四边光束电击，各自落一根雷柱 */
     stormPushBolt(v.x, v.y, v.r + 22, true);
     ring(v.x, v.y, v.r, v.r + 40, 0.3, '#eaf4ff');
@@ -985,7 +1010,7 @@ function stormSpawnUlt1Marks(u, safeAng) {
       cy + Math.sin(a) * STORM.ult1.ringR, {
         warn: STORM.ult1.resolve,
         r: STORM.ult1.markR,
-        pct: STORM.ult1.pct,
+        atkMul: STORM.ult1.atkMul,
         ult: true,
         slowT: STORM.ult1.slowT,
         source: 'ult1'
@@ -1052,27 +1077,31 @@ function stormUpdateUlt2(u, dt) {
     u.st.actionLock = 0;
     u.st.recover = 2.0;
     u.st.ult2Done = true;
+    // 首次雷神黄昏结束后进入终结技循环：10 秒后从雷牢开始
+    u.st.ultCycle = true;
+    u.st.ultCycleCd = STORM.ultCycle.gap;
+    u.st.ultCycleIx = 0;
     // 大招结束后的反打窗口：BOSS 虚弱 6 秒（所有伤害 -20%）
     u.weakT = Math.max(u.weakT || 0, 6.0);
     u.weakMul = 0.8;
-    if (typeof bossCry === 'function') bossCry('雷神黄昏 · 结束', 'BOSS 虚弱 6 秒 · 反打窗口');
+    if (typeof bossCry === 'function') bossCry('雷神黄昏 · 结束', 'BOSS 虚弱 6 秒 · 10 秒后开始终结技循环');
   }
 }
 
 function stormUlt2Pulse(u, safeR) {
   var A = ARENA, cx = A.x + A.w / 2, cy = A.y + A.h / 2;
-  var dmgPct = STORM.ult2.pct;
+  var dmg = u.atk * STORM.ult2.atkMul;
   var hit = 0;
   for (var i = 0; i < units.length; i++) {
     var v = units[i];
     if (!v.alive || v.team === u.team) continue;
     if (Math.hypot(v.x - cx, v.y - cy) <= safeR + v.r * 0.5) continue;
-    hurt(v, v.maxHp * dmgPct, u, { pct: 1 });
+    hurt(v, dmg, u, { ult: 1 });
     if (!v.bossImmune) {
       v.slowT = Math.max(v.slowT || 0, STORM.ult2.slowT);
       v.slowMul = Math.min(v.slowMul || 1, 0.6);
     }
-    floater(v.x, v.y - v.r - 18, '-' + Math.round(v.maxHp * dmgPct), '#eaf4ff', 22);
+    floater(v.x, v.y - v.r - 18, '-' + Math.round(dmg), '#eaf4ff', 22);
     stormPushBolt(v.x, v.y, v.r + 20, true);
     ring(v.x, v.y, v.r, v.r + 44, 0.35, '#eaf4ff');
     burst(v.x, v.y, 12, '#eaf4ff', 300);
@@ -1092,19 +1121,20 @@ function stormUlt2Pulse(u, safeR) {
 /* ============================================================
    通用：全屏雷击 / 目标选择 / 风眼
    ============================================================ */
-function stormArenaPulse(u, pct, label) {
+function stormArenaPulse(u, atkMul, label) {
+  var dmg = u.atk * atkMul;
   for (var i = 0; i < units.length; i++) {
     var v = units[i];
     if (!v.alive || v.team === u.team) continue;
-    hurt(v, v.maxHp * pct, u, { pct: 1 });
+    hurt(v, dmg, u, { ult: 1 });
     v.slowT = Math.max(v.slowT || 0, 0.8);
     v.slowMul = Math.min(v.slowMul || 1, 0.8);
-    floater(v.x, v.y - v.r - 18, '-' + Math.round(v.maxHp * pct), '#eaf4ff', 24);
+    floater(v.x, v.y - v.r - 18, '-' + Math.round(dmg), '#eaf4ff', 24);
     ring(v.x, v.y, v.r, v.r + 50, 0.4, '#eaf4ff');
   }
   for (var s = seeds.length - 1; s >= 0; s--) {
     if (seeds[s].team === u.team) continue;
-    hurtSeed(seeds[s], seeds[s].maxHp * pct, u, { pct: 1 });
+    hurtSeed(seeds[s], dmg, u, { ult: 1 });
   }
   var A = ARENA;
   /* [FX] 全屏雷击：整场白闪 + 多层扩散雷环 + 震屏 + 慢动作 */
@@ -1116,7 +1146,7 @@ function stormArenaPulse(u, pct, label) {
   burst(u.x, u.y, 18, '#7ff0ff', 300);
   shake = Math.max(shake, 22);
   hitStop = Math.max(hitStop, 0.06);
-  if (typeof bossCry === 'function') bossCry(label, '全屏雷击 · 每个挑战者扣 ' + Math.round(pct * 100) + '% 最大生命');
+  if (typeof bossCry === 'function') bossCry(label, '全屏雷击 · 每个挑战者扣 ' + Math.round(atkMul * 100) + '% 攻击力');
   if (typeof sfxPlay === 'function') sfxPlay('bomb');
 }
 

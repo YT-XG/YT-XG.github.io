@@ -47,7 +47,7 @@ function dogBark(u) {
     if (sd.team === u.team) continue;
     if (Math.hypot(sd.x - u.x, sd.y - u.y) > DOG_BASIC.len + sd.r) continue;
     if (Math.abs(angDiff(Math.atan2(sd.y - u.y, sd.x - u.x), ang)) > DOG_BASIC.half) continue;
-    hurtSeed(sd, dmg, u);
+    hurtSeed(sd, dmg, u, { basic: 1 });
     if (sd.hp <= 0) destroySeed(i, '种子被声波震碎');
   }
 
@@ -117,7 +117,7 @@ function dogUltLaserTick(u, dt) {
     u.st.laserAng = u.st.ultLaserAng;
     var hits = laserStrike(u, {
       len: DOG_ULT.len, width: DOG_ULT.width, dmg: u.atk * pct,
-      multi: 1, slowMul: DOG_ULT.slowMul, slowTime: DOG_ULT.slowTime
+      multi: 1, ult: 1, slowMul: DOG_ULT.slowMul, slowTime: DOG_ULT.slowTime
     });
     if (hits.length) u.st.ultHitPulse = 1;   // 激光随每一段命中闪一下
     if (n > DOG_ULT.split2) {
@@ -184,7 +184,8 @@ TYPES.dog = {
     var ang = foe ? Math.atan2(foe.y - u.y, foe.x - u.x) : u.ang;
     spawnUltBeam(u, ang, {
       len: DOG_SKILL.len, width: DOG_SKILL.width,
-      dmg: u.atk * DOG_SKILL.pct, color: '#ffcf8a', life: DOG_SKILL.life
+      dmg: u.atk * DOG_SKILL.pct, color: '#ffcf8a', life: DOG_SKILL.life,
+      skill: 1
     });
 
     var tgt = dogBuffTarget(u);

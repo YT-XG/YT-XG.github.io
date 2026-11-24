@@ -33,7 +33,7 @@ function updateBurns(dt) {
     u.burnAcc -= dt;
     while (u.burnAcc <= 0 && u.alive && u.burnStacks > 0) {
       u.burnAcc += RED_BURN.interval;
-      hurt(u, u.burnStacks * RED_BURN.pctPerLayer * (u.burnAtk || 0), u.burnSrc, { dot: 1 });
+      hurt(u, u.burnStacks * RED_BURN.pctPerLayer * (u.burnAtk || 0), u.burnSrc, { dot: 1, periodic: 1 });
       u.burnStacks -= 1;   // 每结算一次伤害降低 1 层
     }
     if (u.burnStacks <= 0) {
@@ -146,7 +146,7 @@ TYPES.red = {
     if (!R.target) return;
     var pct = R.n >= C.last ? C.pctLast : (R.n > 10 ? C.pctLate : C.pct);
     spawnBomb(u, R.target.x + rand(-28, 28), R.target.y + rand(-28, 28), {
-      fuse: C.fuse, radius: C.radius, dmg: u.atk * pct
+      fuse: C.fuse, radius: C.radius, dmg: u.atk * pct, ult: 1
     });
   },
   onRageStart: function (u) {
