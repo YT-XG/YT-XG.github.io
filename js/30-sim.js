@@ -2020,7 +2020,7 @@ function updateRelay(dt) {
 }
 
 function checkOver() {
-  /* 秘境多波次：当前波全灭时先放下一波，不能在这里直接判 B 出局。 */
+  /* 秘境保留这个空钩子（无多波次）；普通对局 / BOSS 战不依赖它。 */
   if (typeof adventureSpawnNextWave === 'function') adventureSpawnNextWave();
   // 一方「没人了 + 没后备 + 没有正在复活的种子」才算出局
   var aOut = countAlive('A') === 0 && !hasBackup('A') && !pendingRevive('A');

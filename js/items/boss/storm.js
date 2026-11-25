@@ -328,7 +328,7 @@ function stormFinishPhase2(u) {
   st.ultCycleCd = 0;
   st.ultCycleIx = 0;
 
-  /* 秘境有独立的二阶段生命（ADV_BOSS.storm.phase2Hp，按 run.threat 放大）；
+  /* 秘境有独立的二阶段生命（ADV_BOSS.storm.phase2Hp，按敌难 / 试炼倍率放大）；
      普通 BOSS 战没有 advBoss，仍走 TYPES/BALANCE 的 9000。 */
   var nextHp = (u.st.advBoss && u.st.advBoss.phase2Hp)
     ? u.st.advBoss.phase2Hp

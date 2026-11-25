@@ -321,7 +321,7 @@ function mobiHomeHtml() {
       '</div></div>' +
     '<div class="m-home-menu">' +
       '<button type="button" class="adventure" data-act="adventure">' +
-        (typeof adventureHomeLabel === 'function' ? '秘境 · ' + adventureHomeLabel() : '秘境闯关 · 10 层') + '</button>' +
+        (typeof adventureHomeLabel === 'function' ? '秘境 · ' + adventureHomeLabel() : '秘境试炼') + '</button>' +
       '<button type="button" data-act="solo">单机模式</button>' +
       '<button type="button" class="dim" data-act="online">联机模式（探索中）</button>' +
       '<button type="button" data-act="tour">S' + seasonGet() + '　赛事模式</button>' +

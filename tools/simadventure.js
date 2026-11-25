@@ -234,6 +234,7 @@ if (argv.includes('--selftest')) {
     assert(advPoolLeft(r) === 86, '开局牌库剩余应为 86（1 张赠送 + 3 张商店）');
     assert(r.shop.length === 3 && r.shop[0] && r.shop[1] && r.shop[2], '商店应展示 3 张');
     assert(r.cards.length === 1, '开局应赠送 1 张卡');
+    assert(r.board.filter(Boolean).length === 1, '开局赠送卡应自动上阵');
 
     /* 3 张 1 星 → 2 星；3 张 2 星 → 3 星。 */
     r.cards = []; r.board = [null,null,null]; r.bench = [null,null,null,null,null,null];
@@ -250,6 +251,33 @@ if (argv.includes('--selftest')) {
     assert(r.pool.spear === 9, '出售 3 星应归还 9 张');
 
     assert(advSellPrice({star:2}) === 12, '2 星出售应为 12');
+
+    /* 装备聚合与出售返还。 */
+    r.cards = [{uid:1,key:'spear',star:2,items:['knife','flower']}];
+    r.board = [1,null,null]; r.bench = [null,null,null,null,null,null];
+    r.global = {hp:0,atk:0}; r.hexes = [];
+    var st2 = advCardStats(r.cards[0]);
+    assert(st2.hp > 2.1 && st2.dmg > 1.14, '星级 + 装备面板聚合异常');
+    advSellCard(1);
+    assert(r.inventory.indexOf('knife') >= 0 && r.inventory.indexOf('flower') >= 0, '出售角色应返还装备');
+
+    /* 装备合成 / 装备 / 卸下。 */
+    r.cards = [{uid:9,key:'ice',star:1,items:[]}]; r.board=[9,null,null]; r.bench=[null,null,null,null,null,null];
+    r.inventory = ['shoes','knife']; adventure.selectedItems = [0,1];
+    advCraftSelected();
+    assert(r.inventory.length === 1 && r.inventory[0] === 'gale', '鞋 + 刀应合成疾影战刃');
+    adventure.selectedItems = [0];
+    advEquipSelected(9);
+    assert(r.cards[0].items.length === 1 && r.cards[0].items[0] === 'gale', '装备未装入角色');
+    advUnequipItem(9, 0);
+    assert(r.inventory.indexOf('gale') >= 0 && r.cards[0].items.length === 0, '卸下装备未回背包');
+
+    /* 敌阵至少覆盖玩家上阵人数。 */
+    r.cards = [{uid:2,key:'ice',star:1,items:[]}]; r.board=[2,null,null]; r.bench=[null,null,null,null,null,null];
+    r.trial = 1; r.node = 3; r.battle = null;
+    var eb = advBuildBattle();
+    assert(eb && eb.enemyKeys.length >= 1, '敌阵生成失败');
+    assert(ADV_RECIPES.every(function(x){ return !!ADV_ITEM_BY_ID[x.out]; }), '配方产物不存在');
 
     /* 难度：黄金 +2 / 棱彩 +5。 */
     r.env = 'peace'; r.hexes = [];
