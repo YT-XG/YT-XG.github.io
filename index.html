@@ -4,10 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>MC 方块对决 · 组合作战</title>
-<link rel="stylesheet" href="css/fonts.css?v=20261124e" />
-<link rel="stylesheet" href="css/style.css?v=20261124e" />
-<link rel="stylesheet" href="css/mobile.css?v=20261124e" media="(max-width: 980px), (max-height: 480px), (pointer: coarse)" />
-<link rel="stylesheet" href="css/mobi.css?v=20261124e" />
+<link rel="stylesheet" href="css/fonts.css?v=20261126a" />
+<link rel="stylesheet" href="css/style.css?v=20261126a" />
+<link rel="stylesheet" href="css/mobile.css?v=20261126a" media="(max-width: 980px), (max-height: 480px), (pointer: coarse)" />
+<link rel="stylesheet" href="css/mobi.css?v=20261126a" />
+<link rel="stylesheet" href="css/adventure.css?v=20261126a" />
 </head>
 <body>
 <div class="app">
@@ -62,7 +63,7 @@
           <span class="home-kicker"><i class="hk-dot"></i>MC · VOXEL DUEL</span>
           <h2 class="home-title"><span class="ht-out">赛博斗蛐蛐</span><span class="ht-in">赛博斗蛐蛐</span></h2>
           <div class="home-subline">
-            <span class="home-ver" id="homeVer">v26.11.234</span>
+            <span class="home-ver" id="homeVer">v26.11.240</span>
             <span class="home-tag">1v1 → 6v6</span>
             <span class="home-tag dim">台球式物理</span>
           </div>
@@ -100,6 +101,13 @@
       <section class="home-actions">
         <div class="ha-head"><b>选择模式</b><span>SELECT MODE</span></div>
         <div class="ha-grid">
+          <button class="home-big adventure" type="button" id="homeAdventure">
+            <i class="hb-no">EXPEDITION</i>
+            <span class="hb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="m12 2 8 5v10l-8 5-8-5V7z"/><path d="m8 8 4-2 4 2-4 2zM8 14l4 2 4-2"/></svg></span>
+            <b>秘境试炼 <i>2 试炼</i></b>
+            <span class="hb-desc">卡牌自走棋 · 90 张牌库 · 海克斯 / 装备 / 双 BOSS</span>
+            <em>开始远征<i>→</i></em>
+          </button>
           <button class="home-big" type="button" data-go="solo">
             <i class="hb-no">01</i>
             <span class="hb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="2.5" y="3.5" width="8" height="8" rx="1.6"/><rect x="13.5" y="12.5" width="8" height="8" rx="1.6"/><path d="M10.5 14.5h3M10.5 9.5h3" stroke-dasharray="2 3"/></svg></span>
@@ -255,33 +263,34 @@
   </div>
 </div>
 
-    <script src="js/00-base.js?v=20261124e"></script>
-    <script src="js/05-wallet.js?v=20261124e"></script>
-    <script src="js/items/red.js?v=20261124e"></script>
-    <script src="js/items/lapis.js?v=20261124e"></script>
-    <script src="js/items/spear.js?v=20261124e"></script>
-    <script src="js/items/bow.js?v=20261124e"></script>
-    <script src="js/items/ice.js?v=20261124e"></script>
-    <script src="js/items/dog.js?v=20261124e"></script>
-    <script src="js/items/grass.js?v=20261124e"></script>
-    <script src="js/items/anvil.js?v=20261124e"></script>
-    <script src="js/items/milk.js?v=20261124e"></script>
-    <script src="js/items/bucket.js?v=20261124e"></script>
-    <script src="js/items/gaga.js?v=20261124e"></script>
-    <script src="js/items/boss/shared.js?v=20261124e"></script>
-    <script src="js/items/boss/duo.js?v=20261124e"></script>
-    <script src="js/items/boss/storm.js?v=20261124e"></script>
-    <script src="js/items/pool.js?v=20261124e"></script>
-    <script src="js/10-core.js?v=20261124e"></script>
-    <script src="js/25-field.js?v=20261124e"></script>
-    <script src="js/20-menu.js?v=20261124e"></script>
-    <script src="js/30-sim.js?v=20261124e"></script>
-    <script src="js/40-render.js?v=20261124e"></script>
-    <script src="js/45-icons.js?v=20261124e"></script>
-    <script src="js/50-ui.js?v=20261124e"></script>
-    <script src="js/60-tournament.js?v=20261124e"></script>
-    <script src="js/70-tour-odds.js?v=20261124e"></script>
-    <script src="js/80-mobi.js?v=20261124e"></script>
+    <script src="js/00-base.js?v=20261126a"></script>
+    <script src="js/05-wallet.js?v=20261126a"></script>
+    <script src="js/items/red.js?v=20261126a"></script>
+    <script src="js/items/lapis.js?v=20261126a"></script>
+    <script src="js/items/spear.js?v=20261126a"></script>
+    <script src="js/items/bow.js?v=20261126a"></script>
+    <script src="js/items/ice.js?v=20261126a"></script>
+    <script src="js/items/dog.js?v=20261126a"></script>
+    <script src="js/items/grass.js?v=20261126a"></script>
+    <script src="js/items/anvil.js?v=20261126a"></script>
+    <script src="js/items/milk.js?v=20261126a"></script>
+    <script src="js/items/bucket.js?v=20261126a"></script>
+    <script src="js/items/gaga.js?v=20261126a"></script>
+    <script src="js/items/boss/shared.js?v=20261126a"></script>
+    <script src="js/items/boss/duo.js?v=20261126a"></script>
+    <script src="js/items/boss/storm.js?v=20261126a"></script>
+    <script src="js/items/pool.js?v=20261126a"></script>
+    <script src="js/10-core.js?v=20261126a"></script>
+    <script src="js/25-field.js?v=20261126a"></script>
+    <script src="js/20-menu.js?v=20261126a"></script>
+    <script src="js/30-sim.js?v=20261126a"></script>
+    <script src="js/40-render.js?v=20261126a"></script>
+    <script src="js/45-icons.js?v=20261126a"></script>
+    <script src="js/50-ui.js?v=20261126a"></script>
+    <script src="js/60-tournament.js?v=20261126a"></script>
+    <script src="js/70-tour-odds.js?v=20261126a"></script>
+    <script src="js/80-mobi.js?v=20261126a"></script>
+    <script src="js/85-adventure.js?v=20261126a"></script>
 </body>
 </html>
 

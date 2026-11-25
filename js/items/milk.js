@@ -61,7 +61,7 @@ TYPES.milk = {
     var D = TYPES.milk.drain;
     u.st.milkT = D.dur;
     u.st.milkAcc = 1.0;                    // 之后每满 1 秒再结算一次
-    u.st.shield = TYPES.milk.shieldMax;    // 打断护盾：每次展开重置
+    u.st.shield = u.st.advShieldStack ? (u.st.shield || 0) + TYPES.milk.shieldMax : TYPES.milk.shieldMax;    // 守护之靴：护盾叠加
     u.st.shieldT = 0;                      // 不靠时间清空，只被伤害消耗
     u.dashT = 0; u.dashSpeed = 0; u.dmgMult = 1;
     u.trail.length = 0;                    // 站定：清掉移动残影

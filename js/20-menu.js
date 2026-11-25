@@ -1356,6 +1356,10 @@ function enterPick(size) {
 }
 
 function openMenu() {
+  /* 秘境界面 / 战斗统一回收入口：保存或回滚秘境战斗、隐藏遮罩，并把
+     进入秘境前的阵容 / 人数 / 时长 / 赛制 / 模式恢复回来。 */
+  if (typeof adventurePrepareMenuReturn === 'function') adventurePrepareMenuReturn();
+  else if (typeof adventureOnMenu === 'function') adventureOnMenu();
   // 后台赔率模拟占着引擎全局：先停下并还原，再做主菜单的重置
   if (typeof tourOddsStop === 'function') tourOddsStop();
   if (typeof previewStop === 'function') previewStop();
@@ -1433,6 +1437,11 @@ function continueSeries() {
 
 /* 「重开 / R」：系列赛未结束时只重打当前局，不把比分清零 */
 function restartBattle() {
+  if (typeof adventureInBattle === 'function' &&
+      (adventureInBattle() || document.body.classList.contains('adventure-open'))) {
+    if (adventureInBattle()) adventureRetryFloor();
+    return;
+  }
   if (seriesBest === 3 && seriesWins.A < 2 && seriesWins.B < 2) {
     reset();
     applyFightChrome();

@@ -88,6 +88,8 @@ function hurt(u, amount, src, opt) {
      不再乘 dmgScale；旧角色没有这个标记，行为完全不变。
      opt.cal：自伤 / 反噬这类没有施放者的伤害，也能声明「已校准」。 */
   var cal = !!(src && TYPES[src.key] && TYPES[src.key].calibrated) || !!(opt && opt.cal);
+  /* 秘境装备：只修改本次伤害，不改角色基础常量；非闯关时函数直接返回原值。 */
+  if (typeof adventureDamageBefore === 'function') amount = adventureDamageBefore(u, amount, src, opt);
   /* 虚弱（终末震荡）：出手方 10 秒内普攻 / 技能 / 终结技伤害 -20% */
   if (src && src.weakT > 0) amount *= (src.weakMul || 0.8);
   /* 场地食物：攻击增益只放大非百分比伤害（与 1v1 solo.dmgMul 同口径） */
@@ -206,6 +208,7 @@ function hurt(u, amount, src, opt) {
     var actualHpLoss = Math.min(amount, hpBefore);
     u.hp -= amount;
     if (src) src.dealt += actualHpLoss;
+    if (typeof adventureDamageAfter === 'function') adventureDamageAfter(u, src, opt, actualHpLoss);
     u.taken = Math.max(0, u.taken - (incoming - actualHpLoss));
 
     if (periodic && !multi) {
@@ -228,6 +231,8 @@ function hurt(u, amount, src, opt) {
   }
 
   if (u.hp <= 0) {
+    /* 秘境「不灭图腾」：每层接管一次玩家致命伤，优先于通用死亡流程。 */
+    if (typeof adventureOnLethal === 'function' && adventureOnLethal(u)) return;
     /* 双血 BOSS：第一条血打空时先走 onLethal 转阶段（锁 1 血、免伤），不当成死亡。
        返回 true 表示「已接管这次致命伤害」，hurt 不再继续走死亡流程。 */
     var LT = TYPES[u.key];
@@ -1318,6 +1323,9 @@ function laserStrike(u, L) {
 
 function statusText() {
   var parts = [];
+  if (typeof adventureInBattle === 'function' && adventureInBattle() && adventure.run) {
+    parts.push(typeof advStatusLine === 'function' ? advStatusLine() : '秘境试炼');
+  }
   if (bossMode && phase === 'fight') {
     if (bossTwoBar()) {
       // 单单位双血 BOSS（雷云巨像）：报当前第几条血 / 转阶段 / 终结技读秒
@@ -1935,6 +1943,7 @@ function endFxFinish() {
   if (!endFx) return;
   var snap = endFx;
   endFx = null;
+  if (typeof adventureCompleteBattle === 'function' && adventureCompleteBattle()) return;
 
   var title = snap.winner === 'draw' ? '平局' : (sideName(snap.winner) + ' 胜利');
   el.banner.querySelector('strong').textContent = title;
@@ -1962,6 +1971,7 @@ function deathStrike() {
     floater(u.x + rand(-8, 8), u.y - u.r - 72, '-' + Math.round(loss), '#ff6b5a', 16, { pop: 1 });
     burst(u.x, u.y, 5, '#ff8a6b', 120);
     if (u.hp <= 0) {
+      if (typeof adventureOnLethal === 'function' && adventureOnLethal(u)) continue;
       // 双血 BOSS：第一条血被决杀打空也走转阶段，不直接判死
       var DT = TYPES[u.key];
       if (DT && DT.onLethal && DT.onLethal(u)) continue;
@@ -2010,6 +2020,8 @@ function updateRelay(dt) {
 }
 
 function checkOver() {
+  /* 秘境多波次：当前波全灭时先放下一波，不能在这里直接判 B 出局。 */
+  if (typeof adventureSpawnNextWave === 'function') adventureSpawnNextWave();
   // 一方「没人了 + 没后备 + 没有正在复活的种子」才算出局
   var aOut = countAlive('A') === 0 && !hasBackup('A') && !pendingRevive('A');
   var bOut = countAlive('B') === 0 && !hasBackup('B') && !pendingRevive('B');
@@ -2049,9 +2061,12 @@ function tick(dt) {
   for (var i = 0; i < units.length; i++) {
     var u = units[i];
     // 蜂蜜瓶：技能冷却流速加快（只作用于普通技能 CD，不改终结技）
-    var cdRate = (u.field && u.field.cdT > 0) ? u.field.cdMul : 1;
+    var cdRate = ((u.field && u.field.cdT > 0) ? u.field.cdMul : 1) *
+      (typeof adventureCdRate === 'function' ? adventureCdRate(u) : 1);
     u.cd = Math.max(0, u.cd - dt * cdRate);
-    u.ultCd = Math.max(0, (u.ultCd || 0) - dt);
+    var ultRate = typeof adventureUltCdRate === 'function' ? adventureUltCdRate(u) : 1;
+    u.ultCd = Math.max(0, (u.ultCd || 0) - dt * ultRate);
+    if (typeof adventureOnTick === 'function') adventureOnTick(u, dt);
     u.hitCd = Math.max(0, u.hitCd - dt);
     u.wallCd = Math.max(0, u.wallCd - dt);
     u.flash = Math.max(0, u.flash - dt * 5);
@@ -2108,6 +2123,7 @@ function tick(dt) {
     var PT = TYPES[pu.key];
     /* 被动回能：新体系角色按 energyRegen 每秒攒能量（旧角色没有这个字段，完全不受影响） */
     if (PT.energyRegen) gainEnergy(pu, PT.energyRegen * dt);
+    if (pu.st && pu.st.advEnergy) gainEnergy(pu, pu.st.advEnergy * dt);
     if (PT.onTick) PT.onTick(pu, dt);
   }
 

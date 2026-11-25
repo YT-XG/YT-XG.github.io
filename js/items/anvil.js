@@ -268,7 +268,7 @@ function anvilJudgment(u) {
   // 献祭铸甲：消耗量的 35% 转成护盾（走通用护盾通道，可被伤害打掉）
   var guard = Math.round(loss * U.shieldPct);
   if (guard > 0) {
-    u.st.shield = Math.max(u.st.shield || 0, guard);
+    u.st.shield = u.st.advShieldStack ? (u.st.shield || 0) + guard : Math.max(u.st.shield || 0, guard);
     u.st.shieldT = U.shieldTime;
     floater(u.x, u.y - u.r - 44, '铸甲 +' + guard, '#9cc0ff', 13);
     ring(u.x, u.y, u.r + 4, u.r + 42, 0.35, '#9cc0ff');

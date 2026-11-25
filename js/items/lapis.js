@@ -72,7 +72,7 @@ function lapisApplyEnchant(u) {
   } else if (choice === 3) {
     for (var k = 0; k < duo.length; k++) {
       var v3 = duo[k];
-      v3.st.shield = LAPIS_ENCHANT.shield;   // 刷新为 50，不叠加
+      v3.st.shield = v3.st.advShieldStack ? (v3.st.shield || 0) + LAPIS_ENCHANT.shield : LAPIS_ENCHANT.shield;   // 守护之靴：护盾叠加
       v3.st.shieldT = 0;                     // 不按时间消失，只被伤害打掉
       floater(v3.x, v3.y - v3.r - 20, '护盾 ' + LAPIS_ENCHANT.shield, '#8fb4ff', 11);
       ring(v3.x, v3.y, v3.r, v3.r + 26, 0.28, '#8fb4ff');

@@ -320,6 +320,8 @@ function mobiHomeHtml() {
         }).join('') +
       '</div></div>' +
     '<div class="m-home-menu">' +
+      '<button type="button" class="adventure" data-act="adventure">' +
+        (typeof adventureHomeLabel === 'function' ? '秘境 · ' + adventureHomeLabel() : '秘境闯关 · 10 层') + '</button>' +
       '<button type="button" data-act="solo">单机模式</button>' +
       '<button type="button" class="dim" data-act="online">联机模式（探索中）</button>' +
       '<button type="button" data-act="tour">S' + seasonGet() + '　赛事模式</button>' +
@@ -1006,6 +1008,7 @@ function mobiClick(e) {
   /* ---- 主菜单 / 页面切换 ---- */
   if (act === 'home') { mobiOnHome(); return; }
   if (act === 'solo') { mobiEnterSolo(); return; }
+  if (act === 'adventure') { if (typeof adventureOpen === 'function') adventureOpen(); return; }
   if (act === 'boss') { mobiEnterBoss(); return; }
   if (act === 'daily') { startDaily(); return; }
   if (act === 'online') { mobiToast('联机模式正在探索中，先用单机 / 赛事模式'); return; }

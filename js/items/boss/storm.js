@@ -328,7 +328,12 @@ function stormFinishPhase2(u) {
   st.ultCycleCd = 0;
   st.ultCycleIx = 0;
 
-  u.maxHp = STORM.phaseHp[1];
+  /* 秘境有独立的二阶段生命（ADV_BOSS.storm.phase2Hp，按 run.threat 放大）；
+     普通 BOSS 战没有 advBoss，仍走 TYPES/BALANCE 的 9000。 */
+  var nextHp = (u.st.advBoss && u.st.advBoss.phase2Hp)
+    ? u.st.advBoss.phase2Hp
+    : STORM.phaseHp[1] * (u.st.advScale ? u.st.advScale.hp : 1);
+  u.maxHp = Math.max(1, Math.round(nextHp));
   u.hp = u.maxHp;
   bossPhase = 2;
 
@@ -338,7 +343,7 @@ function stormFinishPhase2(u) {
   u.coldStacks = 0; u.drownStacks = 0; u.burnStacks = 0; u.poisonStacks = 0;
   u.dotAmt = 0; u.dotT = 0;
 
-  if (typeof bossCry === 'function') bossCry('风暴之眼 · 睁开', '第二条血 · 9000 HP · 雷暴降临');
+  if (typeof bossCry === 'function') bossCry('风暴之眼 · 睁开', '第二条血 · ' + Math.round(u.maxHp) + ' HP · 雷暴降临');
   if (typeof sfxPlay === 'function') sfxPlay('rage');
   /* [FX] 换血演出：血条从 0 充到 9000；BOSS 上方雷云炸开、地面雷纹扩散 */
   stormFlashSet(0.35);

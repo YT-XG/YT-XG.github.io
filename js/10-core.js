@@ -164,6 +164,10 @@ function teamLabel(team) { return teamNames[team] || SIDE_LABEL[team]; }
 var pick = { A: ['duo'], B: ['spear'] };
 /* 是否为 1v1 单挑局：双方阵容长度都是 1（1v1 之外的任何人数都返回 false） */
 function soloMode() {
+  /* 秘境闯关不是 1v1：它借用 pick 数组来放「第一波小怪」，不能让
+     1v1 的 solo 数值 / 场地收缩规则误作用到秘境，否则 1 只小怪的首波
+     会被当成单挑局。普通 1v1 没有 adventureInBattle()，行为不变。 */
+  if (typeof adventureInBattle === 'function' && adventureInBattle()) return false;
   var A = pick && pick.A, B = pick && pick.B;
   return !!(A && B && A.length === 1 && B.length === 1);
 }
@@ -449,6 +453,7 @@ function addUnit(key, x, y, team) {
     trail: [], seed: Math.random() * 1000
   };
   units.push(u);
+  if (typeof adventureOnUnitAdd === 'function') adventureOnUnitAdd(u);
   return u;
 }
 
