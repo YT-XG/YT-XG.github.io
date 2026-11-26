@@ -175,6 +175,7 @@ function __choices() {
   var guard = 0;
   while (guard++ < 12) {
     if (r.step === 'result') { advAfterResult(); continue; }
+    if (r.step === 'rewardAuto') { advContinueAutoReward(); continue; }
     if (r.step === 'reward' && r.pending) { advChooseReward(0); continue; }
     if (r.step === 'hex' && r.pending && r.pending.offers.length) { advChooseHex(r.pending.offers[0]); continue; }
     if (r.step === 'item' && r.pending && r.pending.options.length) { advChooseItem(r.pending.options[0]); continue; }
@@ -198,7 +199,7 @@ function __run(env, seed) {
       fights.push(__fight());
       continue;
     }
-    if (r.step === 'result' || r.step === 'reward' || r.step === 'hex' || r.step === 'item') {
+    if (r.step === 'result' || r.step === 'rewardAuto' || r.step === 'reward' || r.step === 'hex' || r.step === 'item') {
       __choices();
       continue;
     }
@@ -235,6 +236,14 @@ if (argv.includes('--selftest')) {
     assert(r.shop.length === 3 && r.shop[0] && r.shop[1] && r.shop[2], '商店应展示 3 张');
     assert(r.cards.length === 1, '开局应赠送 1 张卡');
     assert(r.board.filter(Boolean).length === 1, '开局赠送卡应自动上阵');
+    assert(r.hp === 80 && r.maxHp === 80, '默认征战生命应为 80');
+    assert(ADV_CONFIG.winHeal === 4, '胜利应回复 4 点征战生命');
+    var oldSave = {
+      version: 3, pool: {}, cards: [], board: [null,null,null], bench: [null,null,null,null,null,null],
+      inventory: [], hexes: [], shop: [null,null,null], uidSeq: 1, hp: 30, maxHp: 60
+    };
+    advEnsureRunShape(oldSave);
+    assert(oldSave.maxHp === 80 && oldSave.hp === 50, '旧存档生命上限应迁移到 80');
 
     /* 3 张 1 星 → 2 星；3 张 2 星 → 3 星。 */
     r.cards = []; r.board = [null,null,null]; r.bench = [null,null,null,null,null,null];
@@ -247,10 +256,11 @@ if (argv.includes('--selftest')) {
     assert(spear.length === 1 && spear[0].star === 3, '9 张 1 星应合成 3 星');
     var goldBefore = r.gold;
     advSellCard(spear[0].uid);
-    assert(r.gold === goldBefore + 40, '3 星出售应为 40 金币');
+    assert(r.gold === goldBefore + 30, '3 星出售应为 30 金币');
     assert(r.pool.spear === 9, '出售 3 星应归还 9 张');
 
-    assert(advSellPrice({star:2}) === 12, '2 星出售应为 12');
+    assert(advSellPrice({star:2}) === 10, '2 星出售应为 10');
+    assert(ADV_STARS[3].hp >= 4 && ADV_STARS[3].atk >= 2.8, '3 星角色应有高倍率');
 
     /* 装备聚合与出售返还。 */
     r.cards = [{uid:1,key:'spear',star:2,items:['knife','flower']}];
@@ -272,12 +282,48 @@ if (argv.includes('--selftest')) {
     advUnequipItem(9, 0);
     assert(r.inventory.indexOf('gale') >= 0 && r.cards[0].items.length === 0, '卸下装备未回背包');
 
+    /* 2 星合成：主站席已有 2 星带装备时，3 张 1 星合出的 2 星应留在备战席。 */
+    r.cards = [
+      {uid:30,key:'dog',star:2,items:['knife']},
+      {uid:31,key:'dog',star:1,items:[]},
+      {uid:32,key:'dog',star:1,items:[]},
+      {uid:33,key:'dog',star:1,items:[]}
+    ];
+    r.board = [30,null,null]; r.bench = [31,32,33,null,null,null];
+    r.global = {hp:0,atk:0}; r.hexes = [];
+    advCheckCombine();
+    assert(r.board[0] === 30 && advCard(30).star === 2 && advCard(30).items[0] === 'knife', '2星合成不应把主站席装备卡换到备战席');
+    assert(advCard(31) && advCard(31).star === 2 && advCardZone(31) === 'bench', '合出的2星应留在备战席');
+
+    /* 拖拽换位：备战席 → 主站席，占用交换 / 空位移动。 */
+    r.cards = [{uid:40,key:'dog',star:1,items:[]},{uid:41,key:'spear',star:1,items:[]}];
+    r.board = [40,null,null]; r.bench = [41,null,null,null,null,null];
+    advMoveCardTo(41, 'board', 0);
+    assert(r.board[0] === 41 && r.bench[0] === 40, '备战席拖到主站席应交换位置');
+    advMoveCardTo(40, 'board', 1);
+    assert(r.board[1] === 40 && r.bench[0] === null, '备战席拖到主站席空位应移动');
+
+    /* 角色详情：实际数值。 */
+    var dataCard = {uid:50,key:'dog',star:2,items:['knife']};
+    r.cards = [dataCard]; r.board=[50,null,null]; r.bench=[null,null,null,null,null,null];
+    var actual = advCardActualStats(dataCard);
+    assert(actual.units.length >= 1 && actual.units[0].hp > 100 && actual.units[0].atk >= 0, '角色详情应返回实际数值');
+
     /* 敌阵至少覆盖玩家上阵人数。 */
     r.cards = [{uid:2,key:'ice',star:1,items:[]}]; r.board=[2,null,null]; r.bench=[null,null,null,null,null,null];
     r.trial = 1; r.node = 3; r.battle = null;
     var eb = advBuildBattle();
     assert(eb && eb.enemyKeys.length >= 1, '敌阵生成失败');
     assert(ADV_RECIPES.every(function(x){ return !!ADV_ITEM_BY_ID[x.out]; }), '配方产物不存在');
+
+    /* 第二试炼 2-1 / 2-2 改为普攻小怪，并保留 2-2 固定海克斯。 */
+    assert(advNode(1,1).type === 'gift' && advNode(1,1).reward, '1-1 应保持奖励关');
+    assert(advNode(2,1).type === 'mob' && !advNode(2,1).reward && !advNode(2,1).hp1, '2-1 应为普攻小怪');
+    assert(advNode(2,2).type === 'mob' && advNode(2,2).hex && !advNode(2,2).reward, '2-2 应为普攻小怪并保留海克斯');
+    assert(advNodePower(1,4) > advNodePower(1,3), '1-4 应强于 1-3');
+    assert(advNodePower(1,6) > advNodePower(1,5), '1-6 应强于 1-5');
+    assert(advNodePower(2,1) > advNodePower(1,5) * ADV_CHALLENGE_STARS[5].hp, '2-1 应强于 1-5 最高星');
+    assert(advNodePower(2,2) > advNodePower(2,1), '2-2 应强于 2-1');
 
     /* 难度：黄金 +2 / 棱彩 +5。 */
     r.env = 'peace'; r.hexes = [];
@@ -289,9 +335,9 @@ if (argv.includes('--selftest')) {
     var hm = advHexMods(r);
     assert(hm.dmg >= 0, '海克斯聚合可用');
 
-    /* BOSS 数值与普通 BOSS 分离。 */
-    assert(ADV_BOSS.duo.units.bossred === 1500, '秘境红青独立数值');
-    assert(ADV_BOSS.storm.phase2Hp === 3600, '秘境雷云独立二阶段');
+    /* BOSS 数值与普通 BOSS 分离：红青总 20,000 / 雷云总 50,000。 */
+    assert(ADV_BOSS.duo.units.bossred + ADV_BOSS.duo.units.bosslapis + ADV_BOSS.duo.units.bosscore === 20000, '秘境红青总生命应为 20,000');
+    assert(ADV_BOSS.storm.units.stormgolem + ADV_BOSS.storm.phase2Hp === 50000, '秘境雷云总生命应为 50,000');
 
     /* 主菜单快照 / 恢复。 */
     teamSize = 3; modeKind = 'relay'; roundDuration = 60; seriesBest = 5; draftMode = true;
@@ -319,7 +365,25 @@ if (argv.includes('--selftest')) {
     adventure.run.step = 'hex';
     adventure.run.pending = { offers: advHexOffers(adventure.run) };
     assert(advHexChoiceHtml().indexOf('adv-choice-card') >= 0, '海克斯三选一未渲染');
+    adventureCodex.tab = 'envs';
+    assert(advCodexShellHtml().indexOf('秘境试炼 · 图鉴') >= 0, '图鉴未渲染');
+    adventureCodex.tab = 'hexes';
+    assert(advCodexShellHtml().indexOf('棱彩') >= 0, '图鉴海克斯未渲染');
+    adventureCodex.tab = 'items';
+    assert(advCodexShellHtml().indexOf('进阶装备') >= 0, '图鉴装备未渲染');
+    adventureCodex.tab = 'nodes';
+    assert(advCodexShellHtml().indexOf('第二试炼') >= 0, '图鉴节点未渲染');
+    adventureCodex.tab = 'roles';
+    assert(advCodexShellHtml().indexOf('角色池') >= 0, '图鉴角色未渲染');
+    adventureCodex.tab = 'envs';
     adventure.run.step = 'hub';
+    adventure.run.node = 1;
+    adventure.run.pending = null;
+    advOpenAutoReward(advNode(1,1));
+    assert(adventure.run.step === 'rewardAuto' && adventure.run.pending.options.length === 2, '奖励关应系统发放 2 项奖励');
+    assert(advAutoRewardHtml().indexOf('已获得') >= 0 && advAutoRewardHtml().indexOf('rewardContinue') >= 0, '自动奖励界面未渲染');
+    advContinueAutoReward();
+    assert(adventure.run.step === 'hub' && adventure.run.node === 2, '自动奖励继续后应进入下一节点');
     console.log('SELFTEST OK · 90 张牌库 / 自动升星 / 商店 / 海克斯 / 装备 / 双 BOSS / 主菜单隔离');
   `, sandbox);
   process.exit(0);

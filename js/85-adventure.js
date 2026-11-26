@@ -4,12 +4,17 @@
    · 开局三选一「秘境环境」；第一试炼 1-1～1-7，第二试炼 2-1～2-7。
    · 1-1 / 1-2 / 1-6 为奖励关（1 血小怪），1-3 / 1-4 为普攻小怪关，
      1-5 为难度二选一挑战关（左 1–2 星 / 右 3–5 星），1-7 为 BOSS。
+   · 第二试炼 2-1 / 2-2 改为普攻小怪（2-2 胜利后仍给固定海克斯）。
+   · 非 BOSS 怪物强度按节点平滑递增：1-1 为 1.00，每节点 +0.19；
+     2-1 为 2.33，高于 1-5 最高星（1.76 × 1.25 = 2.20）。
    · 牌库 = 10 个角色 × 9 张 = 90 张；商店一次 3 张，可花金币刷新。
      3 张 1 星自动合成 2 星，3 张 2 星自动合成 3 星；2 星卖 12、3 星卖 40。
    · 6 格备战席 + 3 格战斗席；战斗席不能重复角色；战斗前全员满血。
    · 胜利 = 基础 + 胜利 + 连胜 + 利息；失败只拿基础奖励并扣征战生命。
    · 海克斯分白银 / 黄金 / 棱彩；黄金 +2 难度、棱彩 +5 难度。
    · 装备不再进商店：每个节点结束有概率掉基础装备，两件基础可在背包合成进阶。
+   · 主界面三栏：左「可合成列表 / 海克斯」、中「当前试炼节点 / 主站席 / 备战席」、
+     右「已获得装备 / 角色详情」；金币按钮从屏幕上方拉出角色商店。
    · 与普通 1v1 / 2v2 / 3v3 / 赛事 / BOSS 5v1 完全隔离；BOSS 数值走 ADV_BOSS。
    ============================================================ */
 'use strict';
@@ -26,33 +31,45 @@ var ADV_CONFIG = {
   cardCost: 4,
   refreshCost: 2,
   startGold: 24,
-  startHp: 60,
+  startHp: 80,
+  winHeal: 4,
   battleTime: 90,
   maxItems: 3,
   interestStep: 10,
   interestCap: 5,
   streakCap: 5,
   winDrop: 0.55,
-  lossDrop: 0.25
+  lossDrop: 0.25,
+  /* 节点强度：每推进一个非 BOSS 节点，怪物生命 / 攻击 / 防御按此步进平滑增加。 */
+  nodePowerStep: 0.19
 };
 
-/* 星级倍率：玩家最高 3 星；敌方挑战关最高 5 星。 */
+/* 玩家卡牌 1–3 星倍率；挑战关怪物强度另走 ADV_CHALLENGE_STARS。
+   3 星是核心通关手段：相对 2 星约 2.2 倍生命、1.9 倍攻击。 */
 var ADV_STARS = {
   1: { hp: 1.00, atk: 1.00, def: 1.00, speed: 1.00 },
   2: { hp: 1.90, atk: 1.50, def: 1.35, speed: 1.05 },
-  3: { hp: 3.30, atk: 2.20, def: 1.80, speed: 1.12 },
-  4: { hp: 4.80, atk: 2.90, def: 2.20, speed: 1.18 },
-  5: { hp: 6.40, atk: 3.60, def: 2.70, speed: 1.25 }
+  3: { hp: 4.20, atk: 2.90, def: 2.20, speed: 1.16 }
+};
+
+/* 挑战关 1–5 星的怪物强度：只做温和提升，奖励档位仍按 1–5 星。
+   1-5 最高星（节点强度 1.76 × 1.25 = 2.20）仍低于 2-1（2.33）。 */
+var ADV_CHALLENGE_STARS = {
+  1: { hp: 1.00, atk: 1.00, def: 1.00, speed: 1.00 },
+  2: { hp: 1.06, atk: 1.05, def: 1.03, speed: 1.01 },
+  3: { hp: 1.12, atk: 1.10, def: 1.06, speed: 1.02 },
+  4: { hp: 1.18, atk: 1.15, def: 1.09, speed: 1.03 },
+  5: { hp: 1.25, atk: 1.22, def: 1.12, speed: 1.04 }
 };
 
 var ADV_BOSS = {
   duo: {
-    units: { bossred: 1500, bosslapis: 1500, bosscore: 1800 },
+    units: { bossred: 6500, bosslapis: 6500, bosscore: 7000 },
     atk: 0.80, def: 0.90, speed: 1.00, pctOut: 0.36
   },
   storm: {
-    units: { stormgolem: 2400 },
-    phase2Hp: 3600,
+    units: { stormgolem: 20000 },
+    phase2Hp: 30000,
     atk: 0.72, def: 0.92, speed: 1.00, pctOut: 0.50
   }
 };
@@ -60,7 +77,7 @@ var ADV_BOSS = {
 var ADV_QUALITY = {
   silver: { name: '白银', color: '#c7d3e3', weight: 60 },
   gold: { name: '黄金', color: '#ffc45e', weight: 30 },
-  prismatic: { name: '棱彩', color: '#e08bff', weight: 10 }
+  prismatic: { name: '棱彩', color: '#7fe7ff', weight: 10 }
 };
 
 /* ---------------- 秘境环境（开局三选一） ---------------- */
@@ -178,6 +195,11 @@ var ADV_NODES = [
   { n: 6, type: 'gift', name: '秘藏宝库', enemies: 2, hp1: true, reward: true, extraHex: true },
   { n: 7, type: 'boss', name: '王座', boss: true }
 ];
+/* 第二试炼节点差异：2-1 / 2-2 由奖励关改为普攻小怪；2-2 胜利后仍给固定海克斯。 */
+var ADV_NODE_TRIAL2 = {
+  1: { type: 'mob', name: '雷庭前哨', enemies: 2, noSkill: true, reward: false, hp1: false, hex: false },
+  2: { type: 'mob', name: '双生雷廊', enemies: 3, noSkill: true, reward: false, hp1: false, hex: true }
+};
 
 var adventure = {
   run: null,
@@ -188,7 +210,13 @@ var adventure = {
   selectedItems: [],
   envOffer: [],
   renderKey: '',
-  lastStep: ''
+  lastStep: '',
+  nodeFocus: '',
+  itemFocusId: '',
+  itemFocusIx: -1,
+  shopOpen: false,
+  dragItem: -1,
+  dragCardUid: -1
 };
 
 /* ---------------- 小工具 ---------------- */
@@ -230,9 +258,20 @@ function advNode(trial, n) {
   if (base.boss) {
     o.name = trial === 2 ? '雷云巨像' : '红青双子';
   }
+  var ov = trial === 2 ? ADV_NODE_TRIAL2[n] : null;
+  if (ov) {
+    for (var k in ov) {
+      if (Object.prototype.hasOwnProperty.call(ov, k)) o[k] = ov[k];
+    }
+  }
   return o;
 }
 function advNodeTag(trial, n) { return trial + '-' + n; }
+/* 非 BOSS 节点强度：从 1-1 的 1.00 起，每个节点 +0.19；2-1 为 2.33。 */
+function advNodePower(trial, n) {
+  var global = (trial - 1) * ADV_CONFIG.nodesPerTrial + (n - 1);
+  return 1 + ADV_CONFIG.nodePowerStep * Math.max(0, global);
+}
 
 function advCurrentNode(r) {
   if (!r) return null;
@@ -297,6 +336,14 @@ function advEnsureRunShape(r) {
   }
   for (var b = 0; b < r.board.length; b++) if (r.board[b] && !byUid[r.board[b]]) r.board[b] = null;
   for (var bc = 0; bc < r.bench.length; bc++) if (r.bench[bc] && !byUid[r.bench[bc]]) r.bench[bc] = null;
+  /* 旧存档上限 60 → 新默认 80：补足上限差，保留已损失的生命。 */
+  if (typeof r.maxHp !== 'number' || r.maxHp <= 0) r.maxHp = ADV_CONFIG.startHp;
+  if (typeof r.hp !== 'number') r.hp = r.maxHp;
+  if (r.maxHp < ADV_CONFIG.startHp) {
+    var addHp = ADV_CONFIG.startHp - r.maxHp;
+    r.maxHp = ADV_CONFIG.startHp;
+    r.hp = Math.min(r.maxHp, r.hp + addHp);
+  }
   return r;
 }
 function advLoad() {
@@ -463,9 +510,43 @@ function advBoardHasKey(key, skipUid) {
 }
 function advSellPrice(card) {
   if (!card) return 0;
-  if (card.star >= 3) return 40;
-  if (card.star === 2) return 12;
-  return ADV_CONFIG.cardCost;
+  if (card.star >= 3) return 30;
+  if (card.star === 2) return 10;
+  return 3;
+}
+function advCardSlot(uid) {
+  var r = adventure.run;
+  if (!r || !uid) return null;
+  for (var i = 0; i < r.board.length; i++) if (r.board[i] === uid) return { zone: 'board', ix: i };
+  for (var j = 0; j < r.bench.length; j++) if (r.bench[j] === uid) return { zone: 'bench', ix: j };
+  return null;
+}
+/* 拖拽换位：支持主站席 ↔ 备战席、同区换位、拖到空位。
+   主站席仍禁止重复角色；换位时装备跟着卡牌走。 */
+function advMoveCardTo(uid, zone, ix) {
+  var r = adventure.run, card = advCard(uid), from = advCardSlot(uid);
+  if (!r || !card || !from) return;
+  var toArr = zone === 'board' ? r.board : r.bench;
+  if (!toArr || ix < 0 || ix >= toArr.length) return;
+  if (from.zone === zone && from.ix === ix) return;
+  var targetUid = toArr[ix] || 0;
+  if (targetUid === uid) return;
+  if (zone === 'board' && from.zone !== 'board') {
+    var skip = targetUid || uid;
+    if (advBoardHasKey(card.key, skip)) {
+      advNotice('战斗席不允许重复角色。');
+      adventureRender();
+      return;
+    }
+  }
+  var fromArr = from.zone === 'board' ? r.board : r.bench;
+  fromArr[from.ix] = targetUid || null;
+  toArr[ix] = uid;
+  adventure.selectedCard = uid;
+  adventure.selectedItems = [];
+  advNotice('已移动到' + (zone === 'board' ? '主站席' : '备战席') + '。');
+  advSave();
+  adventureRender();
 }
 function advAddCard(key, star, silent, consumePool) {
   var r = adventure.run;
@@ -558,11 +639,14 @@ function advCheckCombine() {
     }
     target.star++;
     if (target.star > 3) target.star = 3;
-    /* 升级卡在备战席、而战斗席已有同名低星卡时，把高星卡换上场，保持战斗席不重复。 */
+    /* 升级卡在备战席、而战斗席已有同名「更低星」卡时，才把高星卡换上场。
+       同星时保持主站席原卡不动，避免带着装备的卡被换到备战席。
+       低星换位前先把装备转到高星卡，装备继续留在主站席。 */
     if (advCardZone(target.uid) === 'bench' && advBoardHasKey(target.key, target.uid)) {
       for (var b = 0; b < r.board.length; b++) {
         var bc = advCard(r.board[b]);
-        if (bc && bc.key === target.key) {
+        if (bc && bc.key === target.key && bc.star < target.star) {
+          advMergeItems(target, bc);
           var bs = r.bench.indexOf(target.uid);
           if (bs >= 0) {
             r.bench[bs] = r.board[b];
@@ -727,33 +811,98 @@ function advSelectedItemIndices() {
   return out;
 }
 function advToggleItem(ix) {
-  var at = adventure.selectedItems.indexOf(ix);
-  if (at >= 0) adventure.selectedItems.splice(at, 1);
-  else {
-    adventure.selectedItems.push(ix);
-    if (adventure.selectedItems.length > 2) adventure.selectedItems.shift();
+  var r = adventure.run;
+  if (!r || ix < 0 || ix >= r.inventory.length) return;
+  if (adventure.itemFocusIx === ix) {
+    adventure.itemFocusIx = -1;
+    adventure.itemFocusId = '';
+    adventure.selectedItems = [];
+  } else {
+    adventure.itemFocusIx = ix;
+    adventure.itemFocusId = r.inventory[ix];
+    adventure.selectedItems = [ix];
   }
   adventureRender();
 }
-function advEquipSelected(uid) {
+function advItemRecipe(id) {
+  for (var i = 0; i < ADV_RECIPES.length; i++) if (ADV_RECIPES[i].out === id) return ADV_RECIPES[i];
+  return null;
+}
+function advInvCount(id) {
+  var r = adventure.run, n = 0;
+  if (!r) return 0;
+  for (var i = 0; i < r.inventory.length; i++) if (r.inventory[i] === id) n++;
+  return n;
+}
+/* 「可合成列表」只列出当前背包材料足够的配方。 */
+function advCraftableRecipes() {
+  var out = [];
+  for (var i = 0; i < ADV_RECIPES.length; i++) {
+    var rec = ADV_RECIPES[i];
+    if (rec.a === rec.b) {
+      if (advInvCount(rec.a) >= 2) out.push(rec);
+    } else if (advInvCount(rec.a) >= 1 && advInvCount(rec.b) >= 1) {
+      out.push(rec);
+    }
+  }
+  return out;
+}
+function advFindInv(ix, id) {
+  var r = adventure.run;
+  if (!r) return -1;
+  for (var i = 0; i < r.inventory.length; i++) if (i !== ix && r.inventory[i] === id) return i;
+  return -1;
+}
+function advCraftRecipe(rid) {
+  var r = adventure.run, rec = ADV_RECIPE_BY_ID[rid];
+  if (!r || !rec) return;
+  var ia = advFindInv(-1, rec.a);
+  var ib = rec.a === rec.b ? advFindInv(ia, rec.a) : advFindInv(-1, rec.b);
+  if (ia < 0 || ib < 0) { advNotice('合成材料不足。'); adventureRender(); return; }
+  var a = r.inventory[ia], b = r.inventory[ib];
+  r.inventory.splice(Math.max(ia, ib), 1);
+  r.inventory.splice(Math.min(ia, ib), 1);
+  r.inventory.push(rec.out);
+  adventure.selectedItems = [];
+  adventure.itemFocusId = rec.out;
+  adventure.itemFocusIx = r.inventory.length - 1;
+  advNotice('合成成功：' + advItemName(rec.out) + '（' + advItemName(a) + ' + ' + advItemName(b) + '）');
+  advSave();
+  adventureRender();
+}
+function advEquipItemTo(uid, ix) {
   var r = adventure.run, card = advCard(uid);
-  if (!r || !card) return;
-  var sel = advSelectedItemIndices();
-  if (sel.length !== 1) { advNotice('先在背包里选中 1 件装备。'); adventureRender(); return; }
-  if (card.items.length >= ADV_CONFIG.maxItems) { advNotice('这张卡最多装备 3 件。'); adventureRender(); return; }
-  var ix = sel[0], id = r.inventory[ix];
+  if (!r || !card || ix < 0 || ix >= r.inventory.length) return;
+  if (card.items.length >= ADV_CONFIG.maxItems) {
+    advNotice('这张卡最多装备 3 件。');
+    adventureRender();
+    return;
+  }
+  var id = r.inventory[ix];
   r.inventory.splice(ix, 1);
   card.items.push(id);
   adventure.selectedItems = [];
+  adventure.itemFocusId = id;
+  adventure.itemFocusIx = -1;
   advNotice('已装备 ' + advItemName(id) + ' → ' + (advRole(card.key) ? advRole(card.key).short : card.key));
   advSave();
   adventureRender();
+}
+function advEquipSelected(uid) {
+  var card = advCard(uid);
+  if (!adventure.run || !card) return;
+  var sel = advSelectedItemIndices();
+  if (sel.length !== 1) { advNotice('先在背包里选中 1 件装备。'); adventureRender(); return; }
+  advEquipItemTo(uid, sel[0]);
 }
 function advUnequipItem(uid, ix) {
   var r = adventure.run, card = advCard(uid);
   if (!r || !card || ix < 0 || ix >= card.items.length) return;
   var id = card.items.splice(ix, 1)[0];
   r.inventory.push(id);
+  adventure.selectedItems = [];
+  adventure.itemFocusId = id;
+  adventure.itemFocusIx = r.inventory.length - 1;
   advNotice('卸下 ' + advItemName(id));
   advSave();
   adventureRender();
@@ -857,6 +1006,24 @@ function advBuyShop(ix) {
   adventureRender();
 }
 function advRerollShop() { if (advRefreshShop(false)) adventureRender(); }
+function advShopOpen() {
+  var r = adventure.run;
+  if (!r || r.step !== 'hub' || adventure.shopOpen) return;
+  adventure.shopOpen = true;
+  var d = document.querySelector('#adventure .adv-shop-drawer');
+  if (!d) { adventureRender(); return; }
+  d.classList.remove('instant');
+  d.classList.add('open');
+  d.setAttribute('aria-hidden', 'false');
+}
+function advShopClose() {
+  if (!adventure.shopOpen) return;
+  adventure.shopOpen = false;
+  var d = document.querySelector('#adventure .adv-shop-drawer');
+  if (!d) return;
+  d.classList.remove('open');
+  d.setAttribute('aria-hidden', 'true');
+}
 
 /* ---------------- 节点 / 海克斯 / 奖励 ---------------- */
 function advEnterHub(isNew) {
@@ -1061,37 +1228,79 @@ function advOpenReward(node, star) {
   advSave();
   adventureRender();
 }
+function advApplyRewardOption(opt) {
+  var r = adventure.run;
+  if (!r || !opt) return '';
+  adventure.notice = '';
+  var hm = advHexMods(r);
+  if (opt.type === 'gold') {
+    var gold = Math.round(opt.value * hm.goldMul);
+    r.gold += gold;
+    return '获得 ' + gold + ' 金币。';
+  }
+  if (opt.type === 'basic') {
+    advGrantItem(advRandomBasic(), true);
+    return '获得基础装备：' + advItemName(r.inventory[r.inventory.length - 1]) + '。';
+  }
+  if (opt.type === 'advanced') {
+    advGrantItem(advRandomAdvanced(), true);
+    return '获得进阶装备：' + advItemName(r.inventory[r.inventory.length - 1]) + '。';
+  }
+  if (opt.type === 'basics2') {
+    advGrantItem(advRandomBasic(), true);
+    advGrantItem(advRandomBasic(), true);
+    var a = r.inventory[r.inventory.length - 2], b = r.inventory[r.inventory.length - 1];
+    return '获得基础装备：' + advItemName(a) + '、' + advItemName(b) + '。';
+  }
+  if (opt.type === 'card') {
+    var key = POOL[Math.floor(advRand() * POOL.length)].key;
+    if (advAddCard(key, opt.value || 1, true, true)) {
+      var combo = adventure.notice && adventure.notice.indexOf('合成成功') === 0 ? adventure.notice + ' · ' : '';
+      return combo + '获得角色卡：' + advRole(key).name + '。';
+    }
+    r.gold += 8;
+    return '席位已满，转化为 8 金币。';
+  }
+  if (opt.type === 'global') {
+    r.global.hp += opt.value;
+    r.global.atk += opt.value;
+    return '全局强化：生命 / 攻击 +' + Math.round(opt.value * 100) + '%。';
+  }
+  return '';
+}
 function advChooseReward(ix) {
   var r = adventure.run;
   if (!r || r.step !== 'reward' || !r.pending) return;
   var opt = r.pending.options[ix];
   if (!opt) return;
-  var hm = advHexMods(r);
-  if (opt.type === 'gold') {
-    var gold = Math.round(opt.value * hm.goldMul);
-    r.gold += gold;
-    advNotice('获得 ' + gold + ' 金币。');
-  } else if (opt.type === 'basic') {
-    advGrantItem(advRandomBasic(), true);
-    advNotice('获得基础装备：' + advItemName(r.inventory[r.inventory.length - 1]));
-  } else if (opt.type === 'advanced') {
-    advGrantItem(advRandomAdvanced(), true);
-    advNotice('获得进阶装备：' + advItemName(r.inventory[r.inventory.length - 1]));
-  } else if (opt.type === 'basics2') {
-    advGrantItem(advRandomBasic(), true);
-    advGrantItem(advRandomBasic(), true);
-    advNotice('获得 2 件基础装备。');
-  } else if (opt.type === 'card') {
-    var key = POOL[Math.floor(advRand() * POOL.length)].key;
-    if (advAddCard(key, opt.value || 1, true, true)) {
-      var comboC = adventure.notice && adventure.notice.indexOf('合成成功') === 0 ? adventure.notice : '';
-      advNotice((comboC ? comboC + ' · ' : '') + '获得角色卡：' + advRole(key).name);
-    } else { r.gold += 8; advNotice('席位已满，转化为 8 金币。'); }
-  } else if (opt.type === 'global') {
-    r.global.hp += opt.value;
-    r.global.atk += opt.value;
-    advNotice('全局强化：生命 / 攻击 +' + Math.round(opt.value * 100) + '%');
+  var msg = advApplyRewardOption(opt);
+  if (msg) advNotice(msg);
+  r.pending = null;
+  advAfterReward();
+}
+/* 奖励关：不再三选一，系统从奖励池随机抽 2 项直接发放。 */
+function advOpenAutoReward(node) {
+  var r = adventure.run;
+  if (!r) return;
+  var pool = advShuffle(advRewardOptions(node, 1));
+  var picked = pool.slice(0, Math.min(2, pool.length));
+  for (var i = 0; i < picked.length; i++) {
+    picked[i].gain = advApplyRewardOption(picked[i]);
   }
+  r.pending = {
+    kind: 'autoReward',
+    title: '奖励关 · 系统发放',
+    sub: '系统随机挑选 ' + picked.length + ' 项奖励，已直接加入本局。',
+    options: picked
+  };
+  r.step = 'rewardAuto';
+  adventure.notice = '';
+  advSave();
+  adventureRender();
+}
+function advContinueAutoReward() {
+  var r = adventure.run;
+  if (!r || r.step !== 'rewardAuto') return;
   r.pending = null;
   advAfterReward();
 }
@@ -1189,6 +1398,8 @@ function advStartBattle(side) {
   r.step = 'battle';
   adventure.inBattle = true;
   adventure.notice = '';
+  adventure.shopOpen = false;
+  adventure.nodeFocus = '';
   adventureHide();
   advSave();
 
@@ -1268,11 +1479,16 @@ function adventureCompleteBattle() {
 
   var hpBefore = r.hp;
   var damage = 0;
+  var heal = 0;
   if (!win) {
     damage = b.kind === 'boss' ? 18 : (node.type === 'challenge' ? 12 : 10);
     damage += (b.star || 0) * 2;
     if (b.kind === 'boss' && b.trial === 2) damage += 4;
     r.hp -= damage;
+  } else {
+    var beforeHeal = r.hp;
+    r.hp = Math.min(r.maxHp, r.hp + ADV_CONFIG.winHeal);
+    heal = r.hp - beforeHeal;
   }
   var drop = advMaybeDrop(win, node);
   var bossLost = b.kind === 'boss' && !win;
@@ -1282,7 +1498,7 @@ function adventureCompleteBattle() {
     trial: b.trial, node: b.node, name: node.name, star: b.star || 1,
     boss: b.kind === 'boss', bossLost: bossLost,
     rewards: { base: base, win: winBonus, streak: streakBonus, interest: interest, total: total },
-    damage: damage, hpBefore: hpBefore, hpAfter: r.hp,
+    damage: damage, heal: heal, hpBefore: hpBefore, hpAfter: r.hp,
     drop: drop || '', seconds: (typeof t !== 'undefined' ? Math.round(t * 10) / 10 : 0)
   };
   r.step = (r.hp < 0) ? 'defeat' : 'result';
@@ -1307,13 +1523,19 @@ function advAfterResult() {
     return;
   }
   var node = advNode(res.trial, res.node);
-  if (res.win && (node.reward || node.type === 'boss')) {
+  if (res.win && node.reward) {
+    r.step = 'hub';
+    advOpenAutoReward(node);
+    return;
+  }
+  if (res.win && node.type === 'boss') {
     r.step = 'hub';
     advOpenReward(node, res.star);
     return;
   }
   if (res.win && node.hex) {
     r.step = 'hub';
+    r.hexUsed[advNodeTag(res.trial, res.node)] = 1;
     advOpenHex();
     return;
   }
@@ -1360,29 +1582,35 @@ function adventureOnUnitAdd(u) {
     var bc = ADV_BOSS[b.boss];
     if (!bc || !bc.units[u.key]) return;
     var baseHp = TYPES[u.key] ? TYPES[u.key].maxHp : u.maxHp;
-    var trialMul = b.trial === 2 ? 1.30 : 1.00;
+    /* 生命按 ADV_BOSS 配置的绝对值走；第二试炼只额外加强攻击。 */
+    var atkTrialMul = b.trial === 2 ? 1.30 : 1.00;
     var diffMul = Math.max(0.60, 1 + (r.difficulty - 10) * 0.015);
-    var mul = (bc.units[u.key] / Math.max(1, baseHp)) * trialMul * diffMul;
+    var mul = (bc.units[u.key] / Math.max(1, baseHp)) * diffMul;
     u.maxHp = Math.max(1, Math.round(u.maxHp * mul));
     u.hp = u.maxHp;
-    u.atk = Math.max(0, Math.round(u.atk * bc.atk * trialMul * diffMul * 100) / 100);
+    u.atk = Math.max(0, Math.round(u.atk * bc.atk * atkTrialMul * diffMul * 100) / 100);
     u.def = Math.max(0, Math.round(u.def * bc.def * 100) / 100);
     u.baseSpeed = Math.max(1, Math.round(u.baseSpeed * bc.speed * 100) / 100);
     u.st.advBoss = {
       pctOut: Math.min(1.2, (bc.pctOut || 1) * Math.max(0.70, 1 + (r.difficulty - 10) * 0.01)),
-      phase2Hp: bc.phase2Hp ? bc.phase2Hp * trialMul * diffMul : 0
+      phase2Hp: bc.phase2Hp ? bc.phase2Hp * diffMul : 0
     };
     return;
   }
 
-  var star = ADV_STARS[b.star] || ADV_STARS[1];
-  var nodeMul = b.kind === 'challenge' ? 1.06 : 0.96;
+  var node = advNode(b.trial, b.node);
+  var power = advNodePower(b.trial, b.node);
+  var cs = (node && node.challenge) ? (ADV_CHALLENGE_STARS[b.star] || ADV_CHALLENGE_STARS[1]) : null;
   var dm = advDifficultyMul(r);
-  u.maxHp = Math.max(1, Math.round(u.maxHp * star.hp * nodeMul * dm));
+  var hpMul = power * (cs ? cs.hp : 1);
+  var atkMul = power * (cs ? cs.atk : 1);
+  var defMul = power * (cs ? cs.def : 1);
+  var spdMul = cs ? cs.speed : 1;
+  u.maxHp = Math.max(1, Math.round(u.maxHp * hpMul * dm));
   u.hp = u.maxHp;
-  u.atk = Math.max(0, Math.round(u.atk * star.atk * nodeMul * dm * 100) / 100);
-  u.def = Math.max(0, Math.round(u.def * star.def * 100) / 100);
-  u.baseSpeed = Math.max(1, Math.round(u.baseSpeed * star.speed * 100) / 100);
+  u.atk = Math.max(0, Math.round(u.atk * atkMul * dm * 100) / 100);
+  u.def = Math.max(0, Math.round(u.def * defMul * 100) / 100);
+  u.baseSpeed = Math.max(1, Math.round(u.baseSpeed * spdMul * 100) / 100);
   if (b.hp1) { u.maxHp = 1; u.hp = 1; }
   if (b.noSkill) {
     u.st.advNoSkill = true;
@@ -1486,6 +1714,12 @@ function adventureOpen() {
   adventure.notice = '';
   adventure.selectedCard = null;
   adventure.selectedItems = [];
+  adventure.nodeFocus = '';
+  adventure.itemFocusId = '';
+  adventure.itemFocusIx = -1;
+  adventure.shopOpen = false;
+  adventure.dragItem = -1;
+  adventure.dragCardUid = -1;
   adventure.renderKey = '';
   adventure.lastStep = '';
   if (adventure.run && adventure.run.step === 'battle') {
@@ -1536,7 +1770,10 @@ function advRoleIcon(key) {
   var role = advRole(key);
   if (!role) return '';
   if (role.img) return '<img src="' + advEsc(role.img) + '" alt="">';
-  if (typeof iconSvg === 'function') return iconSvg(role.units[0]) || '';
+  if (typeof iconSvg === 'function') {
+    /* 优先用角色池 key 的图标：红青组合的图标 key 是 duo，不是首个单位 red。 */
+    return iconSvg(role.key) || iconSvg(role.units[0]) || '';
+  }
   return '';
 }
 function advStars(n) {
@@ -1548,11 +1785,7 @@ function advItemChip(id, ix, uid, equipped) {
   var d = advItem(id);
   if (!d) return '';
   var cls = 'adv-item' + (d.basic ? '' : ' advanced') + (equipped ? ' equipped' : '');
-  if (!equipped && adventure.selectedItems.indexOf(ix) >= 0) cls += ' selected';
-  var attr = equipped
-    ? ' data-adv="unequip" data-uid="' + uid + '" data-ix="' + ix + '"'
-    : ' data-adv="item" data-ix="' + ix + '"';
-  return '<button type="button" class="' + cls + '"' + attr + ' title="' + advEsc(d.text) + '">' +
+  return '<button type="button" class="' + cls + '" data-adv="unequip" data-uid="' + uid + '" data-ix="' + ix + '" title="点击卸下：' + advEsc(d.text) + '">' +
     '<i>' + d.icon + '</i><span>' + advEsc(d.name) + '</span></button>';
 }
 function advCardHtml(card, zone) {
@@ -1560,9 +1793,11 @@ function advCardHtml(card, zone) {
   var role = advRole(card.key);
   var name = role ? (role.short || role.name) : card.key;
   var items = '';
-  for (var i = 0; i < card.items.length; i++) {
-    items += '<span class="adv-card-item" title="' + advEsc(advItemName(card.items[i])) + '">' +
-      advItemIcon(card.items[i]) + '</span>';
+  for (var i = 0; i < ADV_CONFIG.maxItems; i++) {
+    var id = card.items[i];
+    items += id
+      ? '<span class="adv-card-item" title="' + advEsc(advItemName(id)) + '">' + advItemIcon(id) + '</span>'
+      : '<span class="adv-card-item empty" title="空装备位"></span>';
   }
   var acts = '';
   if (zone === 'board') {
@@ -1574,58 +1809,136 @@ function advCardHtml(card, zone) {
     acts += '<button type="button" class="equip" data-adv="equip" data-uid="' + card.uid + '">装备</button>';
   }
   acts += '<button type="button" class="sell" data-adv="sell" data-uid="' + card.uid + '">出售 ●' + advSellPrice(card) + '</button>';
-  return '<div class="adv-card ' + zone + (adventure.selectedCard === card.uid ? ' selected' : '') + '" data-adv="selectCard" data-uid="' + card.uid + '">' +
+  return '<div class="adv-card ' + zone + (adventure.selectedCard === card.uid ? ' selected' : '') + '" draggable="true" data-adv="selectCard" data-uid="' + card.uid + '">' +
     '<div class="adv-card-top"><span class="adv-ico">' + advRoleIcon(card.key) + '</span>' +
       '<span class="adv-stars">' + advStars(card.star) + '</span></div>' +
     '<b>' + advEsc(name) + '</b><small>' + advEsc(role ? role.role : '') + '</small>' +
-    (items ? '<div class="adv-card-items">' + items + '</div>' : '') +
+    '<div class="adv-card-items">' + items + '</div>' +
     '<div class="adv-card-actions">' + acts + '</div></div>';
 }
 function advEmptySlot(zone, ix) {
-  return '<div class="adv-slot empty"><span>+</span><small>' + (zone === 'board' ? '战斗席 ' + (ix + 1) : '备战席 ' + (ix + 1)) + '</small></div>';
+  return '<div class="adv-slot empty" data-slot-zone="' + zone + '" data-slot-ix="' + ix + '"><span>+</span><small>' + (zone === 'board' ? '主站席 ' : '备战席 ') + (ix + 1) + '</small></div>';
 }
 function advTopHtml() {
   var r = adventure.run;
   if (!r) return '';
   var env = advEnv(r.env);
-  var node = advCurrentNode(r);
   return '<header class="adv-top">' +
-    '<div class="adv-title"><span class="adv-kicker">TRIAL ' + r.trial + ' / ' + ADV_CONFIG.maxTrial +
-      ' · NODE ' + r.node + ' / ' + ADV_CONFIG.nodesPerTrial + '</span>' +
+    '<div class="adv-title"><span class="adv-kicker">SECRET REALM · TRIAL ' + r.trial + ' / ' + ADV_CONFIG.maxTrial + '</span>' +
       '<h2>' + (r.trial === 1 ? '第一试炼 · 翠庭' : '第二试炼 · 雷庭') + '</h2>' +
-      '<p>' + advEsc(env.name) + ' · ' + advEsc(env.desc) + '</p></div>' +
+      '<p><b class="adv-env-name">' + advEsc(env.name) + '</b> · ' + advEsc(env.desc) + '</p></div>' +
     '<div class="adv-res">' +
-      '<span class="adv-res-pill gold"><i>●</i><b>' + r.gold + '</b><small>金币</small></span>' +
-      '<span class="adv-res-pill hp"><i>♥</i><b>' + Math.max(0, r.hp) + '</b><small>征战</small></span>' +
+      '<span class="adv-res-pill hp"><i>♥</i><b>' + Math.max(0, r.hp) + '</b><small>征战 / ' + r.maxHp + '</small></span>' +
       '<span class="adv-res-pill diff"><i>⚔</i><b>' + advDifficulty(r) + '</b><small>敌难</small></span>' +
+      '<span class="adv-res-pill streak"><i>▲</i><b>' + r.streak + '</b><small>连胜</small></span>' +
       '<button type="button" class="adv-icon-btn" data-adv="home" title="返回主菜单">×</button>' +
     '</div></header>';
+}
+function advNodeState(r, trial, n) {
+  if (!r) return 'future';
+  if (r.step === 'complete') return 'done';
+  if (trial < r.trial) return 'done';
+  if (trial === r.trial && n < r.node) return 'done';
+  if (trial === r.trial && n === r.node) return 'current';
+  return 'future';
+}
+function advNodeIcon(node, state) {
+  if (state === 'done') return '✓';
+  if (node.type === 'boss') return '☠';
+  if (node.type === 'challenge') return '♜';
+  if (node.type === 'gift') return '✦';
+  return '⚔';
+}
+function advNodeTypeName(type) {
+  if (type === 'boss') return 'BOSS';
+  if (type === 'challenge') return '守关挑战';
+  if (type === 'gift') return '奖励关';
+  return '普攻小怪关';
+}
+function advNodeDesc(node) {
+  if (!node) return '';
+  if (node.type === 'boss') return 'BOSS 关。失败会扣除大量征战生命，但可以保留当前阵容再次挑战；击破后进入下一试炼。';
+  if (node.type === 'challenge') return '难度二选一：左边 1–2 星，右边 3–5 星。实际星级越高，敌人越强，遭遇奖励也越好。';
+  if (node.type === 'gift') return '奖励关：小怪只有 1 点生命。胜利后三选一奖励' + (node.hex ? '，随后选择海克斯' : '') + '。';
+  return '普攻小怪关：敌人不会释放技能 / 终结技，靠普攻与撞击作战。失败仍会前进，但只拿基础奖励。' +
+    (node.hex ? ' 胜利后选择海克斯。' : '');
+}
+function advNodePopHtml() {
+  var r = adventure.run, tag = adventure.nodeFocus;
+  if (!r || !tag) return '';
+  var parts = String(tag).split('-');
+  var trial = parseInt(parts[0], 10), n = parseInt(parts[1], 10);
+  var node = advNode(trial, n);
+  if (!node) return '';
+  var state = advNodeState(r, trial, n);
+  var status = state === 'done' ? '已完成' : (state === 'current' ? '当前节点' : '未到达');
+  var extra = '';
+  if (node.challenge) extra += '<span>左 1–2★ / 右 3–5★</span>';
+  if (node.reward) extra += '<span>胜利奖励自动发放 2 项</span>';
+  if (node.hex || node.extraHex) extra += '<span>海克斯三选一</span>';
+  if (!node.boss) extra += '<span>节点强度 ×' + advNodePower(trial, n).toFixed(2) + '</span>';
+  return '<div class="adv-node-pop" role="dialog" aria-label="节点详情">' +
+    '<button type="button" class="adv-node-pop-x" data-adv="nodeClose" title="关闭">×</button>' +
+    '<div class="adv-node-pop-head"><span class="adv-kicker">' + tag + '</span><b>' + advEsc(node.name) + '</b>' +
+      '<span class="adv-node-pop-type ' + node.type + '">' + advNodeTypeName(node.type) + '</span></div>' +
+    '<p>' + advNodeDesc(node) + '</p>' +
+    '<div class="adv-node-pop-meta"><span class="adv-node-state ' + state + '">' + status + '</span>' +
+      '<span>敌人 <b>' + node.enemies + '</b></span>' + extra + '</div></div>';
 }
 function advPathHtml() {
   var r = adventure.run;
   if (!r) return '';
-  var html = '<div class="adv-path">';
-  for (var t = 1; t <= ADV_CONFIG.maxTrial; t++) {
-    html += '<div class="adv-path-row"><span class="adv-path-label">' + (t === 1 ? '第一试炼' : '第二试炼') + '</span>';
-    for (var n = 1; n <= ADV_CONFIG.nodesPerTrial; n++) {
-      var node = advNode(t, n);
-      var done = (t < r.trial) || (t === r.trial && (n < r.node || r.step === 'complete'));
-      var cur = (t === r.trial && n === r.node && r.step !== 'complete');
-      var cls = 'adv-node ' + node.type + (done ? ' done' : '') + (cur ? ' current' : '') + (t > r.trial ? ' locked' : '');
-      html += '<span class="' + cls + '"><i>' + (done ? '✓' : (node.type === 'boss' ? '☠' : (node.type === 'challenge' ? '♜' : (node.type === 'gift' ? '✦' : '⚔')))) + '</i>' +
-        '<b>' + t + '-' + n + '</b><small>' + advEsc(node.name) + '</small></span>';
-    }
-    html += '</div>';
+  var trial = r.trial;
+  var nodes = '';
+  for (var n = 1; n <= ADV_CONFIG.nodesPerTrial; n++) {
+    var node = advNode(trial, n);
+    var state = advNodeState(r, trial, n);
+    var tag = trial + '-' + n;
+    var cls = 'adv-node ' + node.type + ' ' + state + (adventure.nodeFocus === tag ? ' focused' : '');
+    nodes += '<button type="button" class="' + cls + '" data-adv="node" data-tag="' + tag + '" title="' + tag + ' · ' + advEsc(node.name) + '" aria-pressed="' + (adventure.nodeFocus === tag) + '">' +
+      '<i>' + advNodeIcon(node, state) + '</i><b>' + tag + '</b><small>' + advEsc(node.name) + '</small></button>';
   }
-  return html + '</div>';
+  var trialName = trial === 1 ? '第一试炼' : '第二试炼';
+  var note = trial === 1 ? '击破 1-7 后开启第二试炼' : '最终试炼 · 击破 2-7 通关';
+  var curNode = advCurrentNode(r);
+  var curText = r.step === 'complete' ? '已通关' : (r.trial + '-' + r.node + ' ' + (curNode ? curNode.name : ''));
+  return '<section class="adv-path-wrap">' +
+    '<div class="adv-path-head">' +
+      '<div class="adv-path-title"><span class="adv-kicker">TRIAL ' + (trial === 1 ? 'I' : 'II') + '</span>' +
+        '<b>' + trialName + ' · 挑战节点</b><small>点击查看详情</small></div>' +
+      '<div class="adv-path-meta"><span>当前 <b>' + advEsc(curText) + '</b></span>' +
+        '<span class="adv-path-note">' + note + '</span></div>' +
+    '</div>' +
+    '<div class="adv-path">' + nodes + '</div>' +
+    advNodePopHtml() +
+  '</section>';
+}
+function advCardActualStats(card) {
+  var role = advRole(card.key), s = advCardStats(card);
+  var out = { units: [], dmg: s.dmg, dot: s.dot };
+  if (!role) return out;
+  for (var i = 0; i < role.units.length; i++) {
+    var t = TYPES[role.units[i]] || {};
+    out.units.push({
+      name: t.name || role.units[i],
+      hp: Math.max(1, Math.round((t.maxHp || 0) * s.hp)),
+      atk: Math.max(0, Math.round((t.atk || 0) * s.atk)),
+      def: Math.max(0, Math.round((t.def || 0) * s.def)),
+      speed: Math.max(1, Math.round((t.baseSpeed || 0) * s.speed))
+    });
+  }
+  return out;
 }
 function advDetailHtml() {
   var card = advCard(adventure.selectedCard);
   if (!card) {
-    return '<div class="adv-detail empty"><b>角色详情</b><p>点击战斗席 / 备战席上的卡片查看星级与装备。选中背包装备后再点「装备」。</p></div>';
+    return '<section class="adv-panel adv-detail empty"><div class="adv-panel-title">角色详情 <span>点击卡片</span></div>' +
+      '<p class="adv-muted">点击主站席 / 备战席的卡片查看星级与装备；选中背包装备后点击卡片或直接拖拽即可装备。</p></section>';
   }
   var s = advCardStats(card);
+  var act = advCardActualStats(card);
   var role = advRole(card.key);
+  var zone = advCardZone(card.uid);
   var items = '';
   if (card.items.length) {
     for (var i = 0; i < card.items.length; i++) {
@@ -1635,14 +1948,107 @@ function advDetailHtml() {
   } else {
     items = '<span class="adv-muted">未装备</span>';
   }
-  return '<div class="adv-detail">' +
-    '<div class="adv-detail-head"><span class="adv-ico">' + advRoleIcon(card.key) + '</span><div><b>' + advEsc(role ? role.name : card.key) + '</b><small>' + advStars(card.star) + ' · ' + (advCardZone(card.uid) === 'board' ? '战斗席' : '备战席') + '</small></div></div>' +
-    '<div class="adv-stat-row">' +
-      '<span>生命 <b>×' + s.hp.toFixed(2) + '</b></span><span>攻击 <b>×' + s.atk.toFixed(2) + '</b></span>' +
-      '<span>防御 <b>×' + s.def.toFixed(2) + '</b></span><span>移速 <b>×' + s.speed.toFixed(2) + '</b></span>' +
-      '<span>伤害 <b>+' + Math.round((s.dmg - 1) * 100) + '%</b></span><span>持续 <b>+' + Math.round((s.dot - 1) * 100) + '%</b></span>' +
+  var unitHtml = '';
+  for (var u = 0; u < act.units.length; u++) {
+    var us = act.units[u];
+    unitHtml += '<div class="adv-unit-stat"><span class="adv-unit-name">' + advEsc(us.name) + '</span>' +
+      '<span>生命 <b>' + us.hp + '</b></span><span>攻击 <b>' + us.atk + '</b></span>' +
+      '<span>防御 <b>' + us.def + '</b></span><span>移速 <b>' + us.speed + '</b></span></div>';
+  }
+  var acts = '<div class="adv-detail-actions">' +
+    (zone === 'board'
+      ? '<button type="button" data-adv="bench" data-uid="' + card.uid + '">下阵</button>'
+      : '<button type="button" data-adv="place" data-uid="' + card.uid + '">上阵</button>') +
+    (adventure.selectedItems.length === 1
+      ? '<button type="button" class="equip" data-adv="equip" data-uid="' + card.uid + '">装备</button>' : '') +
+    '<button type="button" class="sell" data-adv="sell" data-uid="' + card.uid + '">出售 ●' + advSellPrice(card) + '</button>' +
+  '</div>';
+  return '<section class="adv-panel adv-detail">' +
+    '<div class="adv-panel-title">角色详情 <span>' + (zone === 'board' ? '主站席' : '备战席') + '</span></div>' +
+    '<div class="adv-detail-head"><span class="adv-ico">' + advRoleIcon(card.key) + '</span><div><b>' + advEsc(role ? role.name : card.key) + '</b><small>' + advStars(card.star) + ' · ' + advEsc(role ? role.role : '') + '</small></div></div>' +
+    '<div class="adv-unit-stats">' + unitHtml + '</div>' +
+    '<div class="adv-stat-row adv-stat-bonus">' +
+      '<span>伤害 <b>+' + Math.round((s.dmg - 1) * 100) + '%</b></span>' +
+      '<span>持续 <b>+' + Math.round((s.dot - 1) * 100) + '%</b></span>' +
+      '<span>星级 <b>' + card.star + ' 星</b></span>' +
     '</div>' +
-    '<div class="adv-detail-items">' + items + '</div></div>';
+    '<p class="adv-detail-note">已计入星级 / 装备 / 海克斯；伤害与持续为额外增伤。</p>' +
+    '<div class="adv-detail-items">' + items + '</div>' + acts + '</section>';
+}
+function advRecipeHtml(rec) {
+  var a = advItem(rec.a), b = advItem(rec.b), out = advItem(rec.out);
+  if (!a || !b || !out) return '';
+  var mats = rec.a === rec.b ? advEsc(a.name) + ' ×2' : advEsc(a.name) + ' + ' + advEsc(b.name);
+  return '<div class="adv-recipe">' +
+    '<button type="button" class="adv-recipe-main" data-adv="recipeInfo" data-id="' + rec.out + '" title="查看 ' + advEsc(out.name) + ' 详情">' +
+      '<span class="adv-recipe-icons"><i>' + a.icon + '</i><em>+</em><i>' + b.icon + '</i><em>›</em><i class="out">' + out.icon + '</i></span>' +
+      '<span class="adv-recipe-txt"><b>' + advEsc(out.name) + '</b><small>' + mats + '</small></span>' +
+    '</button>' +
+    '<button type="button" class="adv-recipe-go" data-adv="craftRec" data-id="' + rec.out + '">合成</button>' +
+  '</div>';
+}
+function advCraftPanelHtml() {
+  var list = advCraftableRecipes();
+  var rows = '';
+  for (var i = 0; i < list.length; i++) rows += advRecipeHtml(list[i]);
+  if (!rows) rows = '<div class="adv-muted box">暂无可合成配方<br>集齐 2 件基础装备后自动出现</div>';
+  return '<section class="adv-panel adv-craft-panel">' +
+    '<div class="adv-panel-title">可合成列表 <span>' + list.length + ' 项</span></div>' +
+    '<div class="adv-craft-list">' + rows + '</div>' +
+    '<p class="adv-panel-note">点击进阶装备可查看装备详情</p>' +
+  '</section>';
+}
+function advHexPanelHtml() {
+  var r = adventure.run;
+  return '<section class="adv-panel adv-hex-panel">' +
+    '<div class="adv-panel-title">海克斯 <span>' + r.hexes.length + ' 个</span></div>' +
+    '<div class="adv-hexes">' + advHexListHtml() + '</div>' +
+  '</section>';
+}
+function advInvItemHtml(id, ix) {
+  var d = advItem(id);
+  if (!d) return '';
+  var sel = adventure.itemFocusIx === ix;
+  return '<button type="button" class="adv-inv-item' + (d.basic ? '' : ' advanced') + (sel ? ' selected' : '') + '" data-adv="invItem" data-ix="' + ix + '" draggable="true" title="' + advEsc(d.name) + ' · ' + advEsc(d.text) + '">' +
+    '<i>' + d.icon + '</i></button>';
+}
+function advInventoryHtml() {
+  var r = adventure.run;
+  if (!r) return '';
+  if (!r.inventory.length) return '<div class="adv-muted box">暂无装备<br>每个节点结束有概率掉落</div>';
+  var html = '';
+  for (var i = 0; i < r.inventory.length; i++) html += advInvItemHtml(r.inventory[i], i);
+  return html;
+}
+function advItemDetailHtml() {
+  var d = advItem(adventure.itemFocusId);
+  if (!d) {
+    return '<div class="adv-item-detail empty"><b>装备详情</b>' +
+      '<p>点击背包或可合成列表里的装备查看效果；选中后点击角色卡即可装备，也可直接拖拽。</p></div>';
+  }
+  var rec = advItemRecipe(d.id);
+  var mats = rec ? (rec.a === rec.b ? advItemName(rec.a) + ' ×2' : advItemName(rec.a) + ' + ' + advItemName(rec.b)) : '';
+  var extra = '';
+  if (adventure.itemFocusIx >= 0) {
+    extra = adventure.selectedCard
+      ? '<button type="button" class="adv-item-equip" data-adv="equipFocused">装备到选中角色</button>'
+      : '<span class="adv-item-tip">已选中 · 点击角色卡即可装备</span>';
+  } else if (rec) {
+    extra = '<span class="adv-item-tip">合成配方：' + advEsc(mats) + '</span>';
+  }
+  return '<div class="adv-item-detail">' +
+    '<div class="adv-item-detail-head"><span class="adv-item-ico' + (d.basic ? '' : ' advanced') + '">' + d.icon + '</span>' +
+      '<div><b>' + advEsc(d.name) + '</b><small>' + (d.basic ? '基础装备' : '进阶装备') + (rec ? ' · 可合成' : '') + '</small></div></div>' +
+    '<p>' + advEsc(d.text) + '</p>' + extra +
+  '</div>';
+}
+function advInventoryPanelHtml() {
+  var r = adventure.run;
+  return '<section class="adv-panel adv-inv-panel">' +
+    '<div class="adv-panel-title">已获得装备 <span>' + r.inventory.length + ' 件 · 拖到角色卡</span></div>' +
+    '<div class="adv-inv">' + advInventoryHtml() + '</div>' +
+    advItemDetailHtml() +
+  '</section>';
 }
 function advShopHtml() {
   var r = adventure.run;
@@ -1656,20 +2062,32 @@ function advShopHtml() {
     }
     var role = advRole(e.key);
     var cost = advShopEntryCost(e);
-    html += '<div class="adv-shop-card">' +
-      '<div class="adv-card-top"><span class="adv-ico">' + advRoleIcon(e.key) + '</span><span class="adv-stars">' + advStars(e.star) + '</span></div>' +
-      '<b>' + advEsc(role ? role.short : e.key) + '</b><small>' + advEsc(role ? role.role : '') + ' · ' + e.star + ' 星</small>' +
-      '<button type="button" class="adv-buy" data-adv="buy" data-ix="' + i + '">买入 ●' + cost + '</button></div>';
+    html += '<div class="adv-shop-card' + (r.gold < cost ? ' poor' : '') + '">' +
+      '<div class="adv-shop-ico"><span class="adv-ico">' + advRoleIcon(e.key) + '</span><span class="adv-stars">' + advStars(e.star) + '</span></div>' +
+      '<b>' + advEsc(role ? (role.short || role.name) : e.key) + '</b><small>' + advEsc(role ? role.role : '') + ' · ' + e.star + ' 星</small>' +
+      '<button type="button" class="adv-buy" data-adv="buy" data-ix="' + i + '">购买 ●' + cost + '</button></div>';
   }
   return html;
 }
-function advItemsHtml() {
+function advShopDrawerHtml() {
   var r = adventure.run;
   if (!r) return '';
-  if (!r.inventory.length) return '<div class="adv-muted box">暂无装备。每个节点结束有概率掉落；两件基础可合成进阶。</div>';
-  var html = '';
-  for (var i = 0; i < r.inventory.length; i++) html += advItemChip(r.inventory[i], i, 0, false);
-  return html;
+  var open = !!adventure.shopOpen;
+  return '<div class="adv-shop-drawer' + (open ? ' open instant' : '') + '" aria-hidden="' + (open ? 'false' : 'true') + '">' +
+    '<div class="adv-shop-dim" data-adv="shopClose"></div>' +
+    '<div class="adv-shop-sheet" role="dialog" aria-label="角色商店">' +
+      '<div class="adv-shop-head">' +
+        '<div class="adv-shop-heading"><span class="adv-kicker">RECRUIT</span><b>角色商店</b></div>' +
+        '<div class="adv-shop-meta"><span>持有 <b class="gold">● ' + r.gold + '</b></span><span>牌库 ' + advPoolLeft(r) + '/90</span><span>刷新 ●' + ADV_CONFIG.refreshCost + '</span></div>' +
+        '<button type="button" class="adv-icon-btn" data-adv="shopClose" title="关闭商店">×</button>' +
+      '</div>' +
+      '<div class="adv-shop">' + advShopHtml() + '</div>' +
+      '<div class="adv-shop-foot">' +
+        '<button type="button" class="adv-secondary" data-adv="reroll">刷新商店 · ●' + ADV_CONFIG.refreshCost + '</button>' +
+        '<span class="adv-muted">买入后自动进入备战席 · 3 张同名自动升星</span>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
 }
 function advHexListHtml() {
   var r = adventure.run;
@@ -1685,20 +2103,14 @@ function advHexListHtml() {
 }
 function advNodeInfoHtml(node) {
   if (!node) return '';
-  if (node.type === 'boss') {
-    return '<b>' + node.trial + '-' + node.n + ' · ' + advEsc(node.name) + '</b>' +
-      '<p>BOSS 关。失败会扣除大量征战生命，但可以保留当前阵容再次挑战；击破后进入下一试炼。</p>';
-  }
-  if (node.type === 'challenge') {
-    return '<b>' + node.trial + '-' + node.n + ' · ' + advEsc(node.name) + '</b>' +
-      '<p>难度二选一：左边 1–2 星，右边 3–5 星。实际星级越高，敌人越强，遭遇奖励也越好。</p>';
-  }
-  if (node.type === 'gift') {
-    return '<b>' + node.trial + '-' + node.n + ' · ' + advEsc(node.name) + '</b>' +
-      '<p>奖励关：小怪只有 1 点生命。胜利后三选一奖励' + (node.hex ? '，随后选择海克斯' : '') + '。</p>';
-  }
   return '<b>' + node.trial + '-' + node.n + ' · ' + advEsc(node.name) + '</b>' +
-    '<p>普攻小怪关：敌人不会释放技能 / 终结技，靠普攻与撞击作战。失败仍会前进，但只拿基础奖励。</p>';
+    '<p>' + advNodeDesc(node) + '</p>';
+}
+function advCoinHtml() {
+  var r = adventure.run;
+  if (!r) return '';
+  return '<button type="button" class="adv-coin" data-adv="shopOpen" title="打开角色商店">' +
+    '<b>' + r.gold + '</b><span>金币</span><em>商店</em></button>';
 }
 function advFooterHtml() {
   var r = adventure.run, node = advCurrentNode(r);
@@ -1714,7 +2126,8 @@ function advFooterHtml() {
     btn = '<button type="button" class="adv-primary" data-adv="fight">开始战斗 · ' + boardN + ' 人上阵</button>';
   }
   return '<footer class="adv-foot"><div class="adv-node-info">' + advNodeInfoHtml(node) +
-    '<div class="adv-foot-meta">敌难 <b>' + advDifficulty(r) + '</b> · 卡池 ' + advPoolLeft(r) + '/90 · 连胜 <b>' + r.streak + '</b></div></div>' + btn + '</footer>';
+    '<div class="adv-foot-meta">敌难 <b>' + advDifficulty(r) + '</b> · 卡池 <b>' + advPoolLeft(r) + '/90</b> · 连胜 <b>' + r.streak + '</b></div></div>' +
+    '<div class="adv-foot-actions">' + advCoinHtml() + btn + '</div></footer>';
 }
 function advHubHtml() {
   var r = adventure.run;
@@ -1727,31 +2140,31 @@ function advHubHtml() {
     var sc = advCard(r.bench[s]);
     bench += sc ? advCardHtml(sc, 'bench') : advEmptySlot('bench', s);
   }
-  return advTopHtml() + advPathHtml() +
-    '<div class="adv-main">' +
-      '<section class="adv-panel adv-board-panel">' +
-        '<div class="adv-panel-title">战斗席 <span>' + ADV_CONFIG.boardSlots + ' 格 · 不可重复</span></div>' +
-        '<div class="adv-board">' + board + '</div>' +
-        '<div class="adv-panel-title">备战席 <span>' + ADV_CONFIG.benchSlots + ' 格 · 3 张自动升星</span></div>' +
-        '<div class="adv-bench">' + bench + '</div>' +
-        advDetailHtml() +
-      '</section>' +
-      '<section class="adv-panel adv-shop-panel">' +
-        '<div class="adv-panel-title">牌库商店 <span>剩余 ' + advPoolLeft(r) + '/90 · 刷新 ●' + ADV_CONFIG.refreshCost + '</span></div>' +
-        '<div class="adv-shop">' + advShopHtml() + '</div>' +
-        '<button type="button" class="adv-secondary" data-adv="reroll">刷新商店 · ●' + ADV_CONFIG.refreshCost + '</button>' +
-        '<div class="adv-panel-title">装备背包 <span>点击选中，再点角色装备</span></div>' +
-        '<div class="adv-items">' + advItemsHtml() + '</div>' +
-        '<div class="adv-craft-row"><button type="button" class="adv-secondary" data-adv="craft">合成进阶装备</button><small>选中 2 件基础装备</small></div>' +
-        '<div class="adv-panel-title">海克斯 <span>' + r.hexes.length + ' 个</span></div>' +
-        '<div class="adv-hexes">' + advHexListHtml() + '</div>' +
-      '</section>' +
-    '</div>' + advFooterHtml();
+  return '<div class="adv-hub">' +
+    advTopHtml() +
+    '<div class="adv-layout">' +
+      '<aside class="adv-col adv-col-left">' + advCraftPanelHtml() + advHexPanelHtml() + '</aside>' +
+      '<main class="adv-col adv-col-mid">' +
+        advPathHtml() +
+        '<section class="adv-panel adv-board-panel">' +
+          '<div class="adv-panel-title">主站席 <span>' + ADV_CONFIG.boardSlots + ' 格 · 不可重复 · 可拖拽换位</span></div>' +
+          '<div class="adv-board">' + board + '</div>' +
+          '<div class="adv-panel-title">备战席 <span>' + ADV_CONFIG.benchSlots + ' 格 · 3 张自动升星 · 可拖到主站席</span></div>' +
+          '<div class="adv-bench">' + bench + '</div>' +
+        '</section>' +
+      '</main>' +
+      '<aside class="adv-col adv-col-right">' + advInventoryPanelHtml() + advDetailHtml() + '</aside>' +
+    '</div>' +
+    advFooterHtml() +
+    advShopDrawerHtml() +
+  '</div>';
 }
 function advResultHtml() {
   var r = adventure.run, res = r.result;
   if (!res) return advHubHtml();
   var win = res.win;
+  var node = advNode(res.trial, res.node);
+  var powerText = advNodePower(res.trial, res.node).toFixed(2);
   var rows = '';
   function row(label, value, cls) {
     return '<div class="adv-result-row ' + (cls || '') + '"><span>' + label + '</span><b>' + value + '</b></div>';
@@ -1768,9 +2181,13 @@ function advResultHtml() {
       '<div class="adv-result-kicker">' + (win ? 'VICTORY' : 'DEFEAT') + '</div>' +
       '<h2>' + (res.draw ? '同归于尽' : (win ? '战斗胜利' : '战斗失败')) + '</h2>' +
       '<p>' + res.trial + '-' + res.node + ' · ' + advEsc(res.name) + ' · ' +
-        (res.boss ? 'BOSS' : '难度 ' + res.star + ' 星') + ' · 用时 ' + (res.seconds || 0) + 's</p>' +
+        (res.boss ? 'BOSS' : (node && node.challenge ? '难度 ' + res.star + ' 星 · 强度 ×' + powerText : '节点强度 ×' + powerText)) + ' · 用时 ' + (res.seconds || 0) + 's</p>' +
       '<div class="adv-result-grid">' + rows + '</div>' +
-      (res.damage > 0 ? '<div class="adv-result-hp"><span>征战生命</span><b>' + res.hpBefore + ' → ' + Math.max(0, res.hpAfter) + '</b><small>失败扣除 ' + res.damage + '</small></div>' : '') +
+      (res.damage > 0
+        ? '<div class="adv-result-hp"><span>征战生命</span><b>' + res.hpBefore + ' → ' + Math.max(0, res.hpAfter) + '</b><small>失败扣除 ' + res.damage + '</small></div>'
+        : (res.heal > 0
+          ? '<div class="adv-result-hp heal"><span>征战生命</span><b>' + res.hpBefore + ' → ' + Math.max(0, res.hpAfter) + '</b><small>胜利回复 +' + res.heal + '</small></div>'
+          : '')) +
       (res.drop ? '<div class="adv-drop">掉落：' + advItemIcon(res.drop) + ' ' + advEsc(advItemName(res.drop)) + '</div>' : '') +
       '<button type="button" class="adv-primary" data-adv="continue">' +
         (res.bossLost && r.hp >= 0 ? '再战 BOSS' : '继续') + '</button>' +
@@ -1789,6 +2206,23 @@ function advRewardHtml() {
     '<section class="adv-choice"><span class="adv-kicker">REWARD</span><h2>' + advEsc(r.pending.title) + '</h2>' +
       '<p>' + advEsc(r.pending.sub || '') + '</p><div class="adv-choice-grid">' + opts + '</div></section>';
 }
+function advAutoRewardHtml() {
+  var r = adventure.run;
+  if (!r || !r.pending) return advHubHtml();
+  var opts = '';
+  for (var i = 0; i < r.pending.options.length; i++) {
+    var o = r.pending.options[i];
+    opts += '<div class="adv-choice-card auto"><i>' + (o.icon || '✦') + '</i><b>' + advEsc(o.name) + '</b>' +
+      '<span>' + advEsc(o.gain || o.desc) + '</span><em>已获得</em></div>';
+  }
+  return advTopHtml() + advPathHtml() +
+    '<section class="adv-choice adv-auto-reward"><span class="adv-kicker">REWARD</span>' +
+      '<h2>' + advEsc(r.pending.title || '奖励关 · 系统发放') + '</h2>' +
+      '<p>' + advEsc(r.pending.sub || '') + '</p>' +
+      '<div class="adv-choice-grid two">' + opts + '</div>' +
+      '<button type="button" class="adv-primary" data-adv="rewardContinue">继续</button>' +
+    '</section>';
+}
 function advHexChoiceHtml() {
   var r = adventure.run;
   if (!r || !r.pending) return advHubHtml();
@@ -1798,7 +2232,7 @@ function advHexChoiceHtml() {
     if (!h) continue;
     var q = advQuality(h.q);
     opts += '<button type="button" class="adv-choice-card q-' + h.q + '" data-adv="hex" data-id="' + h.id + '">' +
-      '<span class="adv-q" style="color:' + q.color + '">' + q.name + '</span>' +
+      '<span class="adv-q adv-q-' + h.q + '">' + q.name + '</span>' +
       '<i>' + h.icon + '</i><b>' + advEsc(h.name) + '</b><span>' + advEsc(h.text) + '</span><em>获取</em></button>';
   }
   return advTopHtml() + advPathHtml() +
@@ -1858,7 +2292,7 @@ function advEnvHtml() {
     '<div class="adv-env-grid">' + cards + '</div>' +
     '<div class="adv-rules-box"><b>试炼规则</b><ul>' +
       '<li>第一 / 第二试炼各 7 个节点：奖励关 → 普攻小怪 → 难度挑战 → 奖励关 → BOSS。</li>' +
-      '<li>3 张同名 1 星自动合成 2 星，3 张 2 星合成 3 星；2 星出售 12 金币，3 星出售 40。</li>' +
+      '<li>3 张同名 1 星自动合成 2 星，3 张 2 星合成 3 星；2 星出售 10 金币，3 星出售 30。</li>' +
       '<li>战斗席不能重复角色；每场战斗前全员满血；失败只拿基础奖励并扣征战生命。</li>' +
       '<li>海克斯分白银 / 黄金 / 棱彩；黄金 +2 敌难，棱彩 +5 敌难。</li>' +
       '</ul></div></div>';
@@ -1868,10 +2302,13 @@ function adventureRender() {
   if (!root) return;
   var r = adventure.run;
   if (r && r.step === 'battle') { adventureHide(); return; }
+  var isHub = !!r && r.step === 'hub';
+  if (!isHub) adventure.shopOpen = false;
   var html;
   if (!r) html = advEnvHtml();
   else if (r.step === 'result') html = advResultHtml();
   else if (r.step === 'reward') html = advRewardHtml();
+  else if (r.step === 'rewardAuto') html = advAutoRewardHtml();
   else if (r.step === 'hex') html = advHexChoiceHtml();
   else if (r.step === 'item') html = advItemChoiceHtml();
   else if (r.step === 'defeat' || r.step === 'complete') html = advEndHtml();
@@ -1881,6 +2318,7 @@ function adventureRender() {
   var stepKey = r ? r.step : 'env';
   var keepScroll = adventure.lastStep === stepKey ? root.scrollTop : 0;
   adventure.lastStep = stepKey;
+  root.classList.toggle('adv-hub-mode', isHub);
   root.innerHTML = '<div class="adv-shell">' + html + '</div>';
   root.scrollTop = keepScroll;
 }
@@ -1890,6 +2328,12 @@ function advRestartRun() {
   adventure.notice = '';
   adventure.selectedCard = null;
   adventure.selectedItems = [];
+  adventure.nodeFocus = '';
+  adventure.itemFocusId = '';
+  adventure.itemFocusIx = -1;
+  adventure.shopOpen = false;
+  adventure.dragItem = -1;
+  adventure.dragCardUid = -1;
   advClearSave();
   adventure.envOffer = advOfferEnvironments();
   adventure.lastStep = '';
@@ -1911,7 +2355,44 @@ function adventureClick(e) {
     return;
   }
   if (act === 'newRun') { advRestartRun(); return; }
-  if (act === 'selectCard') { adventure.selectedCard = uid; adventure.selectedItems = []; adventureRender(); return; }
+  if (act === 'nodeClose') { adventure.nodeFocus = ''; adventureRender(); return; }
+  if (act === 'node') {
+    var tag = t.getAttribute('data-tag') || '';
+    adventure.nodeFocus = adventure.nodeFocus === tag ? '' : tag;
+    adventureRender();
+    return;
+  }
+  if (act === 'rewardContinue') {
+    if (adventure.run && adventure.run.step === 'rewardAuto') {
+      advContinueAutoReward();
+      adventureRender();
+    }
+    return;
+  }
+  if (act === 'shopClose') { advShopClose(); return; }
+  if (act === 'shopOpen') { advShopOpen(); return; }
+  if (act === 'invItem') { advToggleItem(ix); return; }
+  if (act === 'recipeInfo') {
+    adventure.itemFocusId = t.getAttribute('data-id') || '';
+    adventure.itemFocusIx = -1;
+    adventure.selectedItems = [];
+    adventureRender();
+    return;
+  }
+  if (act === 'craftRec') { advCraftRecipe(t.getAttribute('data-id')); return; }
+  if (act === 'equipFocused') {
+    if (adventure.selectedCard && adventure.itemFocusIx >= 0) advEquipItemTo(adventure.selectedCard, adventure.itemFocusIx);
+    else { advNotice('先选中一张角色卡。'); adventureRender(); }
+    return;
+  }
+  if (act === 'selectCard') {
+    var selItem = advSelectedItemIndices();
+    if (selItem.length === 1) { advEquipItemTo(uid, selItem[0]); return; }
+    adventure.selectedCard = uid;
+    adventure.selectedItems = [];
+    adventureRender();
+    return;
+  }
   if (act === 'place') advPlaceOnBoard(uid);
   else if (act === 'bench') advMoveToBench(uid);
   else if (act === 'sell') advSellCard(uid);
@@ -1928,6 +2409,327 @@ function adventureClick(e) {
   else if (act === 'continue') advAfterResult();
   adventureRender();
 }
+function advDragCard(e) {
+  if (!e.target || !e.target.closest) return null;
+  return e.target.closest('[data-adv="selectCard"]');
+}
+function advDragSlot(e) {
+  if (!e.target || !e.target.closest) return null;
+  var card = e.target.closest('[data-adv="selectCard"]');
+  if (card) {
+    return { el: card, uid: parseInt(card.getAttribute('data-uid'), 10) || 0, zone: '', ix: -1 };
+  }
+  var slot = e.target.closest('[data-slot-zone]');
+  if (slot) {
+    return {
+      el: slot, uid: 0,
+      zone: slot.getAttribute('data-slot-zone'),
+      ix: parseInt(slot.getAttribute('data-slot-ix'), 10)
+    };
+  }
+  return null;
+}
+function adventureDragStart(e) {
+  if (!e.target || !e.target.closest) return;
+  var t = e.target.closest('[data-adv="invItem"]');
+  if (t) {
+    var ix = parseInt(t.getAttribute('data-ix'), 10);
+    if (isNaN(ix)) return;
+    adventure.dragItem = ix;
+    t.classList.add('dragging');
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', String(ix)); } catch (err) {}
+    }
+    return;
+  }
+  var c = advDragCard(e);
+  if (!c) return;
+  var uid = parseInt(c.getAttribute('data-uid'), 10) || 0;
+  if (!uid) return;
+  adventure.dragCardUid = uid;
+  c.classList.add('dragging');
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', 'card:' + uid); } catch (err) {}
+  }
+}
+function adventureDragOver(e) {
+  if (adventure.dragItem >= 0) {
+    var itemCard = advDragCard(e);
+    if (!itemCard) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    itemCard.classList.add('drop-hint');
+    return;
+  }
+  if (adventure.dragCardUid < 0) return;
+  var target = advDragSlot(e);
+  if (!target || target.uid === adventure.dragCardUid) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  target.el.classList.add('drop-hint');
+}
+function adventureDragLeave(e) {
+  var target = advDragSlot(e);
+  if (target) target.el.classList.remove('drop-hint');
+}
+function adventureDrop(e) {
+  if (adventure.dragItem >= 0) {
+    var card = advDragCard(e);
+    if (!card) return;
+    e.preventDefault();
+    card.classList.remove('drop-hint');
+    var cardUid = parseInt(card.getAttribute('data-uid'), 10) || 0;
+    var itemIx = adventure.dragItem;
+    adventure.dragItem = -1;
+    if (itemIx >= 0) advEquipItemTo(cardUid, itemIx);
+    return;
+  }
+  if (adventure.dragCardUid < 0) return;
+  var target = advDragSlot(e);
+  if (!target) return;
+  e.preventDefault();
+  target.el.classList.remove('drop-hint');
+  var uid = adventure.dragCardUid;
+  adventure.dragCardUid = -1;
+  if (target.uid) {
+    var from = advCardSlot(target.uid);
+    if (from) advMoveCardTo(uid, from.zone, from.ix);
+  } else if (target.zone) {
+    advMoveCardTo(uid, target.zone, target.ix);
+  }
+}
+function adventureDragEnd() {
+  adventure.dragItem = -1;
+  adventure.dragCardUid = -1;
+  var root = document.getElementById('adventure');
+  if (!root) return;
+  var nodes = root.querySelectorAll('.dragging,.drop-hint');
+  for (var i = 0; i < nodes.length; i++) nodes[i].classList.remove('dragging', 'drop-hint');
+}
+/* ============================================================
+   秘境图鉴（主菜单只读）
+   ============================================================ */
+var adventureCodex = { open: false, tab: 'envs' };
+
+function advCodexTabs() {
+  return [
+    { id: 'envs', name: '环境', count: ADV_ENVS.length },
+    { id: 'hexes', name: '海克斯', count: ADV_HEXES.length },
+    { id: 'items', name: '装备', count: ADV_ITEMS.length },
+    { id: 'nodes', name: '节点', count: ADV_CONFIG.maxTrial * ADV_CONFIG.nodesPerTrial },
+    { id: 'roles', name: '角色', count: POOL.length }
+  ];
+}
+function advCodexTabsHtml() {
+  var tabs = advCodexTabs(), html = '';
+  for (var i = 0; i < tabs.length; i++) {
+    var t = tabs[i];
+    html += '<button type="button" class="codex-tab' + (adventureCodex.tab === t.id ? ' on' : '') +
+      '" data-codex="tab" data-tab="' + t.id + '"><span>' + t.name + '</span><b>' + t.count + '</b></button>';
+  }
+  return html;
+}
+function advCodexSection(title, sub, count) {
+  return '<section class="codex-section"><h3>' + title + ' <b>' + count + '</b></h3>' +
+    (sub ? '<p>' + sub + '</p>' : '') + '</section>';
+}
+function advCodexEnvHtml() {
+  var html = advCodexSection('秘境环境', '开局三选一，本局全程生效。', ADV_ENVS.length);
+  html += '<div class="codex-grid">';
+  for (var i = 0; i < ADV_ENVS.length; i++) {
+    var e = ADV_ENVS[i];
+    html += '<article class="codex-card codex-env">' +
+      '<div class="codex-card-head"><span class="codex-ico">' + e.icon + '</span><div><b>' + advEsc(e.name) + '</b><small>环境</small></div></div>' +
+      '<p>' + advEsc(e.desc) + '</p><span class="codex-note">' + advEsc(e.detail) + '</span></article>';
+  }
+  return html + '</div>';
+}
+function advCodexHexHtml() {
+  var groups = [
+    { q: 'silver', name: '白银', tip: '基础品质，稳定增益。' },
+    { q: 'gold', name: '黄金', tip: '更强，但敌难 +2。' },
+    { q: 'prismatic', name: '棱彩', tip: '最强，但敌难 +5；彩虹渐变。' }
+  ];
+  var html = '';
+  for (var g = 0; g < groups.length; g++) {
+    var gr = groups[g], list = [];
+    for (var i = 0; i < ADV_HEXES.length; i++) if (ADV_HEXES[i].q === gr.q) list.push(ADV_HEXES[i]);
+    html += advCodexSection(gr.name + '海克斯', gr.tip, list.length);
+    html += '<div class="codex-grid">';
+    for (var j = 0; j < list.length; j++) {
+      var h = list[j];
+      html += '<article class="codex-card codex-hex q-' + h.q + '">' +
+        '<div class="codex-hex-head"><span class="adv-q adv-q-' + h.q + '">' + gr.name + '</span><span class="codex-ico">' + h.icon + '</span></div>' +
+        '<b>' + advEsc(h.name) + '</b><p>' + advEsc(h.text) + '</p></article>';
+    }
+    html += '</div>';
+  }
+  return html;
+}
+function advCodexItemCard(d) {
+  var rec = d.basic ? null : advItemRecipe(d.id);
+  var recipe = rec
+    ? '配方：' + advItemName(rec.a) + ' + ' + advItemName(rec.b) + ' → ' + d.name
+    : '基础材料 · 可参与进阶合成';
+  return '<article class="codex-card codex-item' + (d.basic ? '' : ' advanced') + '">' +
+    '<div class="codex-card-head"><span class="codex-ico">' + d.icon + '</span><div><b>' + advEsc(d.name) + '</b><small>' +
+      (d.basic ? '基础装备' : '进阶装备') + '</small></div></div>' +
+    '<p>' + advEsc(d.text) + '</p><span class="codex-recipe">' + advEsc(recipe) + '</span></article>';
+}
+function advCodexItemsHtml() {
+  var basics = [], advanced = [];
+  for (var i = 0; i < ADV_ITEMS.length; i++) (ADV_ITEMS[i].basic ? basics : advanced).push(ADV_ITEMS[i]);
+  var html = advCodexSection('基础装备', '两件基础装备可在装备栏合成进阶装备。', basics.length);
+  html += '<div class="codex-grid">';
+  for (var b = 0; b < basics.length; b++) html += advCodexItemCard(basics[b]);
+  html += '</div>';
+  html += advCodexSection('进阶装备', '配方产物；继承两件基础装备的属性方向，并附带专属效果。', advanced.length);
+  html += '<div class="codex-grid">';
+  for (var a = 0; a < advanced.length; a++) html += advCodexItemCard(advanced[a]);
+  return html + '</div>';
+}
+function advCodexNodeExtra(node) {
+  if (node.boss) return '最终关';
+  if (node.reward) return '1 血 · 随机 2 项奖励' + (node.hex ? ' · 海克斯' : '');
+  if (node.challenge) return '左 1–2★ / 右 3–5★';
+  return '普攻小怪' + (node.hex ? ' · 胜利海克斯' : '');
+}
+function advCodexNodeRow(trial, n) {
+  var node = advNode(trial, n);
+  var tag = trial + '-' + n;
+  var info = node.boss ? '最终关' : ('敌人 ' + node.enemies + ' · ' + advCodexNodeExtra(node));
+  var meta = node.boss ? 'BOSS' : ('强度 ×' + advNodePower(trial, n).toFixed(2));
+  return '<div class="codex-node ' + node.type + '">' +
+    '<span class="codex-node-tag">' + tag + '</span>' +
+    '<div class="codex-node-main"><b>' + advEsc(node.name) + '</b><small><span class="codex-node-type">' +
+      advNodeTypeName(node.type) + '</span> · ' + info + '</small></div>' +
+    '<span class="codex-node-meta">' + meta + '</span></div>';
+}
+function advCodexBossCardsHtml() {
+  var duo = ADV_BOSS.duo, storm = ADV_BOSS.storm;
+  var d = duo.units, s = storm.units;
+  var duoTotal = d.bossred + d.bosslapis + d.bosscore;
+  var stormTotal = s.stormgolem + storm.phase2Hp;
+  return '<article class="codex-card codex-boss">' +
+    '<div class="codex-card-head"><span class="codex-ico">☠</span><div><b>' + advEsc(advNode(1, 7).name) + '</b><small>第一试炼 · 1-7 · 总生命 ' + duoTotal.toLocaleString() + '</small></div></div>' +
+    '<div class="codex-boss-stats">' +
+      '<span>红石块<b>' + d.bossred + '</b></span><span>青金石块<b>' + d.bosslapis + '</b></span><span>紫晶核心<b>' + d.bosscore + '</b></span>' +
+      '<span>攻击<b>×' + duo.atk.toFixed(2) + '</b></span><span>防御<b>×' + duo.def.toFixed(2) + '</b></span><span>出手<b>' + Math.round(duo.pctOut * 100) + '%</b></span>' +
+    '</div><p>锁血 → 停手 → 靠拢 → 核心 1 血登场并涨血；三段不可跳过。</p></article>' +
+    '<article class="codex-card codex-boss">' +
+    '<div class="codex-card-head"><span class="codex-ico">☠</span><div><b>' + advEsc(advNode(2, 7).name) + '</b><small>第二试炼 · 2-7 · 总生命 ' + stormTotal.toLocaleString() + '</small></div></div>' +
+    '<div class="codex-boss-stats">' +
+      '<span>一阶段<b>' + s.stormgolem + '</b></span><span>二阶段<b>' + storm.phase2Hp + '</b></span><span>攻击加成<b>×1.30</b></span>' +
+      '<span>攻击<b>×' + storm.atk.toFixed(2) + '</b></span><span>防御<b>×' + storm.def.toFixed(2) + '</b></span><span>出手<b>' + Math.round(storm.pctOut * 100) + '%</b></span>' +
+    '</div><p>双血条转阶段；第二试炼攻击额外 ×1.30，生命按配置值 50,000。</p></article>';
+}
+function advCodexNodesHtml() {
+  var html = '<div class="codex-trials">';
+  for (var t = 1; t <= ADV_CONFIG.maxTrial; t++) {
+    html += '<section class="codex-trial"><div class="codex-trial-head"><span class="adv-kicker">TRIAL ' + (t === 1 ? 'I' : 'II') + '</span>' +
+      '<b>' + (t === 1 ? '第一试炼 · 翠庭' : '第二试炼 · 雷庭') + '</b></div><div class="codex-node-list">';
+    for (var n = 1; n <= ADV_CONFIG.nodesPerTrial; n++) html += advCodexNodeRow(t, n);
+    html += '</div></section>';
+  }
+  html += '</div>';
+  html += advCodexSection('BOSS', 'BOSS 不受节点强度曲线影响，走独立的 ADV_BOSS 数值。', 2);
+  html += '<div class="codex-grid">' + advCodexBossCardsHtml() + '</div>';
+  return html;
+}
+function advCodexRoleCard(r) {
+  var units = [];
+  for (var i = 0; i < r.units.length; i++) {
+    var t = TYPES[r.units[i]];
+    units.push(t
+      ? '<span>' + advEsc(t.name) + ' · HP ' + t.maxHp + ' / 攻 ' + t.atk + ' / 防 ' + t.def + '</span>'
+      : '<span>' + advEsc(r.units[i]) + '</span>');
+  }
+  return '<article class="codex-card codex-role"><span class="codex-role-ico">' + advRoleIcon(r.key) + '</span>' +
+    '<div class="codex-role-main"><b>' + advEsc(r.name) + '</b><small>' + advEsc(r.role) + '</small>' +
+    '<div class="codex-role-units">' + units.join('') + '</div></div></article>';
+}
+function advCodexRolesHtml() {
+  var html = advCodexSection('角色池', '3 主站席 / 6 备战席；3 张同名同星自动升星；红青组合算 1 个整体。', POOL.length);
+  html += '<div class="codex-grid">';
+  for (var i = 0; i < POOL.length; i++) html += advCodexRoleCard(POOL[i]);
+  return html + '</div>';
+}
+function advCodexBodyHtml() {
+  if (adventureCodex.tab === 'hexes') return advCodexHexHtml();
+  if (adventureCodex.tab === 'items') return advCodexItemsHtml();
+  if (adventureCodex.tab === 'nodes') return advCodexNodesHtml();
+  if (adventureCodex.tab === 'roles') return advCodexRolesHtml();
+  return advCodexEnvHtml();
+}
+function advCodexShellHtml() {
+  return '<div class="codex-shell">' +
+    '<header class="codex-top"><div><span class="adv-kicker">SECRET REALM · CODEX</span><h2>秘境试炼 · 图鉴</h2>' +
+      '<p>环境 / 海克斯 / 装备 / 节点 / 角色 · 数据以当前版本为准</p></div>' +
+      '<button type="button" class="adv-icon-btn" data-codex="close" title="关闭图鉴">×</button></header>' +
+    '<nav class="codex-tabs">' + advCodexTabsHtml() + '</nav>' +
+    '<div class="codex-body">' + advCodexBodyHtml() + '</div>' +
+    '<footer class="codex-foot"><span>' + advEsc(APP_VERSION) + '</span><span>点击标签切换 · Esc 关闭</span></footer>' +
+  '</div>';
+}
+function adventureCodexRender() {
+  var root = document.getElementById('adventureCodex');
+  if (!root) return;
+  root.innerHTML = advCodexShellHtml();
+}
+function adventureCodexOpen(tab) {
+  if (tab) adventureCodex.tab = tab;
+  if (!document.getElementById('adventureCodex')) adventureCodexInit();
+  var root = document.getElementById('adventureCodex');
+  if (!root) return;
+  adventureCodex.open = true;
+  root.classList.add('show');
+  document.body.classList.add('codex-open');
+  adventureCodexRender();
+  root.scrollTop = 0;
+}
+function adventureCodexClose() {
+  adventureCodex.open = false;
+  var root = document.getElementById('adventureCodex');
+  if (root) {
+    root.classList.remove('show');
+    root.innerHTML = '';
+  }
+  document.body.classList.remove('codex-open');
+}
+function adventureCodexClick(e) {
+  var root = document.getElementById('adventureCodex');
+  if (e.target === root) { adventureCodexClose(); return; }
+  var t = e.target.closest ? e.target.closest('[data-codex]') : null;
+  if (!t) return;
+  var act = t.getAttribute('data-codex');
+  if (act === 'close') { adventureCodexClose(); return; }
+  if (act === 'tab') {
+    adventureCodex.tab = t.getAttribute('data-tab') || 'envs';
+    adventureCodexRender();
+    var r = document.getElementById('adventureCodex');
+    if (r) r.scrollTop = 0;
+  }
+}
+function adventureCodexInit() {
+  if (document.getElementById('adventureCodex')) return;
+  var root = document.createElement('div');
+  root.id = 'adventureCodex';
+  root.className = 'codex-overlay';
+  document.body.appendChild(root);
+  root.addEventListener('click', adventureCodexClick);
+  var btn = document.getElementById('homeAdventureCodex');
+  if (btn) btn.addEventListener('click', function () { adventureCodexOpen('envs'); });
+  document.addEventListener('keydown', function (e) {
+    if (adventureCodex.open && e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      adventureCodexClose();
+    }
+  }, true);
+}
+
 function adventureInit() {
   if (document.getElementById('adventure')) return;
   var root = document.createElement('div');
@@ -1935,12 +2737,20 @@ function adventureInit() {
   root.className = 'adventure-overlay';
   document.body.appendChild(root);
   root.addEventListener('click', adventureClick);
+  root.addEventListener('dragstart', adventureDragStart);
+  root.addEventListener('dragover', adventureDragOver);
+  root.addEventListener('dragleave', adventureDragLeave);
+  root.addEventListener('drop', adventureDrop);
+  root.addEventListener('dragend', adventureDragEnd);
   var homeBtn = document.getElementById('homeAdventure');
   if (homeBtn) homeBtn.addEventListener('click', adventureOpen);
   adventureHomeSync();
 }
 
-if (typeof window !== 'undefined' && window.document) adventureInit();
+if (typeof window !== 'undefined' && window.document) {
+  adventureInit();
+  adventureCodexInit();
+}
 
 
 

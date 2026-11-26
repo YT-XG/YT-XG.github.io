@@ -89,6 +89,10 @@ body.mobi-mode{overflow:hidden;}
   border-color:#7a3fbf;background:rgba(122,63,191,.12);color:#c79bff;
 }
 .m-home-menu button.bossmode:active{background:rgba(122,63,191,.26);}
+.m-home-menu button.codex{
+  border-color:#4d7dff;background:rgba(77,125,255,.08);color:#9fc4ff;
+}
+.m-home-menu button.codex:active{background:rgba(77,125,255,.2);}
 .m-credit{position:absolute;left:26px;bottom:34px;font-size:20px;color:#8792a6;letter-spacing:.04em;}
 .m-home-coin{position:absolute;right:30px;bottom:34px;font-size:13px;color:#8792a6;}
 .m-home-coin b{color:#ffd9a8;font-size:18px;font-variant-numeric:tabular-nums;}

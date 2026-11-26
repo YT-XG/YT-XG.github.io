@@ -24,6 +24,7 @@ body{
   color:var(--text);
   font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,-apple-system,sans-serif;
   -webkit-font-smoothing:antialiased;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
 }
 /* 场地宽度：优先占满可视宽度，其次受高度限制（2.15:1）。
    预留 136px 给标题、状态行、底部按钮栏与页面内边距，避免底部按钮被裁掉 */
@@ -1658,6 +1659,11 @@ button.primary:hover{background:linear-gradient(180deg,#457ce0,#284d9c);border-c
 }
 .home-actions .home-big:hover em i{transform:translateX(3px);}
 .home-actions .home-big:hover .hb-ico{color:#ff8a70;}
+.home-actions .home-big.codex{
+  border-color:rgba(113,167,255,.18);
+  background:linear-gradient(160deg,rgba(77,125,255,.08),rgba(255,255,255,.012));
+}
+.home-actions .home-big.codex .hb-ico,.home-actions .home-big.codex em{color:#9fc4ff;}
 .home-big.tour{grid-column:1/-1;min-height:104px;}
 .home-actions .home-big.tour{
   border-color:rgba(255,196,94,.26);
