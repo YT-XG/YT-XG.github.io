@@ -216,7 +216,8 @@ var adventure = {
   itemFocusIx: -1,
   shopOpen: false,
   dragItem: -1,
-  dragCardUid: -1
+  dragCardUid: -1,
+  touchDrag: null
 };
 
 /* ---------------- 小工具 ---------------- */
@@ -224,6 +225,12 @@ function advEsc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+/* 是否按手机端布局：详情面板收进弹窗，不常驻三栏 */
+function advIsMobile() {
+  if (typeof mobiIsMobile === 'function') { try { return mobiIsMobile(); } catch (e) {} }
+  return window.innerWidth <= 1080 ||
+    (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 }
 function advClamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function advRand() { return Math.random(); }
@@ -821,6 +828,7 @@ function advToggleItem(ix) {
     adventure.itemFocusIx = ix;
     adventure.itemFocusId = r.inventory[ix];
     adventure.selectedItems = [ix];
+    adventure.selectedCard = null;   // 弹窗互斥：打开装备详情时关掉角色详情
   }
   adventureRender();
 }
@@ -1817,7 +1825,7 @@ function advCardHtml(card, zone) {
     '<div class="adv-card-actions">' + acts + '</div></div>';
 }
 function advEmptySlot(zone, ix) {
-  return '<div class="adv-slot empty" data-slot-zone="' + zone + '" data-slot-ix="' + ix + '"><span>+</span><small>' + (zone === 'board' ? '主站席 ' : '备战席 ') + (ix + 1) + '</small></div>';
+  return '<div class="adv-slot empty" data-slot-zone="' + zone + '" data-slot-ix="' + ix + '"><span>+</span></div>';
 }
 function advTopHtml() {
   var r = adventure.run;
@@ -1932,8 +1940,7 @@ function advCardActualStats(card) {
 function advDetailHtml() {
   var card = advCard(adventure.selectedCard);
   if (!card) {
-    return '<section class="adv-panel adv-detail empty"><div class="adv-panel-title">角色详情 <span>点击卡片</span></div>' +
-      '<p class="adv-muted">点击主站席 / 备战席的卡片查看星级与装备；选中背包装备后点击卡片或直接拖拽即可装备。</p></section>';
+    return '<section class="adv-panel adv-detail empty"><div class="adv-panel-title">角色详情</div></section>';
   }
   var s = advCardStats(card);
   var act = advCardActualStats(card);
@@ -1972,7 +1979,6 @@ function advDetailHtml() {
       '<span>持续 <b>+' + Math.round((s.dot - 1) * 100) + '%</b></span>' +
       '<span>星级 <b>' + card.star + ' 星</b></span>' +
     '</div>' +
-    '<p class="adv-detail-note">已计入星级 / 装备 / 海克斯；伤害与持续为额外增伤。</p>' +
     '<div class="adv-detail-items">' + items + '</div>' + acts + '</section>';
 }
 function advRecipeHtml(rec) {
@@ -2023,8 +2029,7 @@ function advInventoryHtml() {
 function advItemDetailHtml() {
   var d = advItem(adventure.itemFocusId);
   if (!d) {
-    return '<div class="adv-item-detail empty"><b>装备详情</b>' +
-      '<p>点击背包或可合成列表里的装备查看效果；选中后点击角色卡即可装备，也可直接拖拽。</p></div>';
+    return '<div class="adv-item-detail empty"><b>装备详情</b></div>';
   }
   var rec = advItemRecipe(d.id);
   var mats = rec ? (rec.a === rec.b ? advItemName(rec.a) + ' ×2' : advItemName(rec.a) + ' + ' + advItemName(rec.b)) : '';
@@ -2044,10 +2049,12 @@ function advItemDetailHtml() {
 }
 function advInventoryPanelHtml() {
   var r = adventure.run;
+  /* 手机端装备详情收进弹窗，面板只留装备格子 */
+  var detail = advIsMobile() ? '' : advItemDetailHtml();
   return '<section class="adv-panel adv-inv-panel">' +
-    '<div class="adv-panel-title">已获得装备 <span>' + r.inventory.length + ' 件 · 拖到角色卡</span></div>' +
+    '<div class="adv-panel-title">已获得装备 <span>' + r.inventory.length + ' 件</span></div>' +
     '<div class="adv-inv">' + advInventoryHtml() + '</div>' +
-    advItemDetailHtml() +
+    detail +
   '</section>';
 }
 function advShopHtml() {
@@ -2084,7 +2091,6 @@ function advShopDrawerHtml() {
       '<div class="adv-shop">' + advShopHtml() + '</div>' +
       '<div class="adv-shop-foot">' +
         '<button type="button" class="adv-secondary" data-adv="reroll">刷新商店 · ●' + ADV_CONFIG.refreshCost + '</button>' +
-        '<span class="adv-muted">买入后自动进入备战席 · 3 张同名自动升星</span>' +
       '</div>' +
     '</div>' +
   '</div>';
@@ -2147,13 +2153,13 @@ function advHubHtml() {
       '<main class="adv-col adv-col-mid">' +
         advPathHtml() +
         '<section class="adv-panel adv-board-panel">' +
-          '<div class="adv-panel-title">主站席 <span>' + ADV_CONFIG.boardSlots + ' 格 · 不可重复 · 可拖拽换位</span></div>' +
+          '<div class="adv-panel-title">主站席</div>' +
           '<div class="adv-board">' + board + '</div>' +
-          '<div class="adv-panel-title">备战席 <span>' + ADV_CONFIG.benchSlots + ' 格 · 3 张自动升星 · 可拖到主站席</span></div>' +
+          '<div class="adv-panel-title">备战席</div>' +
           '<div class="adv-bench">' + bench + '</div>' +
         '</section>' +
       '</main>' +
-      '<aside class="adv-col adv-col-right">' + advInventoryPanelHtml() + advDetailHtml() + '</aside>' +
+      '<aside class="adv-col adv-col-right">' + advInventoryPanelHtml() + (advIsMobile() ? '' : advDetailHtml()) + '</aside>' +
     '</div>' +
     advFooterHtml() +
     advShopDrawerHtml() +
@@ -2315,11 +2321,25 @@ function adventureRender() {
   else html = advHubHtml();
   var notice = adventure.notice;
   if (notice) html += '<div class="adv-notice">' + advEsc(notice) + '</div>';
+  /* 手机端：角色 / 装备详情以弹窗展示，不常驻三栏 */
+  var modal = '';
+  if (isHub && advIsMobile()) {
+    var detailCard = advCard(adventure.selectedCard);
+    if (detailCard) {
+      modal = '<div class="adv-modal" data-adv="detailClose"><div class="adv-modal-box">' +
+        '<button type="button" class="adv-modal-x" data-adv="detailClose" title="关闭">×</button>' +
+        advDetailHtml() + '</div></div>';
+    } else if (adventure.itemFocusId) {
+      modal = '<div class="adv-modal" data-adv="detailClose"><div class="adv-modal-box">' +
+        '<button type="button" class="adv-modal-x" data-adv="detailClose" title="关闭">×</button>' +
+        advItemDetailHtml() + '</div></div>';
+    }
+  }
   var stepKey = r ? r.step : 'env';
   var keepScroll = adventure.lastStep === stepKey ? root.scrollTop : 0;
   adventure.lastStep = stepKey;
   root.classList.toggle('adv-hub-mode', isHub);
-  root.innerHTML = '<div class="adv-shell">' + html + '</div>';
+  root.innerHTML = '<div class="adv-shell">' + html + modal + '</div>';
   root.scrollTop = keepScroll;
 }
 function advRestartRun() {
@@ -2348,6 +2368,14 @@ function adventureClick(e) {
   if (isNaN(ix)) ix = -1;
   if (act !== 'home') adventure.notice = '';
   if (act === 'home') { adventureHome(); return; }
+  if (act === 'detailClose') {
+    adventure.selectedCard = null;
+    adventure.selectedItems = [];
+    adventure.itemFocusId = '';
+    adventure.itemFocusIx = -1;
+    adventureRender();
+    return;
+  }
   if (act === 'env') {
     adventure.run = advNewRun(t.getAttribute('data-id'));
     adventure.envOffer = [];
@@ -2390,6 +2418,8 @@ function adventureClick(e) {
     if (selItem.length === 1) { advEquipItemTo(uid, selItem[0]); return; }
     adventure.selectedCard = uid;
     adventure.selectedItems = [];
+    adventure.itemFocusId = '';
+    adventure.itemFocusIx = -1;
     adventureRender();
     return;
   }
@@ -2507,6 +2537,70 @@ function adventureDragEnd() {
   if (!root) return;
   var nodes = root.querySelectorAll('.dragging,.drop-hint');
   for (var i = 0; i < nodes.length; i++) nodes[i].classList.remove('dragging', 'drop-hint');
+}
+
+/* ---------- 触摸拖拽（手机端原生 HTML5 拖拽不触发，补一套 Pointer 方案） ----------
+   鼠标仍走上面的 dragstart/drop；这里只处理 pointerType=touch。
+   按下后移动超过阈值才算拖拽，未超过则原样交给 click 做选中。 */
+function advPtrClearHint() {
+  var root = document.getElementById('adventure');
+  if (!root) return;
+  var nodes = root.querySelectorAll('.drop-hint');
+  for (var i = 0; i < nodes.length; i++) nodes[i].classList.remove('drop-hint');
+}
+function advPtrDown(e) {
+  if (e.pointerType === 'mouse') return;
+  if (!e.target || !e.target.closest) return;
+  var card = e.target.closest('[data-adv="selectCard"]');
+  var item = card ? null : e.target.closest('[data-adv="invItem"]');
+  if (!card && !item) return;
+  var src;
+  if (card) {
+    src = { kind: 'card', el: card, uid: parseInt(card.getAttribute('data-uid'), 10) || 0 };
+  } else {
+    src = { kind: 'item', el: item, ix: parseInt(item.getAttribute('data-ix'), 10) || -1 };
+  }
+  src.x = e.clientX; src.y = e.clientY; src.active = false;
+  adventure.touchDrag = src;
+}
+function advPtrMove(e) {
+  var d = adventure.touchDrag;
+  if (!d) return;
+  if (!d.active) {
+    if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) < 8) return;
+    d.active = true;
+    d.el.classList.add('dragging');
+  }
+  if (e.cancelable) e.preventDefault();
+  advPtrClearHint();
+  var target = d.kind === 'item' ? advDragCard(e) : advDragSlot(e);
+  if (!target) return;
+  if (d.kind === 'card' && target.uid === d.uid) return;
+  (target.el || target).classList.add('drop-hint');
+}
+function advPtrUp(e) {
+  var d = adventure.touchDrag;
+  if (!d) return;
+  adventure.touchDrag = null;
+  if (!d.active) return;   // 未拖动，按点击处理
+  if (d.kind === 'item') {
+    var card = advDragCard(e);
+    if (card) {
+      var cardUid = parseInt(card.getAttribute('data-uid'), 10) || 0;
+      if (cardUid && d.ix >= 0) advEquipItemTo(cardUid, d.ix);
+    }
+  } else {
+    var target = advDragSlot(e);
+    if (target) {
+      if (target.uid) {
+        var from = advCardSlot(target.uid);
+        if (from) advMoveCardTo(d.uid, from.zone, from.ix);
+      } else if (target.zone) {
+        advMoveCardTo(d.uid, target.zone, target.ix);
+      }
+    }
+  }
+  adventureDragEnd();
 }
 /* ============================================================
    秘境图鉴（主菜单只读）
@@ -2742,6 +2836,10 @@ function adventureInit() {
   root.addEventListener('dragleave', adventureDragLeave);
   root.addEventListener('drop', adventureDrop);
   root.addEventListener('dragend', adventureDragEnd);
+  root.addEventListener('pointerdown', advPtrDown);
+  root.addEventListener('pointermove', advPtrMove);
+  root.addEventListener('pointerup', advPtrUp);
+  root.addEventListener('pointercancel', advPtrUp);
   var homeBtn = document.getElementById('homeAdventure');
   if (homeBtn) homeBtn.addEventListener('click', adventureOpen);
   adventureHomeSync();
