@@ -2406,8 +2406,18 @@ function advRestartRun() {
   adventure.lastStep = '';
   adventureRender();
 }
+function advClearDetail() {
+  adventure.selectedCard = null;
+  adventure.selectedItems = [];
+  adventure.itemFocusId = '';
+  adventure.itemFocusIx = -1;
+  adventureRender();
+}
 function adventureClick(e) {
   var t = e.target.closest('[data-adv]');
+  var inPop = !!e.target.closest('.adv-pop-box');
+  /* 失焦关闭：点击浮层外的空白区域收起详情气泡；点角色卡 / 装备格 / 配方行则切换目标 */
+  if (!t && !inPop) { advClearDetail(); return; }
   if (!t) return;
   var act = t.getAttribute('data-adv');
   var uid = parseInt(t.getAttribute('data-uid'), 10) || 0;
@@ -2415,14 +2425,7 @@ function adventureClick(e) {
   if (isNaN(ix)) ix = -1;
   if (act !== 'home') adventure.notice = '';
   if (act === 'home') { adventureHome(); return; }
-  if (act === 'detailClose') {
-    adventure.selectedCard = null;
-    adventure.selectedItems = [];
-    adventure.itemFocusId = '';
-    adventure.itemFocusIx = -1;
-    adventureRender();
-    return;
-  }
+  if (act === 'detailClose') { advClearDetail(); return; }
   if (act === 'env') {
     adventure.run = advNewRun(t.getAttribute('data-id'));
     adventure.envOffer = [];
