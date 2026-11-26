@@ -872,6 +872,7 @@ function advCraftRecipe(rid) {
   r.inventory.splice(Math.min(ia, ib), 1);
   r.inventory.push(rec.out);
   adventure.selectedItems = [];
+  adventure.selectedCard = null;   // 查看合成成品的装备详情，关掉角色详情
   adventure.itemFocusId = rec.out;
   adventure.itemFocusIx = r.inventory.length - 1;
   advNotice('合成成功：' + advItemName(rec.out) + '（' + advItemName(a) + ' + ' + advItemName(b) + '）');
@@ -910,6 +911,7 @@ function advUnequipItem(uid, ix) {
   var id = card.items.splice(ix, 1)[0];
   r.inventory.push(id);
   adventure.selectedItems = [];
+  adventure.selectedCard = null;   // 查看卸下装备的详情，关掉角色详情
   adventure.itemFocusId = id;
   adventure.itemFocusIx = r.inventory.length - 1;
   advNotice('卸下 ' + advItemName(id));
@@ -2454,6 +2456,7 @@ function adventureClick(e) {
     adventure.itemFocusId = t.getAttribute('data-id') || '';
     adventure.itemFocusIx = -1;
     adventure.selectedItems = [];
+    adventure.selectedCard = null;   // 弹窗互斥：打开装备详情时关掉角色详情
     adventureRender();
     return;
   }
