@@ -2620,7 +2620,8 @@ function advPtrDown(e) {
   if (card) {
     src = { kind: 'card', el: card, uid: parseInt(card.getAttribute('data-uid'), 10) || 0 };
   } else {
-    src = { kind: 'item', el: item, ix: parseInt(item.getAttribute('data-ix'), 10) || -1 };
+    var ixAttr = item.getAttribute('data-ix');
+    src = { kind: 'item', el: item, ix: ixAttr == null ? -1 : parseInt(ixAttr, 10) };
   }
   src.x = e.clientX; src.y = e.clientY; src.active = false;
   /* 捕获指针：手指滑出源元素后，move/up 仍持续派发到当前拖拽源，避免目标切换中断拖拽 */
