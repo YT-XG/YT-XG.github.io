@@ -829,11 +829,13 @@ body.codex-open{overflow:hidden!important;}
   .codex-foot{font-size:10px;}
 }
 
-/* ---------- 手机端详情弹窗（角色 / 装备详情） ---------- */
-.adv-modal{position:fixed;inset:0;z-index:600;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(3,6,11,.62);}
-.adv-modal-box{position:relative;width:min(430px,100%);max-height:86vh;overflow:auto;padding:16px 16px 14px;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:linear-gradient(165deg,#131c2b,#0a1019);box-shadow:0 30px 80px -30px #000;}
-.adv-modal-x{position:absolute;top:10px;right:10px;width:30px;height:30px;border:1px solid rgba(255,255,255,.12);border-radius:5px;background:#101722;color:#a9b7cb;font-size:18px;line-height:1;cursor:pointer;}
-.adv-modal-x:hover{color:#fff;border-color:#6f96e5;}
-.adv-modal-box .adv-panel{border:0;background:transparent;padding:0;box-shadow:none;}
-.adv-modal-box .adv-detail-actions{display:flex;gap:5px;margin-top:12px;}
-.adv-modal-box .adv-detail-actions button{flex:1;padding:7px 4px;font-size:10px;}
+/* ---------- 详情气泡（手机端角色 / 装备详情，非遮罩、不拦截卡片点击） ---------- */
+.adv-pop{position:relative;margin-top:8px;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:linear-gradient(165deg,rgba(19,28,43,.96),rgba(10,16,25,.96));box-shadow:0 12px 30px -14px #000;overflow:auto;}
+.adv-pop .adv-panel{border:0;background:transparent;padding:0;}
+.adv-pop-x{position:absolute;top:2px;right:2px;width:22px;height:22px;border:1px solid rgba(255,255,255,.12);border-radius:5px;background:#101722;color:#a9b7cb;font-size:14px;line-height:1;cursor:pointer;}
+.adv-pop-x:hover{color:#fff;border-color:#6f96e5;}
+.adv-item-detail-head .adv-pop-x{position:static;margin-left:auto;flex:none;}
+/* 桌面端常驻详情不需要关闭按钮 */
+@media (min-width:1081px){
+  .adv-pop-x{display:none;}
+}

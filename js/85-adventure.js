@@ -226,7 +226,7 @@ function advEsc(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
-/* 是否按手机端布局：详情面板收进弹窗，不常驻三栏 */
+/* 是否按手机端布局：详情以右栏小气泡展示，不做全屏遮罩 */
 function advIsMobile() {
   if (typeof mobiIsMobile === 'function') { try { return mobiIsMobile(); } catch (e) {} }
   return window.innerWidth <= 1080 ||
@@ -1971,7 +1971,7 @@ function advDetailHtml() {
     '<button type="button" class="sell" data-adv="sell" data-uid="' + card.uid + '">出售 ●' + advSellPrice(card) + '</button>' +
   '</div>';
   return '<section class="adv-panel adv-detail">' +
-    '<div class="adv-panel-title">角色详情 <span>' + (zone === 'board' ? '主站席' : '备战席') + '</span></div>' +
+    '<div class="adv-panel-title">角色详情 <span>' + (zone === 'board' ? '主站席' : '备战席') + '</span><button type="button" class="adv-pop-x" data-adv="detailClose" title="关闭">×</button></div>' +
     '<div class="adv-detail-head"><span class="adv-ico">' + advRoleIcon(card.key) + '</span><div><b>' + advEsc(role ? role.name : card.key) + '</b><small>' + advStars(card.star) + ' · ' + advEsc(role ? role.role : '') + '</small></div></div>' +
     '<div class="adv-unit-stats">' + unitHtml + '</div>' +
     '<div class="adv-stat-row adv-stat-bonus">' +
@@ -2028,9 +2028,7 @@ function advInventoryHtml() {
 }
 function advItemDetailHtml() {
   var d = advItem(adventure.itemFocusId);
-  if (!d) {
-    return '<div class="adv-item-detail empty"><b>装备详情</b></div>';
-  }
+  if (!d) return '';
   var rec = advItemRecipe(d.id);
   var mats = rec ? (rec.a === rec.b ? advItemName(rec.a) + ' ×2' : advItemName(rec.a) + ' + ' + advItemName(rec.b)) : '';
   var extra = '';
@@ -2043,18 +2041,17 @@ function advItemDetailHtml() {
   }
   return '<div class="adv-item-detail">' +
     '<div class="adv-item-detail-head"><span class="adv-item-ico' + (d.basic ? '' : ' advanced') + '">' + d.icon + '</span>' +
-      '<div><b>' + advEsc(d.name) + '</b><small>' + (d.basic ? '基础装备' : '进阶装备') + (rec ? ' · 可合成' : '') + '</small></div></div>' +
+      '<div><b>' + advEsc(d.name) + '</b><small>' + (d.basic ? '基础装备' : '进阶装备') + (rec ? ' · 可合成' : '') + '</small></div>' +
+      '<button type="button" class="adv-pop-x" data-adv="detailClose" title="关闭">×</button></div>' +
     '<p>' + advEsc(d.text) + '</p>' + extra +
   '</div>';
 }
 function advInventoryPanelHtml() {
   var r = adventure.run;
-  /* 手机端装备详情收进弹窗，面板只留装备格子 */
-  var detail = advIsMobile() ? '' : advItemDetailHtml();
   return '<section class="adv-panel adv-inv-panel">' +
     '<div class="adv-panel-title">已获得装备 <span>' + r.inventory.length + ' 件</span></div>' +
     '<div class="adv-inv">' + advInventoryHtml() + '</div>' +
-    detail +
+    advItemDetailHtml() +
   '</section>';
 }
 function advShopHtml() {
@@ -2159,7 +2156,10 @@ function advHubHtml() {
           '<div class="adv-bench">' + bench + '</div>' +
         '</section>' +
       '</main>' +
-      '<aside class="adv-col adv-col-right">' + advInventoryPanelHtml() + (advIsMobile() ? '' : advDetailHtml()) + '</aside>' +
+      '<aside class="adv-col adv-col-right">' + advInventoryPanelHtml() +
+        (advIsMobile()
+          ? (adventure.selectedCard ? '<div class="adv-pop">' + advDetailHtml() + '</div>' : '')
+          : advDetailHtml()) + '</aside>' +
     '</div>' +
     advFooterHtml() +
     advShopDrawerHtml() +
@@ -2321,25 +2321,11 @@ function adventureRender() {
   else html = advHubHtml();
   var notice = adventure.notice;
   if (notice) html += '<div class="adv-notice">' + advEsc(notice) + '</div>';
-  /* 手机端：角色 / 装备详情以弹窗展示，不常驻三栏 */
-  var modal = '';
-  if (isHub && advIsMobile()) {
-    var detailCard = advCard(adventure.selectedCard);
-    if (detailCard) {
-      modal = '<div class="adv-modal" data-adv="detailClose"><div class="adv-modal-box">' +
-        '<button type="button" class="adv-modal-x" data-adv="detailClose" title="关闭">×</button>' +
-        advDetailHtml() + '</div></div>';
-    } else if (adventure.itemFocusId) {
-      modal = '<div class="adv-modal" data-adv="detailClose"><div class="adv-modal-box">' +
-        '<button type="button" class="adv-modal-x" data-adv="detailClose" title="关闭">×</button>' +
-        advItemDetailHtml() + '</div></div>';
-    }
-  }
   var stepKey = r ? r.step : 'env';
   var keepScroll = adventure.lastStep === stepKey ? root.scrollTop : 0;
   adventure.lastStep = stepKey;
   root.classList.toggle('adv-hub-mode', isHub);
-  root.innerHTML = '<div class="adv-shell">' + html + modal + '</div>';
+  root.innerHTML = '<div class="adv-shell">' + html + '</div>';
   /* 粗指针（手机/触屏）禁用 HTML5 原生拖拽，统一走 Pointer 触摸拖拽，避免拖拽气泡冲突 */
   var coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   if (coarse) {
