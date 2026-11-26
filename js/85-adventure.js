@@ -2358,6 +2358,13 @@ function advPopTargetEl() {
     var it = root.querySelector('[data-adv="invItem"][data-ix="' + adventure.itemFocusIx + '"]');
     if (it) return { el: it, kind: 'item' };
   }
+  /* 配方查看：进阶装备不一定在背包，锚定到对应合成行，兜底装备面板 */
+  if (adventure.itemFocusId) {
+    var rec = root.querySelector('[data-adv="recipeInfo"][data-id="' + adventure.itemFocusId + '"]');
+    if (rec) return { el: rec, kind: 'item' };
+    var panel = root.querySelector('.adv-inv-panel');
+    if (panel) return { el: panel, kind: 'item' };
+  }
   return null;
 }
 function advPositionPop() {
@@ -2474,17 +2481,23 @@ function adventureClick(e) {
   else if (act === 'continue') advAfterResult();
   adventureRender();
 }
+function advElFromEvent(e) {
+  if (e.target && e.target.closest) return e.target;
+  if (typeof e.clientX === 'number') return document.elementFromPoint(e.clientX, e.clientY);
+  return null;
+}
 function advDragCard(e) {
-  if (!e.target || !e.target.closest) return null;
-  return e.target.closest('[data-adv="selectCard"]');
+  var el = advElFromEvent(e);
+  return el ? el.closest('[data-adv="selectCard"]') : null;
 }
 function advDragSlot(e) {
-  if (!e.target || !e.target.closest) return null;
-  var card = e.target.closest('[data-adv="selectCard"]');
+  var el = advElFromEvent(e);
+  if (!el) return null;
+  var card = el.closest('[data-adv="selectCard"]');
   if (card) {
     return { el: card, uid: parseInt(card.getAttribute('data-uid'), 10) || 0, zone: '', ix: -1 };
   }
-  var slot = e.target.closest('[data-slot-zone]');
+  var slot = el.closest('[data-slot-zone]');
   if (slot) {
     return {
       el: slot, uid: 0,
@@ -2589,6 +2602,7 @@ function advPtrDown(e) {
   var card = e.target.closest('[data-adv="selectCard"]');
   var item = card ? null : e.target.closest('[data-adv="invItem"]');
   if (!card && !item) return;
+  if (e.cancelable) e.preventDefault();
   var src;
   if (card) {
     src = { kind: 'card', el: card, uid: parseInt(card.getAttribute('data-uid'), 10) || 0 };
