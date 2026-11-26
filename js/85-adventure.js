@@ -892,6 +892,7 @@ function advEquipItemTo(uid, ix) {
   adventure.selectedItems = [];
   adventure.itemFocusId = id;
   adventure.itemFocusIx = -1;
+  adventure.selectedCard = uid;
   advNotice('已装备 ' + advItemName(id) + ' → ' + (advRole(card.key) ? advRole(card.key).short : card.key));
   advSave();
   adventureRender();
@@ -1987,7 +1988,7 @@ function advRecipeHtml(rec) {
   var mats = rec.a === rec.b ? advEsc(a.name) + ' ×2' : advEsc(a.name) + ' + ' + advEsc(b.name);
   return '<div class="adv-recipe">' +
     '<button type="button" class="adv-recipe-main" data-adv="recipeInfo" data-id="' + rec.out + '" title="查看 ' + advEsc(out.name) + ' 详情">' +
-      '<span class="adv-recipe-icons"><i>' + a.icon + '</i><em>+</em><i>' + b.icon + '</i><em>›</em><i class="out">' + out.icon + '</i></span>' +
+      '<span class="adv-recipe-icons"><i>' + a.icon + '</i><em>+</em><i>' + b.icon + '</i><em>=</em><i class="out">' + out.icon + '</i></span>' +
       '<span class="adv-recipe-txt"><b>' + advEsc(out.name) + '</b><small>' + mats + '</small></span>' +
     '</button>' +
     '<button type="button" class="adv-recipe-go" data-adv="craftRec" data-id="' + rec.out + '">合成</button>' +
@@ -2051,7 +2052,6 @@ function advInventoryPanelHtml() {
   return '<section class="adv-panel adv-inv-panel">' +
     '<div class="adv-panel-title">已获得装备 <span>' + r.inventory.length + ' 件</span></div>' +
     '<div class="adv-inv">' + advInventoryHtml() + '</div>' +
-    advItemDetailHtml() +
   '</section>';
 }
 function advShopHtml() {
@@ -2156,10 +2156,7 @@ function advHubHtml() {
           '<div class="adv-bench">' + bench + '</div>' +
         '</section>' +
       '</main>' +
-      '<aside class="adv-col adv-col-right">' + advInventoryPanelHtml() +
-        (advIsMobile()
-          ? (adventure.selectedCard ? '<div class="adv-pop">' + advDetailHtml() + '</div>' : '')
-          : advDetailHtml()) + '</aside>' +
+      '<aside class="adv-col adv-col-right">' + advInventoryPanelHtml() + '</aside>' +
     '</div>' +
     advFooterHtml() +
     advShopDrawerHtml() +
@@ -2323,16 +2320,62 @@ function adventureRender() {
   if (notice) html += '<div class="adv-notice">' + advEsc(notice) + '</div>';
   var stepKey = r ? r.step : 'env';
   var keepScroll = adventure.lastStep === stepKey ? root.scrollTop : 0;
+  var craftList = root.querySelector('.adv-craft-list');
+  var keepCraft = craftList ? craftList.scrollTop : 0;
   adventure.lastStep = stepKey;
   root.classList.toggle('adv-hub-mode', isHub);
-  root.innerHTML = '<div class="adv-shell">' + html + '</div>';
+  root.innerHTML = '<div class="adv-shell">' + html + '</div><div id="advPopLayer" class="adv-pop-layer"></div>';
   /* 粗指针（手机/触屏）禁用 HTML5 原生拖拽，统一走 Pointer 触摸拖拽，避免拖拽气泡冲突 */
   var coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   if (coarse) {
     var draggables = root.querySelectorAll('[draggable]');
     for (var di = 0; di < draggables.length; di++) draggables[di].draggable = false;
   }
-  root.scrollTop = keepScroll;
+  advPositionPop();
+  requestAnimationFrame(function () {
+    root.scrollTop = keepScroll;
+    var cl = root.querySelector('.adv-craft-list');
+    if (cl) cl.scrollTop = keepCraft;
+    advPositionPop();
+    /* 内容布局稳定后再补一次，避免渲染帧滚动位置被钳回顶部 */
+    setTimeout(function () {
+      root.scrollTop = keepScroll;
+      var cl2 = root.querySelector('.adv-craft-list');
+      if (cl2) cl2.scrollTop = keepCraft;
+      advPositionPop();
+    }, 60);
+  });
+}
+/* 详情气泡跟随：定位到当前选中角色卡 / 装备格附近，并做视口边界钳制 */
+function advPopTargetEl() {
+  var root = document.getElementById('adventure');
+  if (!root) return null;
+  if (adventure.selectedCard != null) {
+    var c = root.querySelector('[data-adv="selectCard"][data-uid="' + adventure.selectedCard + '"]');
+    if (c) return { el: c, kind: 'card' };
+  }
+  if (adventure.itemFocusIx >= 0) {
+    var it = root.querySelector('[data-adv="invItem"][data-ix="' + adventure.itemFocusIx + '"]');
+    if (it) return { el: it, kind: 'item' };
+  }
+  return null;
+}
+function advPositionPop() {
+  var layer = document.getElementById('advPopLayer');
+  if (!layer) return;
+  var t = advPopTargetEl();
+  if (!t) { layer.innerHTML = ''; layer.style.display = 'none'; return; }
+  layer.innerHTML = '<div class="adv-pop-box">' + (t.kind === 'card' ? advDetailHtml() : advItemDetailHtml()) + '</div>';
+  layer.style.display = 'block';
+  var r = t.el.getBoundingClientRect();
+  var bw = layer.offsetWidth, bh = layer.offsetHeight;
+  var left = r.left;
+  var top = r.bottom + 8;
+  if (top + bh > window.innerHeight - 8) top = r.top - bh - 8;
+  if (top < 8) top = 8;
+  left = Math.max(8, Math.min(left, window.innerWidth - bw - 8));
+  layer.style.left = left + 'px';
+  layer.style.top = top + 'px';
 }
 function advRestartRun() {
   adventure.run = null;
@@ -2832,6 +2875,7 @@ function adventureInit() {
   root.addEventListener('pointermove', advPtrMove, { passive: false });
   root.addEventListener('pointerup', advPtrUp);
   root.addEventListener('pointercancel', advPtrUp);
+  root.addEventListener('scroll', advPositionPop, { passive: true });
   var homeBtn = document.getElementById('homeAdventure');
   if (homeBtn) homeBtn.addEventListener('click', adventureOpen);
   adventureHomeSync();
