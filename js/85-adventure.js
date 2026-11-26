@@ -2482,9 +2482,9 @@ function adventureClick(e) {
   adventureRender();
 }
 function advElFromEvent(e) {
-  if (e.target && e.target.closest) return e.target;
+  /* 指针捕获后事件目标会回到拖拽源，统一按触点坐标取真实目标元素 */
   if (typeof e.clientX === 'number') return document.elementFromPoint(e.clientX, e.clientY);
-  return null;
+  return e.target || null;
 }
 function advDragCard(e) {
   var el = advElFromEvent(e);
@@ -2602,7 +2602,9 @@ function advPtrDown(e) {
   var card = e.target.closest('[data-adv="selectCard"]');
   var item = card ? null : e.target.closest('[data-adv="invItem"]');
   if (!card && !item) return;
-  if (e.cancelable) e.preventDefault();
+  /* 触点在按钮上时不阻止默认行为，避免吞掉上阵/出售/装备按钮的 click */
+  var isBtn = e.target && e.target.closest && e.target.closest('button');
+  if (e.cancelable && !isBtn) e.preventDefault();
   var src;
   if (card) {
     src = { kind: 'card', el: card, uid: parseInt(card.getAttribute('data-uid'), 10) || 0 };
@@ -2610,6 +2612,8 @@ function advPtrDown(e) {
     src = { kind: 'item', el: item, ix: parseInt(item.getAttribute('data-ix'), 10) || -1 };
   }
   src.x = e.clientX; src.y = e.clientY; src.active = false;
+  /* 捕获指针：手指滑出源元素后，move/up 仍持续派发到当前拖拽源，避免目标切换中断拖拽 */
+  try { if (e.pointerId != null && src.el.setPointerCapture) src.el.setPointerCapture(e.pointerId); } catch (err) {}
   adventure.touchDrag = src;
 }
 function advPtrMove(e) {
