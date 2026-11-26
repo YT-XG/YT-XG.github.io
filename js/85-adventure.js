@@ -2340,6 +2340,12 @@ function adventureRender() {
   adventure.lastStep = stepKey;
   root.classList.toggle('adv-hub-mode', isHub);
   root.innerHTML = '<div class="adv-shell">' + html + modal + '</div>';
+  /* 粗指针（手机/触屏）禁用 HTML5 原生拖拽，统一走 Pointer 触摸拖拽，避免拖拽气泡冲突 */
+  var coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  if (coarse) {
+    var draggables = root.querySelectorAll('[draggable]');
+    for (var di = 0; di < draggables.length; di++) draggables[di].draggable = false;
+  }
   root.scrollTop = keepScroll;
 }
 function advRestartRun() {
@@ -2836,8 +2842,8 @@ function adventureInit() {
   root.addEventListener('dragleave', adventureDragLeave);
   root.addEventListener('drop', adventureDrop);
   root.addEventListener('dragend', adventureDragEnd);
-  root.addEventListener('pointerdown', advPtrDown);
-  root.addEventListener('pointermove', advPtrMove);
+  root.addEventListener('pointerdown', advPtrDown, { passive: false });
+  root.addEventListener('pointermove', advPtrMove, { passive: false });
   root.addEventListener('pointerup', advPtrUp);
   root.addEventListener('pointercancel', advPtrUp);
   var homeBtn = document.getElementById('homeAdventure');
