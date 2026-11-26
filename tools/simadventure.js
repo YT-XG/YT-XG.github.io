@@ -357,7 +357,8 @@ if (argv.includes('--selftest')) {
     adventure.selectedCard = adventure.run.cards[0].uid;
     var hub = advHubHtml();
     assert(hub.indexOf('adv-board') >= 0 && hub.indexOf('adv-shop') >= 0, '主界面未渲染战斗席/商店');
-    assert(hub.indexOf('adv-detail') >= 0, '角色详情未渲染');
+    /* 详情已改为跟随气泡层渲染，不在 hub HTML 内；直接校验详情模板非空 */
+    assert(advDetailHtml().indexOf('adv-detail') >= 0, '角色详情未渲染');
     assert(advResultHtml().length > 0, '结算界面渲染失败');
     adventure.run.step = 'reward';
     adventure.run.pending = { title: '测试', sub: '', options: advRewardOptions(advNode(1,1), 1) };

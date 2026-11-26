@@ -65,12 +65,12 @@ var ADV_CHALLENGE_STARS = {
 var ADV_BOSS = {
   duo: {
     units: { bossred: 6500, bosslapis: 6500, bosscore: 7000 },
-    atk: 0.80, def: 0.90, speed: 1.00, pctOut: 0.36
+    atk: 1.60, def: 0.90, speed: 1.00, pctOut: 0.36
   },
   storm: {
     units: { stormgolem: 20000 },
     phase2Hp: 30000,
-    atk: 0.72, def: 0.92, speed: 1.00, pctOut: 0.50
+    atk: 1.44, def: 0.92, speed: 1.00, pctOut: 0.50
   }
 };
 
@@ -1538,8 +1538,13 @@ function advAfterResult() {
     return;
   }
   if (res.win && node.type === 'boss') {
-    r.step = 'hub';
-    advOpenReward(node, res.star);
+    if (res.trial >= 2) {
+      /* 最终 BOSS 击破：直接通关结算，不再发战利品三选一 */
+      advAdvanceNode();
+    } else {
+      r.step = 'hub';
+      advOpenReward(node, res.star);
+    }
     return;
   }
   if (res.win && node.hex) {
